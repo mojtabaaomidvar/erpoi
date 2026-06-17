@@ -197,7 +197,6 @@ function JalaaliDatePicker({
       minDate={minDate}
       maxDate={maxDate}
       format="YYYY/MM/DD"
-      calendarClassNames="!font-sans"
     />
   );
 }
