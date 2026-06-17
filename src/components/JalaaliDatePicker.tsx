@@ -44,7 +44,7 @@ export function JalaaliDatePicker({
       calendar={persian}
       locale={persian_fa}
       calendarPosition="bottom-right"
-      inputClass="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+      inputClass="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-left font-sans focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
       placeholder={placeholder}
       disabled={disabled}
       minDate={minDate ? moment(minDate, 'jYYYY/jMM/jDD').toDate() : undefined}

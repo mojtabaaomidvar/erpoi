@@ -4,6 +4,74 @@ import { clients as initialClients, contracts as initialContracts, contractTarif
 import { formatCurrency, formatDate, contractHealth } from "../lib/formatters";
 import { exportToExcel } from "../lib/exportToExcel";
 import { validateNationalCode, validateNationalId, validateMobile } from "../lib/validators";
+import jalaali from "jalaali-js";
+
+// ============ PROGRESS CALCULATION ============
+const calculateProgressFromTariffs = (contract: any): number => {
+  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
+  if (tariffs.length === 0) return 0;
+  if (contract.total_value <= 0) return 0;
+  const totalPerformed = tariffs.reduce((sum, t) => {
+    return sum + (t.rate * t.consumed_quantity);
+  }, 0);
+  return (totalPerformed / contract.total_value) * 100;
+};
+
+const getProgressTone = (progress: number): string => {
+  if (progress >= 100) return "emerald";
+  if (progress >= 80) return "amber";
+  if (progress >= 50) return "yellow";
+  if (progress >= 25) return "orange";
+  return "rose";
+};
+
+const getProgressBgClass = (progress: number): string => {
+  if (progress >= 100) return "bg-emerald-500";
+  if (progress >= 80) return "bg-amber-500";
+  if (progress >= 50) return "bg-yellow-500";
+  if (progress >= 25) return "bg-orange-500";
+  return "bg-rose-500";
+};
+
+const getProgressTextClass = (progress: number): string => {
+  if (progress >= 100) return "text-emerald-600";
+  if (progress >= 80) return "text-amber-600";
+  if (progress >= 50) return "text-yellow-600";
+  if (progress >= 25) return "text-orange-600";
+  return "text-rose-600";
+};
+
+// محاسبه مجموع invoiced از تعرفه‌ها
+const calculateInvoicedFromTariffs = (contract: any): number => {
+  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
+  if (tariffs.length === 0) return contract.invoiced || 0; // fallback به contract.invoiced
+  
+  return tariffs.reduce((sum, t) => sum + (t.invoiced || 0), 0);
+};
+
+// محاسبه درصد صورتحساب
+const calculateInvoiceProgress = (contract: any): number => {
+  const totalInvoiced = calculateInvoicedFromTariffs(contract);
+  if (contract.total_value <= 0) return 0;
+  return (totalInvoiced / contract.total_value) * 100;
+};
+
+// ============ DATE CALCULATION HELPERS ============
+const calculateDaysLeft = (endDate: string): number => {
+  if (!endDate) return 0;
+  const [jy, jm, jd] = endDate.split('/').map(Number);
+  const gDate = jalaali.toGregorian(jy, jm, jd);
+  const endGregorian = new Date(gDate.gy, gDate.gm - 1, gDate.gd);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffTime = endGregorian.getTime() - today.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+const calculateBudgetSpent = (totalValue: number, invoiced: number): number => {
+  if (totalValue <= 0) return 0;
+  return (invoiced / totalValue) * 100;
+};
 
 // ============ TYPES ============
 interface ContactPerson {
@@ -22,6 +90,7 @@ interface Client {
   name_fa: string;
   national_id?: string;
   email?: string;
+  emails?: string[];
   phone?: string;
   category: string;
   contacts: number;
@@ -64,7 +133,12 @@ export function Clients() {
   const [contractTab, setContractTab] = useState<"ALL" | "CONTRACT" | "WORK_ORDER">("ALL");
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [sortBy, setSortBy] = useState<"name" | "contracts" | "value">("contracts");
-
+  
+  // 🔑 States برای Dropdown ها و Toast
+  const [showEmailDropdown, setShowEmailDropdown] = useState(false);
+  const [showContactDropdown, setShowContactDropdown] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addForm, setAddForm] = useState({
@@ -74,27 +148,35 @@ export function Clients() {
     contactPersons: [{ id: "1", name: "", position: "", mobile: "", email: "" }],
   });
   const [addErrors, setAddErrors] = useState<any>({});
-
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
-
   const [duplicateWarning, setDuplicateWarning] = useState<{ field: string; client: any; message: string } | null>(null);
   const [isViewDuplicateOpen, setIsViewDuplicateOpen] = useState(false);
   const [viewDuplicateClient, setViewDuplicateClient] = useState<any>(null);
   const [newContactForDuplicate, setNewContactForDuplicate] = useState({ name: "", position: "", mobile: "", email: "" });
+
+  // ============ HANDLERS ============
+  const handleCopyEmail = async (email: string) => {
+    try {
+      await navigator.clipboard.writeText(email);
+      setToastMessage("✅ Email address copied!");
+      setTimeout(() => setToastMessage(""), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
 
   // ============ EFFECTS ============
   useEffect(() => {
     setContractTab("ALL");
   }, [selectedClient]);
 
-  // Real-time Duplicate Detection
   useEffect(() => {
     const timer = setTimeout(() => {
       let found: any = null;
       let field = "";
       const normalize = (str: string) => str.toLowerCase().replace(/\s+/g, "").trim();
-
+      
       if (addForm.name_en.trim().length >= 3) {
         found = clients.find((c) => normalize(c.name_en) === normalize(addForm.name_en));
         if (found) field = "name_en";
@@ -133,10 +215,11 @@ export function Clients() {
       const matchesFilter = filter === "ALL" || client.type === filter;
       return matchesSearch && matchesFilter;
     });
-
     return result.sort((a, b) => {
       if (sortBy === "contracts") {
-        if (b.contracts !== a.contracts) return b.contracts - a.contracts;
+        const countA = contracts.filter(c => c.client_id === a.id).length;
+        const countB = contracts.filter(c => c.client_id === b.id).length;
+        if (countB !== countA) return countB - countA;
         return a.name_en.localeCompare(b.name_en);
       }
       if (sortBy === "name") return a.name_en.localeCompare(b.name_en);
@@ -158,12 +241,8 @@ export function Clients() {
 
   const clientContracts = selectedClient ? contracts.filter((c) => c.client_id === selectedClient.id) : [];
   const filteredContracts = contractTab === "ALL" ? clientContracts : clientContracts.filter((c) => c.type === contractTab);
-
   const totalValue = filteredContracts.reduce((sum, c) => sum + c.total_value, 0);
   const totalInvoiced = filteredContracts.reduce((sum, c) => sum + c.invoiced, 0);
-  const activeCount = filteredContracts.filter((c) => c.status === "ACTIVE").length;
-  const overallProgress = totalValue > 0 ? (totalInvoiced / totalValue) * 100 : 0;
-  const overallHealthTone = overallProgress >= 100 ? "rose" : overallProgress >= 80 ? "amber" : "emerald";
   const dynamicContractCount = filteredContracts.length;
   const totalTariffLines = filteredContracts.reduce((sum, c) => sum + c.tariffs, 0);
   const isDetailsOpen = selectedClient !== null;
@@ -220,7 +299,6 @@ export function Clients() {
   const handleSaveAdd = () => {
     if (!validateAddForm()) return;
     if (duplicateWarning) { alert("Please resolve the duplicate client warning first."); return; }
-
     const newClient: any = {
       id: `c${Date.now()}`, type: addForm.company_type ? "LEGAL" : "INDIVIDUAL",
       name_en: addForm.name_en, name_fa: addForm.name_fa, national_id: addForm.national_id,
@@ -263,7 +341,7 @@ export function Clients() {
   };
 
   const handleViewDuplicate = () => { if (duplicateWarning) { setViewDuplicateClient(duplicateWarning.client); setIsViewDuplicateOpen(true); setIsAddModalOpen(false); } };
-  
+
   const handleAddContactToDuplicate = () => {
     if (!duplicateWarning || !newContactForDuplicate.name.trim() || !validateMobile(newContactForDuplicate.mobile)) return alert("Valid name and mobile required");
     const updatedClients = clients.map((c) => {
@@ -285,7 +363,6 @@ export function Clients() {
   const addContactPerson = () => setAddForm({ ...addForm, contactPersons: [...addForm.contactPersons, { id: Date.now().toString(), name: "", position: "", mobile: "", email: "" }] });
   const removeContactPerson = (id: string) => setAddForm({ ...addForm, contactPersons: addForm.contactPersons.filter((cp) => cp.id !== id) });
   const updateContactPerson = (id: string, field: string, value: string) => setAddForm({ ...addForm, contactPersons: addForm.contactPersons.map((cp) => (cp.id === id ? { ...cp, [field]: value } : cp)) });
-
   const addEditContactPerson = () => setEditForm({ ...editForm, contactPersons: [...editForm.contactPersons, { id: Date.now().toString(), name: "", position: "", mobile: "", email: "", department: "Unit A" }] });
   const removeEditContactPerson = (id: string) => setEditForm({ ...editForm, contactPersons: editForm.contactPersons.filter((cp: any) => cp.id !== id) });
   const updateEditContactPerson = (id: string, field: string, value: string) => setEditForm({ ...editForm, contactPersons: editForm.contactPersons.map((cp: any) => (cp.id === id ? { ...cp, [field]: value } : cp)) });
@@ -295,38 +372,20 @@ export function Clients() {
     <div className="grid grid-cols-12 gap-4 h-[calc(100vh-140px)] p-6">
       {/* LEFT PANEL */}
       <div className={`${isDetailsOpen ? 'col-span-4' : 'col-span-12'} relative flex flex-col bg-white rounded-xl border border-slate-200/70 shadow-sm overflow-hidden transition-all duration-300 ease-in-out`}>
-        
-        {/* Header */}
         <div className="relative z-10 border-b border-slate-100 px-4 py-4 bg-slate-50/50 space-y-3">
-          {/* Row 1: Title + Search */}
           <div className="flex items-center gap-8">
             <h3 className="text-sm font-semibold text-slate-900 shrink-0">Clients</h3>
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-              <input 
-                type="text" 
-                value={searchQuery} 
-                onChange={(e) => setSearchQuery(e.target.value)} 
-                placeholder="Search by name, Code..." 
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-8 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100" 
-              />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">✕</button>
-              )}
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name, Code..." className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-8 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100" />
+              {searchQuery && (<button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">✕</button>)}
             </div>
           </div>
 
-          {/* Row 2: Export + Sort */}
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={handleExportToExcel} className="shrink-0 gap-1.5 text-xs">
-               Export
-            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportToExcel} className="shrink-0 gap-1.5 text-xs">📥 Export</Button>
             <div className="relative">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as "name" | "contracts" | "value")}
-                className="appearance-none text-xs rounded-md border border-slate-200 bg-white pl-2 pr-6 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer hover:bg-slate-50"
-              >
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as "name" | "contracts" | "value")} className="appearance-none text-xs rounded-md border border-slate-200 bg-white pl-2 pr-6 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer hover:bg-slate-50">
                 <option value="contracts">Most Contracts</option>
                 <option value="value">Highest Value</option>
                 <option value="name">Name (A-Z)</option>
@@ -335,42 +394,34 @@ export function Clients() {
             </div>
           </div>
 
-          {/* Row 3: Filter Tabs */}
           <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
             {(["ALL", "LEGAL", "INDIVIDUAL"] as const).map((t) => {
               const count = t === "ALL" ? clientCounts.total : t === "LEGAL" ? clientCounts.legal : clientCounts.individual;
               return (
                 <button key={t} onClick={() => setFilter(t)} className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${filter === t ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:text-slate-700"}`}>
-                  {t === "ALL" ? `All (${count})` : t === "LEGAL" ? ` Legal (${count})` : `👤 Ind. (${count})`}
+                  {t === "ALL" ? `All (${count})` : t === "LEGAL" ? `🏢 Legal (${count})` : `👤 Individual (${count})`}
                 </button>
               );
             })}
           </div>
         </div>
         
-        {/* Scrollable List */}
         <div className="flex-1 overflow-y-auto pb-24">
           {filteredClients.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className="text-4xl mb-2">🔍</div>
-              <p className="text-sm text-slate-500">No clients found</p>
-            </div>
+            <div className="p-8 text-center"><div className="text-4xl mb-2">🔍</div><p className="text-sm text-slate-500">No clients found</p></div>
           ) : (
             filteredClients.map((client) => (
-              <div 
-                key={client.id} 
-                onClick={() => setSelectedClient(client)} 
-                className={`flex items-center gap-3 px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${selectedClient?.id === client.id ? "bg-indigo-50 border-l-4 border-l-indigo-500" : "hover:bg-slate-50"}`}
-              >
+              <div key={client.id} onClick={() => setSelectedClient(client)} className={`flex items-center gap-3 px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${selectedClient?.id === client.id ? "bg-indigo-50 border-l-4 border-l-indigo-500" : "hover:bg-slate-50"}`}>
                 <Avatar name={client.name_en} gradient={client.logoColor} />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-slate-900 truncate">{client.name_en}</div>
                   <div className="text-xs text-slate-500 truncate" dir="rtl">{client.name_fa}</div>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge tone={client.type === "LEGAL" ? "indigo" : "violet"}>{client.type === "LEGAL" ? "Legal" : "Individual"}</Badge>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {client.contracts} {client.contracts === 1 ? "Agreement" : "Agreements"}
-                    </span>
+                    {(() => {
+                      const realCount = contracts.filter(c => c.client_id === client.id).length;
+                      return (<span className="text-[10px] text-slate-400 font-mono">{realCount} {realCount === 1 ? "Agreement" : "Agreements"}</span>);
+                    })()}
                   </div>
                 </div>
               </div>
@@ -378,17 +429,9 @@ export function Clients() {
           )}
         </div>
 
-        {/* Gradient Fade */}
         <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white via-white/90 to-transparent pointer-events-none z-10" />
-
-        {/* Floating Add Button */}
         <div className="absolute bottom-6 left-0 right-0 px-6 z-20">
-          <Button 
-            variant="primary" 
-            size="md" 
-            onClick={handleAddClick} 
-            className="w-full justify-center gap-2 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5 transition-all duration-300"
-          >
+          <Button variant="primary" size="md" onClick={handleAddClick} className="w-full justify-center gap-2 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5 transition-all duration-300">
             <span>➕</span> Add New Client
           </Button>
         </div>
@@ -407,7 +450,7 @@ export function Clients() {
                 <Avatar name={selectedClient.name_en} gradient={selectedClient.logoColor} size="lg" />
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">{selectedClient.name_en}</h3>
-                  <p className="text-sm text-slate-500" dir="rtl">{selectedClient.name_fa}</p> 
+                  <p className="text-sm text-slate-500" dir="rtl">{selectedClient.name_fa}</p>
                 </div>
               </div>
               <Button variant="outline" size="md" onClick={handleEditClick} className="gap-2 shadow-sm">
@@ -418,6 +461,7 @@ export function Clients() {
 
           <div className="flex-1 overflow-y-auto p-6">
             <div className="space-y-6">
+              {/* 🔑 Company Information - با Emails و Contact Persons Dropdown */}
               {selectedClient.type === "LEGAL" && (
                 <div className="rounded-lg border border-slate-200 p-4 bg-slate-50/30">
                   <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">🏢 Company Information</h3>
@@ -427,6 +471,114 @@ export function Clients() {
                     <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Economic Code</div><div className="font-mono text-xs text-slate-900">{(selectedClient as any).economic_code || "—"}</div></div>
                     <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Company Type</div><div className="text-xs text-slate-900">{(selectedClient as any).company_type || "—"}</div></div>
                     <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Abbreviated Name</div><div className="text-xs text-slate-900">{(selectedClient as any).abbreviated_name || "—"}</div></div>
+                    
+                    {/* 🔑 Emails Dropdown - Float */}
+                    <div className="relative">
+                      <div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Emails</div>
+                      {(() => {
+                        const allEmails = [
+                          ...(selectedClient.email ? [selectedClient.email] : []),
+                          ...(selectedClient.emails || [])
+                        ].filter((email, index, self) => self.indexOf(email) === index);
+                        
+                        if (allEmails.length > 0) {
+                          return (
+                            <button
+                              onClick={() => setShowEmailDropdown(!showEmailDropdown)}
+                              className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                            >
+                              <span>📧 {allEmails.length} email{allEmails.length > 1 ? 's' : ''}</span>
+                              <span className={`text-[10px] transition-transform ${showEmailDropdown ? 'rotate-180' : ''}`}>▼</span>
+                            </button>
+                          );
+                        }
+                        return <div className="text-xs text-slate-400">—</div>;
+                      })()}
+                      
+                      {showEmailDropdown && (() => {
+                        const allEmails = [
+                          ...(selectedClient.email ? [selectedClient.email] : []),
+                          ...(selectedClient.emails || [])
+                        ].filter((email, index, self) => self.indexOf(email) === index);
+                        
+                        return (
+                          <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-2 max-h-64 overflow-y-auto">
+                            {selectedClient.email && (
+                              <>
+                                <div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">⭐ Primary Email</div>
+                                <button
+                                  onClick={() => { handleCopyEmail(selectedClient.email!); setShowEmailDropdown(false); }}
+                                  className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2 border-b border-slate-100"
+                                >
+                                  <span className="text-emerald-500">⭐</span>
+                                  <span className="truncate">{selectedClient.email}</span>
+                                </button>
+                              </>
+                            )}
+                            {selectedClient.emails && selectedClient.emails.length > 0 && (
+                              <>
+                                <div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">Other Emails</div>
+                                {selectedClient.emails.map((email, index) => (
+                                  <button
+                                    key={index}
+                                    onClick={() => { handleCopyEmail(email); setShowEmailDropdown(false); }}
+                                    className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2"
+                                  >
+                                    <span className="text-slate-400">📋</span>
+                                    <span className="truncate">{email}</span>
+                                  </button>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    
+                    {/* 🔑 Contact Persons Dropdown - Float */}
+                    <div className="relative">
+                      <div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Contact Persons</div>
+                      {selectedClient.contactPersons && selectedClient.contactPersons.length > 0 ? (
+                        <button
+                          onClick={() => setShowContactDropdown(!showContactDropdown)}
+                          className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                        >
+                          <span>👥 {selectedClient.contactPersons.length} contact{selectedClient.contactPersons.length > 1 ? 's' : ''}</span>
+                          <span className={`text-[10px] transition-transform ${showContactDropdown ? 'rotate-180' : ''}`}>▼</span>
+                        </button>
+                      ) : (
+                        <div className="text-xs text-slate-400">—</div>
+                      )}
+                      
+                      {showContactDropdown && selectedClient.contactPersons && (
+                        <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-2 max-h-80 overflow-y-auto">
+                          <div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">Department Contacts</div>
+                          {selectedClient.contactPersons.map((cp) => (
+                            <div key={cp.id} className="px-3 py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-semibold text-slate-900">{cp.name}</span>
+                                <Badge tone="slate" className="text-[9px]">{cp.department}</Badge>
+                              </div>
+                              {cp.position && <div className="text-[10px] text-slate-500 mb-1">{cp.position}</div>}
+                              <div className="flex items-center gap-2 text-[10px]">
+                                <span className="text-slate-400">📞</span>
+                                <span className="font-mono text-slate-700">{cp.mobile}</span>
+                              </div>
+                              {cp.email && (
+                                <button
+                                  onClick={() => handleCopyEmail(cp.email)}
+                                  className="flex items-center gap-2 text-[10px] mt-0.5 hover:text-indigo-600 transition-colors"
+                                >
+                                  <span className="text-slate-400">✉️</span>
+                                  <span className="font-mono text-indigo-600 truncate">{cp.email}</span>
+                                  <span className="text-slate-400 ml-auto">📋</span>
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -437,33 +589,83 @@ export function Clients() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">National Code</div><div className="font-mono text-xs text-slate-900">{selectedClient.national_id || "—"}</div></div>
                     <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Mobile</div><div className="text-xs text-slate-900">{selectedClient.phone || "—"}</div></div>
-                    <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Email</div><div className="text-xs text-indigo-600">{selectedClient.email || "—"}</div></div>
+                    
+                    {/* 🔑 Emails Dropdown - Float */}
+                    <div className="relative">
+                      <div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Emails</div>
+                      {(() => {
+                        const allEmails = [
+                          ...(selectedClient.email ? [selectedClient.email] : []),
+                          ...(selectedClient.emails || [])
+                        ].filter((email, index, self) => self.indexOf(email) === index);
+                        
+                        if (allEmails.length > 0) {
+                          return (
+                            <button
+                              onClick={() => setShowEmailDropdown(!showEmailDropdown)}
+                              className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                            >
+                              <span>📧 {allEmails.length} email{allEmails.length > 1 ? 's' : ''}</span>
+                              <span className={`text-[10px] transition-transform ${showEmailDropdown ? 'rotate-180' : ''}`}>▼</span>
+                            </button>
+                          );
+                        }
+                        return <div className="text-xs text-slate-400">—</div>;
+                      })()}
+                      
+                      {showEmailDropdown && (() => {
+                        const allEmails = [
+                          ...(selectedClient.email ? [selectedClient.email] : []),
+                          ...(selectedClient.emails || [])
+                        ].filter((email, index, self) => self.indexOf(email) === index);
+                        
+                        return (
+                          <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-2">
+                            {selectedClient.email && (
+                              <>
+                                <div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">⭐ Primary Email</div>
+                                <button
+                                  onClick={() => { handleCopyEmail(selectedClient.email!); setShowEmailDropdown(false); }}
+                                  className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2 border-b border-slate-100"
+                                >
+                                  <span className="text-emerald-500">⭐</span>
+                                  <span className="truncate">{selectedClient.email}</span>
+                                </button>
+                              </>
+                            )}
+                            {selectedClient.emails && selectedClient.emails.length > 0 && (
+                              <>
+                                <div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">Other Emails</div>
+                                {selectedClient.emails.map((email, index) => (
+                                  <button
+                                    key={index}
+                                    onClick={() => { handleCopyEmail(email); setShowEmailDropdown(false); }}
+                                    className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2"
+                                  >
+                                    <span className="text-slate-400">📋</span>
+                                    <span className="truncate">{email}</span>
+                                  </button>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
               )}
 
               <div className="grid grid-cols-4 gap-4">
-                <div className="rounded-lg border border-slate-200 p-4">
-                  <div className="text-xs text-slate-500 mb-1">{summaryTitle}</div>
-                  <div className="text-2xl font-bold text-slate-900">{dynamicContractCount}</div>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-4">
-                  <div className="text-xs text-slate-500 mb-1">Total Tariffs</div>
-                  <div className="text-2xl font-bold text-slate-900">{totalTariffLines}</div>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-4">
-                  <div className="text-xs text-slate-500 mb-1">Total Value</div>
-                  <div className="text-2xl font-bold text-emerald-600">{formatCurrency(totalValue)}</div>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-4">
-                  <div className="text-xs text-slate-500 mb-1">Invoiced</div>
-                  <div className="text-2xl font-bold text-indigo-600">{formatCurrency(totalInvoiced)}</div>
-                </div>
+                <div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">{summaryTitle}</div><div className="text-2xl font-bold text-slate-900">{dynamicContractCount}</div></div>
+                <div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Total Tariffs</div><div className="text-2xl font-bold text-slate-900">{totalTariffLines}</div></div>
+                <div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Total Value</div><div className="text-2xl font-bold text-emerald-600">{formatCurrency(totalValue)}</div></div>
+                <div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Invoiced</div><div className="text-2xl font-bold text-indigo-600">{formatCurrency(totalInvoiced)}</div></div>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-slate-900">Contracts & Work Orders</h3>
+                  <h3 className="text-sm font-semibold text-slate-900">Agreements</h3>
                   <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
                     {(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => (
                       <button key={t} onClick={() => setContractTab(t)} className={`rounded-md px-3 py-1.5 font-medium transition-colors ${contractTab === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>
@@ -474,7 +676,10 @@ export function Clients() {
                 </div>
                 <div className="space-y-3">
                   {filteredContracts.map((contract) => {
-                    const health = contractHealth(contract);
+                    // 🔑 محاسبه هر دو پیشرفت بر اساس قرارداد فعلی
+                    const workProgress = calculateProgressFromTariffs(contract);
+                    const invoiceProgress = calculateInvoiceProgress(contract);
+                    
                     return (
                       <div key={contract.id} onClick={() => setSelectedContract(contract)} className="rounded-lg border border-slate-200 p-4 hover:border-indigo-300 transition-colors cursor-pointer">
                         <div className="flex items-start justify-between mb-3">
@@ -488,13 +693,30 @@ export function Clients() {
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-bold text-slate-900">{formatCurrency(contract.total_value)}</div>
-                            <Badge tone={contract.status === "ACTIVE" ? "emerald" : "slate"}>{contract.status}</Badge>
+                            <Badge tone={contract.status === "ACTIVE" ? "emerald" : contract.status === "PENDING" ? "amber" : "slate"}>{contract.status}</Badge>
                           </div>
                         </div>
-                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${health.budgetTone === "emerald" ? "bg-emerald-500" : health.budgetTone === "amber" ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${Math.min(health.spent, 100)}%` }} />
+
+                        {/* 🔑 نوار پیشرفت کار انجام شده */}
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
+                          <span>Work Performed</span>
+                          <span className={`font-semibold ${getProgressTextClass(workProgress)}`}>{workProgress.toFixed(1)}%</span>
                         </div>
-                        <div className="text-xs text-slate-500 mt-1">{health.spent.toFixed(0)}% invoiced · {formatDate(contract.start_date)} → {formatDate(contract.end_date)}</div>
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${getProgressBgClass(workProgress)}`} style={{ width: `${Math.min(workProgress, 100)}%` }} />
+                        </div>
+
+                        {/* 🔑 نوار پیشرفت صورتحساب */}
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 mt-3 mb-1">
+                          <span>Invoiced</span>
+                          <span className={`font-semibold ${getProgressTextClass(invoiceProgress)}`}>{invoiceProgress.toFixed(1)}%</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${getProgressBgClass(invoiceProgress)}`} style={{ width: `${Math.min(invoiceProgress, 100)}%` }} />
+                        </div>
+
+                        {/* تاریخ */}
+                        <div className="text-xs text-slate-400 mt-2">{formatDate(contract.start_date)} → {formatDate(contract.end_date)}</div>
                       </div>
                     );
                   })}
@@ -514,7 +736,7 @@ export function Clients() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 p-6">
-            <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2"> BASIC IDENTITY</h2>
+            <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">🌐 BASIC IDENTITY</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-slate-700">Full Name (English) *</label>
@@ -523,7 +745,7 @@ export function Clients() {
                 {addErrors.name_en && !duplicateWarning && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.name_en}</p>}
               </div>
               <div dir="rtl">
-                <label className="mb-1.5 block text-xs font-semibold text-slate-700 text-right">نام فارسی *</label>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-700 text-left">Full Name (Farsi) *</label>
                 <input value={addForm.name_fa} onChange={(e) => setAddForm({ ...addForm, name_fa: e.target.value })} className={`w-full rounded-lg border bg-white py-2.5 px-3 text-sm text-right focus:outline-none focus:ring-2 ${addErrors.name_fa ? "border-rose-300 focus:ring-rose-100" : "border-slate-200 focus:border-indigo-400 focus:ring-indigo-100"}`} />
                 {addErrors.name_fa && <p className="mt-1 text-[11px] font-medium text-rose-600 text-right">✕ {addErrors.name_fa}</p>}
               </div>
@@ -552,7 +774,7 @@ export function Clients() {
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-700">Registration Number *</label>
                   <input value={addForm.registration_no} onChange={(e) => setAddForm({ ...addForm, registration_no: e.target.value })} className={`w-full rounded-lg border bg-white py-2.5 px-3 text-sm focus:outline-none focus:ring-2 ${addErrors.registration_no ? "border-rose-300 focus:ring-rose-100" : "border-slate-200 focus:border-indigo-400 focus:ring-indigo-100"}`} />
-                  {duplicateWarning?.field === "registration_no" && (<div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-medium text-amber-900 mb-2">{duplicateWarning.message}</p><div className="flex gap-2"><Button size="sm" variant="outline" onClick={handleViewDuplicate}>️ View Client</Button><Button size="sm" onClick={handleAddContactToDuplicate}>+ Add Contact</Button></div></div>)}
+                  {duplicateWarning?.field === "registration_no" && (<div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-medium text-amber-900 mb-2">{duplicateWarning.message}</p><div className="flex gap-2"><Button size="sm" variant="outline" onClick={handleViewDuplicate}>👁️ View Client</Button><Button size="sm" onClick={handleAddContactToDuplicate}>+ Add Contact</Button></div></div>)}
                   {addErrors.registration_no && !duplicateWarning && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.registration_no}</p>}
                 </div>
               </>)}
@@ -580,9 +802,9 @@ export function Clients() {
                 {addErrors.address_en && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.address_en}</p>}
               </div>
               <div dir="rtl">
-                <label className="mb-1.5 block text-xs font-semibold text-slate-700 text-right">آدرس فارسی *</label>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-700 text-left">Address (Farsi) *</label>
                 <textarea value={addForm.address_fa} onChange={(e) => setAddForm({ ...addForm, address_fa: e.target.value })} rows={3} className={`w-full rounded-lg border bg-white py-2.5 px-3 text-sm text-right focus:outline-none focus:ring-2 ${addErrors.address_fa ? "border-rose-300 focus:ring-rose-100" : "border-slate-200 focus:border-indigo-400 focus:ring-indigo-100"}`} />
-                {addErrors.address_fa && <p className="mt-1 text-[11px] font-medium text-rose-600 text-right"> {addErrors.address_fa}</p>}
+                {addErrors.address_fa && <p className="mt-1 text-[11px] font-medium text-rose-600 text-right">✕ {addErrors.address_fa}</p>}
               </div>
             </div>
           </div>
@@ -590,10 +812,10 @@ export function Clients() {
           {addForm.company_type && (
             <div className="rounded-2xl border border-slate-200 p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"> CONTACT PERSONS <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-full">{addForm.contactPersons.length}</span></h2>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">👥 CONTACT PERSONS <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-full">{addForm.contactPersons.length}</span></h2>
                 <button type="button" onClick={addContactPerson} className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">+ ADD LIAISON</button>
               </div>
-              {addErrors.contactPersons && <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700"> {addErrors.contactPersons}</div>}
+              {addErrors.contactPersons && <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">✕ {addErrors.contactPersons}</div>}
               <div className="space-y-3">
                 {addForm.contactPersons.map((cp) => (
                   <div key={cp.id} className="grid grid-cols-12 gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50/50">
@@ -612,7 +834,7 @@ export function Clients() {
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <Button variant="ghost" onClick={() => { setIsAddModalOpen(false); setDuplicateWarning(null); }}>Cancel</Button>
-            <Button onClick={handleSaveAdd}>Save Entity</Button>
+            <Button onClick={handleSaveAdd}>💾 Save Entity</Button>
           </div>
         </div>
       </Modal>
@@ -681,7 +903,7 @@ export function Clients() {
               <div className="flex items-center gap-2 mb-4"><span className="text-sm">🔒</span><h3 className="text-sm font-semibold text-slate-700">Read-Only Information</h3></div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div><label className="mb-1.5 block text-xs font-semibold text-slate-500">Full Name (English)</label><div className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2.5 px-3 text-sm text-slate-600">{editForm.name_en}</div></div>
-                <div dir="rtl"><label className="mb-1.5 block text-xs font-semibold text-slate-500 text-right">نام فارسی</label><div className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2.5 px-3 text-sm text-slate-600 text-right">{editForm.name_fa}</div></div>
+                <div dir="rtl"><label className="mb-1.5 block text-xs font-semibold text-slate-500 text-left">Full Name (Farsi)</label><div className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2.5 px-3 text-sm text-slate-600 text-right">{editForm.name_fa}</div></div>
                 {editForm.type === "LEGAL" && (<>
                   <div><label className="mb-1.5 block text-xs font-semibold text-slate-500">Abbreviated Name</label><div className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2.5 px-3 text-sm text-slate-600">{editForm.abbreviated_name || "—"}</div></div>
                   <div><label className="mb-1.5 block text-xs font-semibold text-slate-500">Company Type</label><div className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2.5 px-3 text-sm text-slate-600">{editForm.company_type || "—"}</div></div>
@@ -697,12 +919,12 @@ export function Clients() {
               <div className="flex items-center gap-2 mb-4"><span className="text-sm">✏️</span><h3 className="text-sm font-semibold text-slate-900">Editable Information</h3></div>
               <div className="space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div><label className="mb-1.5 block text-xs font-semibold text-slate-700">Primary Phone</label><input value={editForm.phone || editForm.primary_phone || ""} onChange={(e) => setEditForm({ ...editForm, primary_phone: e.target.value, phone: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400" /></div>
+                  <div><label className="mb-1.5 block text-xs font-semibold text-slate-700">Primary Phone *</label><input value={editForm.phone || editForm.primary_phone || ""} onChange={(e) => setEditForm({ ...editForm, primary_phone: e.target.value, phone: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400" /></div>
                   <div><label className="mb-1.5 block text-xs font-semibold text-slate-700">Email Inbox</label><input type="email" value={editForm.email || editForm.email_inbox || ""} onChange={(e) => setEditForm({ ...editForm, email_inbox: e.target.value, email: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400" /></div>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div><label className="mb-1.5 block text-xs font-semibold text-slate-700">Address (English)</label><textarea value={editForm.address_en || ""} onChange={(e) => setEditForm({ ...editForm, address_en: e.target.value })} rows={3} className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400" /></div>
-                  <div dir="rtl"><label className="mb-1.5 block text-xs font-semibold text-slate-700 text-right">آدرس فارسی</label><textarea value={editForm.address_fa || ""} onChange={(e) => setEditForm({ ...editForm, address_fa: e.target.value })} rows={3} className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400" /></div>
+                  <div><label className="mb-1.5 block text-xs font-semibold text-slate-700">Address (English) *</label><textarea value={editForm.address_en || ""} onChange={(e) => setEditForm({ ...editForm, address_en: e.target.value })} rows={3} className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400" /></div>
+                  <div><label className="mb-1.5 block text-xs font-semibold text-slate-700 text-left">Address (Farsi) *</label><textarea value={editForm.address_fa || ""} onChange={(e) => setEditForm({ ...editForm, address_fa: e.target.value })} rows={3} className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400" /></div>
                 </div>
               </div>
             </div>
@@ -722,7 +944,7 @@ export function Clients() {
                       <div className="col-span-3"><label className="mb-1 block text-[10px] font-semibold text-slate-600">Mobile *</label><input value={cp.mobile} onChange={(e) => updateEditContactPerson(cp.id, "mobile", e.target.value.replace(/\D/g, ""))} className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs font-mono focus:border-indigo-400 focus:outline-none" /></div>
                       <div className="col-span-2 flex items-end gap-1">
                         <div className="flex-1"><label className="mb-1 block text-[10px] font-semibold text-slate-600">Direct Email</label><input value={cp.email} onChange={(e) => updateEditContactPerson(cp.id, "email", e.target.value)} className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none" /></div>
-                        {editForm.contactPersons.length > 1 && <button type="button" onClick={() => removeEditContactPerson(cp.id)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">️</button>}
+                        {editForm.contactPersons.length > 1 && <button type="button" onClick={() => removeEditContactPerson(cp.id)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">🗑️</button>}
                       </div>
                     </div>
                   ))}
@@ -742,8 +964,18 @@ export function Clients() {
       {/* CONTRACT DETAILS MODAL */}
       <Modal isOpen={!!selectedContract} onClose={() => setSelectedContract(null)} title="Contract Details" size="lg">
         {selectedContract && (() => {
-          const health = contractHealth(selectedContract);
           const tariffs = contractTariffs.filter((t) => t.contract_id === selectedContract.id);
+          const daysLeft = calculateDaysLeft(selectedContract.end_date);
+		 
+		  
+             // 🔑 Invoice Progress (بر اساس صورتحساب)
+		  const invoiceProgress = calculateInvoiceProgress(selectedContract);
+		  
+			
+		  // 🔑 Work Progress (بر اساس کار انجام شده)
+		  const workProgress = calculateProgressFromTariffs(selectedContract);
+
+          
           return (
             <div className="space-y-6">
               <div className="flex items-start justify-between">
@@ -760,46 +992,114 @@ export function Clients() {
                   <div className="text-xl font-bold text-slate-900">{formatCurrency(selectedContract.total_value)}</div>
                 </div>
               </div>
+              
               <div className="grid grid-cols-3 gap-4">
-                <Card className="p-4 bg-slate-50/50"><div className="text-xs text-slate-500">Progress</div><div className={`text-lg font-bold ${health.budgetTone === "emerald" ? "text-emerald-600" : health.budgetTone === "amber" ? "text-amber-600" : "text-rose-600"}`}>{health.spent.toFixed(1)}%</div></Card>
-                <Card className="p-4 bg-slate-50/50"><div className="text-xs text-slate-500">Time Remaining</div><div className="text-lg font-bold text-slate-900">{health.daysLeft > 0 ? `${health.daysLeft} days` : `${-health.daysLeft} days overdue`}</div></Card>
-                <Card className="p-4 bg-slate-50/50"><div className="text-xs text-slate-500">{tariffs.length === 1 ? "Tariff" : "Tariffs"}</div><div className="text-lg font-bold text-slate-900">{tariffs.length}</div></Card>
+                <Card className="p-4 bg-slate-50/50">
+					  <div className="text-xs text-slate-500 mb-1">Work Progress</div>
+					  <div className={`text-lg font-bold ${getProgressTextClass(workProgress)}`}>
+						{workProgress.toFixed(2)}%
+					  </div>
+					  <div className="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+						<div 
+						  className={`h-full rounded-full ${getProgressBgClass(workProgress)}`} 
+						  style={{ width: `${Math.min(workProgress, 100)}%` }} 
+						/>
+					  </div>
+				  </Card>
+
+				  <Card className="p-4 bg-slate-50/50">
+					  <div className="text-xs text-slate-500 mb-1">Invoiced</div>
+					  <div className={`text-lg font-bold ${getProgressTextClass(invoiceProgress)}`}>
+						{invoiceProgress.toFixed(2)}%
+					  </div>
+					  <div className="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+						<div 
+						  className={`h-full rounded-full ${getProgressBgClass(invoiceProgress)}`} 
+						  style={{ width: `${Math.min(invoiceProgress, 100)}%` }} 
+						/>
+					  </div>
+				  </Card>
+
+                <Card className="p-4 bg-slate-50/50">
+                  <div className="text-xs text-slate-500">Time Remaining</div>
+                  {daysLeft < 0 ? (
+                    <div className="text-lg font-bold text-rose-600">{Math.abs(daysLeft)} days overdue</div>
+                  ) : daysLeft === 0 ? (
+                    <div className="text-lg font-bold text-amber-600">Today (Expires)</div>
+                  ) : (
+                    <div className="text-lg font-bold text-emerald-600">{daysLeft} days remaining</div>
+                  )}
+                </Card>
+                
               </div>
+              
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 mb-3">Details</h3>
-                <div className="overflow-x-auto rounded-lg border border-slate-200">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="px-3 py-2 font-medium">Description</th>
-                        <th className="px-3 py-2 font-medium">Unit</th>
-                        <th className="px-3 py-2 font-medium text-right">Rate</th>
-                        <th className="px-3 py-2 font-medium">Total Performed Work (Unit Rate)</th>
-                        <th className="px-3 py-2 font-medium">Total Value of Performed Work</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {tariffs.map((tariff) => {
-                        const progress = tariff.consumed_quantity;
-                        const value = tariff.consumed_quantity * tariff.rate;
-                        return (
-                          <tr key={tariff.id} className="hover:bg-slate-50/60">
-                            <td className="px-3 py-2 font-medium text-slate-800">{tariff.description}</td>
-                            <td className="px-3 py-2"><Badge tone="indigo">{tariff.unit.replace("_", " ")}</Badge></td>
-                            <td className="px-3 py-2 text-right font-mono">{formatCurrency(tariff.rate)}</td>
-                            <td className="px-3 py-2 text-center font-mono">{progress}</td>
-                            <td className="px-3 py-2 text-right font-mono font-semibold">{formatCurrency(value)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                {tariffs.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400 text-sm">No tariff lines defined for this contract</div>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-slate-200">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th className="px-3 py-2 font-medium">Description</th>
+                          <th className="px-3 py-2 font-medium">Unit</th>
+                          <th className="px-3 py-2 font-medium text-right">Rate</th>
+                          <th className="px-3 py-2 font-medium text-center">Total Performed Work</th>
+                          <th className="px-3 py-2 font-medium text-right">Total Value of Performed Works</th>
+						  <th className="px-3 py-2 font-medium text-right">Total Invoiced</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {tariffs.map((tariff) => {
+                          const progress = tariff.consumed_quantity;
+                          const value = tariff.consumed_quantity * tariff.rate;
+						  const invoiced = tariff.invoiced || 0;
+                          return (
+                            <tr key={tariff.id} className="hover:bg-slate-50/60">
+                              <td className="px-3 py-2 font-medium text-slate-800">{tariff.description}</td>
+                              <td className="px-3 py-2"><Badge tone="indigo">{tariff.unit.replace("_", " ")}</Badge></td>
+                              <td className="px-3 py-2 text-right font-mono">{formatCurrency(tariff.rate)}</td>
+                              <td className="px-3 py-2 text-center font-mono">{progress}</td>
+                              <td className="px-3 py-2 text-right font-mono font-semibold">{formatCurrency(value)}</td>
+							  <td className="px-3 py-2 text-right font-mono font-semibold text-indigo-600">{formatCurrency(invoiced)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+					  {/* 🔑 ردیف Total */}
+					  <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+						  <tr>
+							<td colSpan={1} className="px-3 py-2.5 text-xl font-bold text-slate-700 text-left uppercase tracking-wider">
+							  💰 Total
+							</td>
+							<td className="px-3 py-2.5 text-center font-mono font-bold text-slate-900"></td>
+							<td className="px-3 py-2.5 text-center font-mono font-bold text-slate-900"></td>
+							<td className="px-3 py-2.5 text-center font-mono font-bold text-slate-900"></td>
+							
+							<td className="px-3 py-2.5 text-xl text-right font-mono font-bold text-emerald-700">
+							  {formatCurrency(tariffs.reduce((sum, t) => sum + ((t.consumed_quantity || 0) * (t.rate || 0)), 0))}
+							</td>
+							<td className="px-3 py-2.5 text-xl text-right font-mono font-bold text-indigo-700">
+							  {formatCurrency(tariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}
+							</td>
+						  </tr>
+					  </tfoot>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           );
         })()}
       </Modal>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-4">
+          <span className="text-sm font-medium">{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 }
