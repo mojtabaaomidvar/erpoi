@@ -1,0 +1,15 @@
+
+> ics-app@0.0.0 build
+> vite build
+
+[36mvite v7.3.2 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 2739 modules transformed.
+rendering chunks...
+[plugin vite:singlefile] 
+
+[plugin vite:singlefile] Inlining: index-CRwsDxKy.js
+[plugin vite:singlefile] Inlining: style-Ci7Plz2j.css
+computing gzip size...
+[2mdist/[22m[32mindex.html  [39m[1m[2m1,228.68 kB[22m[1m[22m[2m │ gzip: 361.39 kB[22m
+[32m✓ built in 12.93s[39m
