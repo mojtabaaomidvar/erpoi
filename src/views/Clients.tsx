@@ -59,13 +59,37 @@ const calculateBudgetSpent = (totalValue: number, invoiced: number): number => {
 };
 
 const calculateInvoiceProgress = (contract: any): number => {
-  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
-  if (tariffs.length === 0) return 0;
   if (contract.total_value <= 0) return 0;
-  const totalInvoiced = tariffs.reduce((sum, t) => sum + (t.invoiced || 0), 0);
+  if (!contract.tariffLines || contract.tariffLines.length === 0) return 0;
+  const totalInvoiced = contract.tariffLines.reduce((sum: number, t: any) => sum + (t.invoiced || 0), 0);
   return (totalInvoiced / contract.total_value) * 100;
 };
 
+// ============ UNINVOICED WORK CALCULATION ============
+// محاسبه Total Value of Performed Works از contractTariffs
+const calculatePerformedWorkValue = (contract: Contract): number => {
+  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
+  if (tariffs.length === 0) return 0;
+  return tariffs.reduce((sum, t) => {
+    const rate = typeof t.rate === 'string' ? parseNumberInput(t.rate) : (t.rate || 0);
+    const consumed = t.consumed_quantity || 0;
+    return sum + (rate * consumed);
+  }, 0);
+};
+
+// محاسبه Total Invoiced از contractTariffs
+const calculateTotalInvoicedFromTariffs = (contract: Contract): number => {
+  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
+  return tariffs.reduce((sum, t) => sum + (t.invoiced || 0), 0);
+};
+
+// محاسبه Not Invoiced Works = Performed Works - Invoiced
+const calculateUninvoicedWork = (contract: Contract): number => {
+  const performedWork = calculatePerformedWorkValue(contract);
+  const totalInvoiced = calculateTotalInvoicedFromTariffs(contract);
+  return Math.max(0, performedWork - totalInvoiced);
+};
+  
 // ============ TYPES ============
 interface ContactPerson {
   id: string;
@@ -147,6 +171,8 @@ export function Clients() {
   const [isViewDuplicateOpen, setIsViewDuplicateOpen] = useState(false);
   const [viewDuplicateClient, setViewDuplicateClient] = useState<any>(null);
   const [newContactForDuplicate, setNewContactForDuplicate] = useState({ name: "", position: "", mobile: "", email: "" });
+  
+
 
   // 🔑 Department یوزر لاگین‌شده (در آینده از auth context می‌آید)
   const currentDepartment = "Unit A";
@@ -290,8 +316,20 @@ useEffect(() => {
 
   const clientContracts = selectedClient ? contracts.filter((c) => c.client_id === selectedClient.id) : [];
   const filteredContracts = contractTab === "ALL" ? clientContracts : clientContracts.filter((c) => c.type === contractTab);
+  // 🔑 محاسبه کار انجام شده ولی صورتحساب نشده (فقط برای قراردادهای مشتری فعلی)
+  const totalUninvoicedWork = useMemo(() => {
+  return filteredContracts.reduce((sum, contract) => {
+    return sum + calculateUninvoicedWork(contract);
+  }, 0);
+}, [filteredContracts]);
   const totalValue = filteredContracts.reduce((sum, c) => sum + c.total_value, 0);
-  const totalInvoiced = filteredContracts.reduce((sum, c) => sum + c.invoiced, 0);
+  // 🔑 محاسبه Invoiced از contractTariffs (داده‌های واقعی)
+const totalInvoiced = useMemo(() => {
+  const contractIds = filteredContracts.map(c => c.id);
+  return contractTariffs
+    .filter(t => contractIds.includes(t.contract_id))
+    .reduce((sum, t) => sum + (t.invoiced || 0), 0);
+}, [filteredContracts]);
   const dynamicContractCount = filteredContracts.length;
   const totalTariffLines = filteredContracts.reduce((sum, c) => sum + c.tariffs, 0);
   const summaryTitle = contractTab === "ALL" ? "Total Agreements" : contractTab === "CONTRACT" ? "Total Contracts" : "Total Work Orders";
@@ -723,13 +761,13 @@ useEffect(() => {
 					  </div>
 					</div>
 				  )}
-
+				
 				  {/* Stats Cards */}
 				  <div className="grid grid-cols-4 gap-4">
 					<div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">{summaryTitle}</div><div className="text-2xl font-bold text-slate-900">{dynamicContractCount}</div></div>
-					<div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Total Tariffs</div><div className="text-2xl font-bold text-slate-900">{totalTariffLines}</div></div>
-					<div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Total Value</div><div className="text-2xl font-bold text-emerald-600">{formatCurrency(totalValue)}</div></div>
+					<div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Total Value of Agreements</div><div className="text-2xl font-bold text-emerald-600">{formatCurrency(totalValue)}</div></div>
 					<div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Invoiced</div><div className="text-2xl font-bold text-indigo-600">{formatCurrency(totalInvoiced)}</div></div>
+					<div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Not Invoiced Works</div><div className="text-2xl font-bold text-slate-900">{formatCurrency(totalUninvoicedWork)}</div></div>
 				  </div>
 
 				  {/* Contracts List */}
