@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Card, Badge, Button, Avatar, Modal } from "../components/ui";
 import { clients as initialClients, contracts as initialContracts, contractTariffs } from "../data/mockData";
-import { formatCurrency, formatDate, contractHealth } from "../lib/formatters";
+import { formatCurrency, formatDate } from "../lib/formatters";
 import { exportToExcel } from "../lib/exportToExcel";
 import { validateNationalCode, validateNationalId, validateMobile } from "../lib/validators";
 import jalaali from "jalaali-js";
@@ -41,21 +41,6 @@ const getProgressTextClass = (progress: number): string => {
   return "text-rose-600";
 };
 
-// محاسبه مجموع invoiced از تعرفه‌ها
-const calculateInvoicedFromTariffs = (contract: any): number => {
-  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
-  if (tariffs.length === 0) return contract.invoiced || 0; // fallback به contract.invoiced
-  
-  return tariffs.reduce((sum, t) => sum + (t.invoiced || 0), 0);
-};
-
-// محاسبه درصد صورتحساب
-const calculateInvoiceProgress = (contract: any): number => {
-  const totalInvoiced = calculateInvoicedFromTariffs(contract);
-  if (contract.total_value <= 0) return 0;
-  return (totalInvoiced / contract.total_value) * 100;
-};
-
 // ============ DATE CALCULATION HELPERS ============
 const calculateDaysLeft = (endDate: string): number => {
   if (!endDate) return 0;
@@ -71,6 +56,14 @@ const calculateDaysLeft = (endDate: string): number => {
 const calculateBudgetSpent = (totalValue: number, invoiced: number): number => {
   if (totalValue <= 0) return 0;
   return (invoiced / totalValue) * 100;
+};
+
+const calculateInvoiceProgress = (contract: any): number => {
+  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
+  if (tariffs.length === 0) return 0;
+  if (contract.total_value <= 0) return 0;
+  const totalInvoiced = tariffs.reduce((sum, t) => sum + (t.invoiced || 0), 0);
+  return (totalInvoiced / contract.total_value) * 100;
 };
 
 // ============ TYPES ============
@@ -138,7 +131,7 @@ export function Clients() {
   const [showEmailDropdown, setShowEmailDropdown] = useState(false);
   const [showContactDropdown, setShowContactDropdown] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  
+
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addForm, setAddForm] = useState({
@@ -155,28 +148,85 @@ export function Clients() {
   const [viewDuplicateClient, setViewDuplicateClient] = useState<any>(null);
   const [newContactForDuplicate, setNewContactForDuplicate] = useState({ name: "", position: "", mobile: "", email: "" });
 
+  // 🔑 Department یوزر لاگین‌شده (در آینده از auth context می‌آید)
+  const currentDepartment = "Unit A";
+
   // ============ HANDLERS ============
   const handleCopyEmail = async (email: string) => {
+  let success = false;
+  if (navigator.clipboard && window.isSecureContext) {
     try {
       await navigator.clipboard.writeText(email);
-      setToastMessage("✅ Email address copied!");
-      setTimeout(() => setToastMessage(""), 2000);
+      success = true;
     } catch (err) {
-      console.error("Failed to copy:", err);
+      console.log("Clipboard API failed, trying fallback");
     }
-  };
+  }
+  if (!success) {
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = email;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      textArea.style.opacity = "0";
+      textArea.setAttribute("readonly", "");
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      textArea.setSelectionRange(0, email.length);
+      
+      success = document.execCommand('copy');
+      document.body.removeChild(textArea);
+    } catch (err) {
+      console.error("Fallback copy failed:", err);
+    }
+  }
+  if (success) {
+    setToastMessage("✅ Email address copied!");
+  } else {
+    setToastMessage("❌ Failed to copy email");
+  }
+  setTimeout(() => setToastMessage(""), 2500);
+};
 
+const handleEditClick = () => {
+    if (!selectedClient) return;
+    setEditForm({
+      ...selectedClient,
+      contactPersons: (selectedClient.contactPersons || []).filter((cp: any) => cp.department === "Unit A").map((cp: any) => ({ ...cp })),
+    });
+    setIsEditModalOpen(true);
+  };
+  
   // ============ EFFECTS ============
   useEffect(() => {
     setContractTab("ALL");
   }, [selectedClient]);
+  
+  // 🔑 بستن dropdown ها با کلیک خارج از آن‌ها
+useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    // اگر کلیک داخل هیچکدام از dropdown ها نبوده، آن‌ها را ببند
+    if (!target.closest('.email-dropdown-container') && 
+        !target.closest('.contact-dropdown-container') &&
+        !target.closest('button[onclick*="setShowEmailDropdown"]') &&
+        !target.closest('button[onclick*="setShowContactDropdown"]')) {
+      setShowEmailDropdown(false);
+      setShowContactDropdown(false);
+    }
+  };
+  
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => document.removeEventListener('mousedown', handleClickOutside);
+}, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       let found: any = null;
       let field = "";
       const normalize = (str: string) => str.toLowerCase().replace(/\s+/g, "").trim();
-      
       if (addForm.name_en.trim().length >= 3) {
         found = clients.find((c) => normalize(c.name_en) === normalize(addForm.name_en));
         if (found) field = "name_en";
@@ -189,7 +239,6 @@ export function Clients() {
         found = clients.find((c) => (c as any).registration_no === addForm.registration_no);
         if (found) field = "registration_no";
       }
-
       if (found) {
         const dept = (found as any).departments?.[0] || "Unknown";
         const totalContacts = (found as any).contactPersons?.length || 0;
@@ -245,8 +294,13 @@ export function Clients() {
   const totalInvoiced = filteredContracts.reduce((sum, c) => sum + c.invoiced, 0);
   const dynamicContractCount = filteredContracts.length;
   const totalTariffLines = filteredContracts.reduce((sum, c) => sum + c.tariffs, 0);
-  const isDetailsOpen = selectedClient !== null;
   const summaryTitle = contractTab === "ALL" ? "Total Agreements" : contractTab === "CONTRACT" ? "Total Contracts" : "Total Work Orders";
+
+  //  فیلتر کردن کانتکت پرسن‌ها بر اساس department یوزر
+  const filteredContactPersons = useMemo(() => {
+    if (!selectedClient || !selectedClient.contactPersons) return [];
+    return selectedClient.contactPersons.filter((cp) => cp.department === currentDepartment);
+  }, [selectedClient]);
 
   // ============ HANDLERS ============
   const handleExportToExcel = () => {
@@ -304,8 +358,8 @@ export function Clients() {
       name_en: addForm.name_en, name_fa: addForm.name_fa, national_id: addForm.national_id,
       category: addForm.category, contacts: addForm.company_type ? addForm.contactPersons.filter((cp) => cp.name.trim()).length : 0,
       contracts: 0, logoColor: "from-indigo-500 to-violet-600", email: addForm.email_inbox, phone: addForm.primary_phone,
-      address_en: addForm.address_en, address_fa: addForm.address_fa, departments: ["Unit A"],
-      contactPersons: addForm.company_type ? addForm.contactPersons.filter((cp) => cp.name.trim()).map((cp) => ({ ...cp, department: "Unit A" })) : [],
+      address_en: addForm.address_en, address_fa: addForm.address_fa, departments: [(currentDepartment)],
+      contactPersons: addForm.company_type ? addForm.contactPersons.filter((cp) => cp.name.trim()).map((cp) => ({ ...cp, department: (currentDepartment) })) : [],
     };
     if (addForm.company_type) {
       newClient.company_type = addForm.company_type; newClient.registration_no = addForm.registration_no;
@@ -314,32 +368,25 @@ export function Clients() {
     setClients([newClient, ...clients]); setSelectedClient(newClient); setIsAddModalOpen(false);
   };
 
-  const handleEditClick = () => {
-    if (!selectedClient) return;
-    setEditForm({
-      ...selectedClient,
-      contactPersons: (selectedClient.contactPersons || []).filter((cp: any) => cp.department === "Unit A").map((cp: any) => ({ ...cp }))
-    });
-    setIsEditModalOpen(true);
-  };
-
   const handleSaveEdit = () => {
-    if (!selectedClient) return;
-    const updatedClients = clients.map((c) => {
-      if (c.id === selectedClient.id) {
-        const updated = { ...c, address_en: editForm.address_en, address_fa: editForm.address_fa, email: editForm.email_inbox || editForm.email, phone: editForm.primary_phone || editForm.phone };
-        if (c.type === "LEGAL") {
-          const otherDepts = (c.contactPersons || []).filter((cp: any) => cp.department !== "Unit A");
-          updated.contactPersons = [...otherDepts, ...editForm.contactPersons.map((cp: any) => ({ ...cp, department: "Unit A" }))];
-          updated.contacts = updated.contactPersons.length;
-        }
-        return updated;
+  if (!selectedClient) return;
+  const updatedClients = clients.map((c) => {
+    if (c.id === selectedClient.id) {
+      const updated = { ...c, address_en: editForm.address_en, address_fa: editForm.address_fa, email: editForm.email_inbox || editForm.email, phone: editForm.primary_phone || editForm.phone };
+      if (c.type === "LEGAL") {
+        const otherDepts = (c.contactPersons || []).filter((cp: any) => cp.department !== currentDepartment);
+        updated.contactPersons = [...otherDepts, ...editForm.contactPersons.map((cp: any) => ({ ...cp, department: currentDepartment }))];
+        updated.contacts = updated.contactPersons.length;
       }
-      return c;
-    });
-    setClients(updatedClients); setSelectedClient(updatedClients.find((c) => c.id === selectedClient.id) || null); setIsEditModalOpen(false);
-  };
-
+      return updated;
+    }
+    return c;
+  });
+  setClients(updatedClients);
+  setSelectedClient(updatedClients.find((c) => c.id === selectedClient.id) || null);
+  setIsEditModalOpen(false);
+};
+  
   const handleViewDuplicate = () => { if (duplicateWarning) { setViewDuplicateClient(duplicateWarning.client); setIsViewDuplicateOpen(true); setIsAddModalOpen(false); } };
 
   const handleAddContactToDuplicate = () => {
@@ -348,9 +395,9 @@ export function Clients() {
       if (c.id === duplicateWarning.client.id) {
         const updated = { ...c };
         if (!updated.departments) updated.departments = [];
-        if (!updated.departments.includes("Unit A")) updated.departments.push("Unit A");
+        if (!updated.departments.includes(currentDepartment)) updated.departments.push(currentDepartment);
         if (!updated.contactPersons) updated.contactPersons = [];
-        updated.contactPersons.push({ ...newContactForDuplicate, id: Date.now().toString(), department: "Unit A" });
+        updated.contactPersons.push({ ...newContactForDuplicate, id: Date.now().toString(), department: currentDepartment });
         updated.contacts = updated.contactPersons.length;
         return updated;
       }
@@ -363,7 +410,7 @@ export function Clients() {
   const addContactPerson = () => setAddForm({ ...addForm, contactPersons: [...addForm.contactPersons, { id: Date.now().toString(), name: "", position: "", mobile: "", email: "" }] });
   const removeContactPerson = (id: string) => setAddForm({ ...addForm, contactPersons: addForm.contactPersons.filter((cp) => cp.id !== id) });
   const updateContactPerson = (id: string, field: string, value: string) => setAddForm({ ...addForm, contactPersons: addForm.contactPersons.map((cp) => (cp.id === id ? { ...cp, [field]: value } : cp)) });
-  const addEditContactPerson = () => setEditForm({ ...editForm, contactPersons: [...editForm.contactPersons, { id: Date.now().toString(), name: "", position: "", mobile: "", email: "", department: "Unit A" }] });
+  const addEditContactPerson = () => setEditForm({ ...editForm, contactPersons: [...editForm.contactPersons, { id: Date.now().toString(), name: "", position: "", mobile: "", email: "", department: currentDepartment }] });
   const removeEditContactPerson = (id: string) => setEditForm({ ...editForm, contactPersons: editForm.contactPersons.filter((cp: any) => cp.id !== id) });
   const updateEditContactPerson = (id: string, field: string, value: string) => setEditForm({ ...editForm, contactPersons: editForm.contactPersons.map((cp: any) => (cp.id === id ? { ...cp, [field]: value } : cp)) });
 
@@ -371,7 +418,7 @@ export function Clients() {
   return (
     <div className="grid grid-cols-12 gap-4 h-[calc(100vh-140px)] p-6">
       {/* LEFT PANEL */}
-      <div className={`${isDetailsOpen ? 'col-span-4' : 'col-span-12'} relative flex flex-col bg-white rounded-xl border border-slate-200/70 shadow-sm overflow-hidden transition-all duration-300 ease-in-out`}>
+      <div className="col-span-4 relative flex flex-col bg-white rounded-xl border border-slate-200/70 shadow-sm overflow-hidden transition-all duration-300 ease-in-out">
         <div className="relative z-10 border-b border-slate-100 px-4 py-4 bg-slate-50/50 space-y-3">
           <div className="flex items-center gap-8">
             <h3 className="text-sm font-semibold text-slate-900 shrink-0">Clients</h3>
@@ -381,7 +428,6 @@ export function Clients() {
               {searchQuery && (<button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">✕</button>)}
             </div>
           </div>
-
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={handleExportToExcel} className="shrink-0 gap-1.5 text-xs">📥 Export</Button>
             <div className="relative">
@@ -393,7 +439,6 @@ export function Clients() {
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[10px]">▼</span>
             </div>
           </div>
-
           <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
             {(["ALL", "LEGAL", "INDIVIDUAL"] as const).map((t) => {
               const count = t === "ALL" ? clientCounts.total : t === "LEGAL" ? clientCounts.legal : clientCounts.individual;
@@ -437,295 +482,364 @@ export function Clients() {
         </div>
       </div>
 
-      {/* RIGHT PANEL */}
-      {isDetailsOpen && selectedClient && (
-        <div className="col-span-8 flex flex-col bg-white rounded-xl border border-slate-200/70 shadow-sm overflow-hidden transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-right-4">
-          <div className="border-b border-slate-100 px-6 py-4 bg-gradient-to-r from-slate-50 to-white">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Client Details</h2>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">✕ Close Panel</Button>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Avatar name={selectedClient.name_en} gradient={selectedClient.logoColor} size="lg" />
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900">{selectedClient.name_en}</h3>
-                  <p className="text-sm text-slate-500" dir="rtl">{selectedClient.name_fa}</p>
-                </div>
-              </div>
-              <Button variant="outline" size="md" onClick={handleEditClick} className="gap-2 shadow-sm">
-                <span>✏️</span> Edit Client
-              </Button>
-            </div>
+      {/* RIGHT PANEL - همیشه باز */}
+		{/* RIGHT PANEL - همیشه نمایش داده می‌شود */}
+		<div className="col-span-8 flex flex-col bg-white rounded-xl border border-slate-200/70 shadow-sm overflow-hidden transition-all duration-300 ease-in-out">
+		  {selectedClient ? (
+			<>
+			  {/* Header وقتی مشتری انتخاب شده */}
+			  <div className="border-b border-slate-100 px-6 py-4 bg-gradient-to-r from-slate-50 to-white">
+				<div className="flex items-center justify-between mb-4">
+				  <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Client Details</h2>
+				  <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">✕ Close Panel</Button>
+				</div>
+				<div className="flex items-center justify-between">
+				  <div className="flex items-center gap-4">
+					<Avatar name={selectedClient.name_en} gradient={selectedClient.logoColor} size="lg" />
+					<div>
+					  <h3 className="text-xl font-bold text-slate-900">{selectedClient.name_en}</h3>
+					  <p className="text-sm text-slate-500" dir="rtl">{selectedClient.name_fa}</p>
+					</div>
+				  </div>
+				  <Button variant="outline" size="md" onClick={handleEditClick} className="gap-2 shadow-sm">
+					<span>✏️</span> Edit Client
+				  </Button>
+				</div>
+			  </div>
+
+			  {/* محتوای فعلی پنل */}
+			  <div className="flex-1 overflow-y-auto p-6">
+				<div className="space-y-6">
+				  {/* Company Information */}
+				  {selectedClient.type === "LEGAL" && (
+					<div className="rounded-lg border border-slate-200 p-4 bg-slate-50/30">
+					  <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">🏢 Company Information</h3>
+					  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+						<div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">National ID</div><div className="font-mono text-xs text-slate-900">{selectedClient.national_id || "—"}</div></div>
+						<div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Registration No</div><div className="font-mono text-xs text-slate-900">{(selectedClient as any).registration_no || "—"}</div></div>
+						<div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Economic Code</div><div className="font-mono text-xs text-slate-900">{(selectedClient as any).economic_code || "—"}</div></div>
+						<div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Abbreviated Name</div><div className="text-xs text-slate-900">{(selectedClient as any).abbreviated_name || "—"}</div></div>
+						
+						{/* 🔑 Emails Dropdown - فقط ایمیل‌های مربوط به department یوزر */}
+						<div className="relative">
+						  <div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Emails</div>
+						  {(() => {
+							// 🔑 فقط ایمیل‌های کانتکت پرسن‌های department یوزر + ایمیل اصلی
+							const contactEmails = filteredContactPersons.map(cp => cp.email).filter(email => email);
+							const allEmails = [
+							  ...(selectedClient.email ? [selectedClient.email] : []),
+							  ...(selectedClient.emails || []),
+							  ...contactEmails
+							].filter((email, index, self) => self.indexOf(email) === index);
+							
+							if (allEmails.length > 0) {
+							  return (
+								<button
+								  onClick={() => setShowEmailDropdown(!showEmailDropdown)}
+								  className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+								>
+								  <span>📧 {allEmails.length} email{allEmails.length > 1 ? 's' : ''}</span>
+								  <span className={`text-[10px] transition-transform ${showEmailDropdown ? 'rotate-180' : ''}`}>▼</span>
+								</button>
+							  );
+							}
+							return <div className="text-xs text-slate-400">—</div>;
+						  })()}
+						  
+						  {showEmailDropdown && (() => {
+							// 🔑 فقط کانتکت پرسن‌های department یوزر
+							const contactEmails = filteredContactPersons
+							  .filter(cp => cp.email)
+							  .map(cp => ({ email: cp.email, name: cp.name }));
+							const primaryEmail = selectedClient.email;
+							const otherEmails = selectedClient.emails || [];
+							
+							return (
+							  <div className="absolute top-full left-0 mt-1 w-72 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-2 max-h-80 overflow-y-auto">
+								{/* Primary Email */}
+								{primaryEmail && (
+								  <>
+									<div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">⭐ Primary Email</div>
+									<button
+									  onClick={(e) => { e.stopPropagation(); handleCopyEmail(primaryEmail); setShowEmailDropdown(false); }}
+									  className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2 border-b border-slate-100"
+									>  
+									  <span className="truncate">{primaryEmail}</span>
+									  <span className="text-slate-400 ml-auto">📋</span>
+									</button>
+								  </>
+								)}
+								
+								{/* Other Emails */}
+								{otherEmails.length > 0 && (
+								  <>
+									<div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">Other Emails</div>
+									{otherEmails.map((email, index) => (
+									  <button
+										key={index}
+										onClick={(e) => { e.stopPropagation(); handleCopyEmail(email); setShowEmailDropdown(false); }}
+										className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2 border-b border-slate-50"
+									  >
+										<span className="text-slate-400">📋</span>
+										<span className="truncate">{email}</span>
+									  </button>
+									))}
+								  </>
+								)}
+								
+								{/* 🔑 Contact Persons Emails - فقط department یوزر */}
+								{contactEmails.length > 0 && (
+								  <>
+									<div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">👥 Contact Persons</div>
+									{contactEmails.map((contact, index) => (
+									  <button
+										key={index}
+										onClick={(e) => { e.stopPropagation(); handleCopyEmail(contact.email); setShowEmailDropdown(false); }}
+										className="w-full text-left px-3 py-2 hover:bg-indigo-50 transition-colors border-b border-slate-50 last:border-0"
+									  >
+										<div className="flex items-center justify-between mb-0.5">
+										  <span className="text-xs font-semibold text-slate-900 truncate">{contact.name}</span>
+										  <span className="text-slate-400">📋</span>
+										</div>
+										<div className="text-[10px] font-mono text-indigo-600 truncate">{contact.email}</div>
+									  </button>
+									))}
+								  </>
+								)}
+							  </div>
+							);
+						  })()}
+						</div>
+						
+						{/* 🔑 Contact Persons Dropdown - فقط department یوزر */}
+						<div className="relative">
+						  <div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Contact Persons</div>
+						  {filteredContactPersons.length > 0 ? (
+							<button
+							  onClick={() => setShowContactDropdown(!showContactDropdown)}
+							  className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+							>
+							  <span>👥 {filteredContactPersons.length} contact{filteredContactPersons.length > 1 ? 's' : ''}</span>
+							  <span className={`text-[10px] transition-transform ${showContactDropdown ? 'rotate-180' : ''}`}>▼</span>
+							</button>
+						  ) : (
+							<div className="text-xs text-slate-400">—</div>
+						  )}
+						  
+						  {showContactDropdown && filteredContactPersons.length > 0 && (
+							<div className="absolute top-full left-0 mt-1 w-80 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-2 max-h-80 overflow-y-auto">
+							  <div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">
+								Department Contacts
+							  </div>
+							  {filteredContactPersons.map((cp) => (
+								<div key={cp.id} className="px-3 py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+								  <div className="flex items-center justify-between mb-1">
+									<span className="text-xs font-semibold text-slate-900">{cp.name}</span>
+									<Badge tone="slate" className="text-[9px]">{cp.department}</Badge>
+								  </div>
+								  {cp.position && <div className="text-[10px] text-slate-500 mb-1">{cp.position}</div>}
+								  <div className="flex items-center gap-2 text-[10px]">
+									<span className="text-slate-400">📞</span>
+									<span className="font-mono text-slate-700">{cp.mobile}</span>
+								  </div>
+								  {cp.email && (
+									<button
+									  onClick={(e) => { e.stopPropagation(); handleCopyEmail(cp.email); }}
+									  className="flex items-center gap-2 text-[10px] mt-0.5 hover:text-indigo-600 transition-colors"
+									>
+									  <span className="text-slate-400">✉️</span>
+									  <span className="font-mono text-indigo-600 truncate">{cp.email}</span>
+									  <span className="text-slate-400 ml-auto">📋</span>
+									</button>
+								  )}
+								</div>
+							  ))}
+							</div>
+						  )}
+						</div>
+					  </div>
+					</div>
+				  )}
+
+				  {/* Individual Information */}
+				  {selectedClient.type === "INDIVIDUAL" && (
+					<div className="rounded-lg border border-slate-200 p-4 bg-slate-50/30">
+					  <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">👤 Personal Information</h3>
+					  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+						<div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">National Code</div><div className="font-mono text-xs text-slate-900">{selectedClient.national_id || "—"}</div></div>
+						<div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Mobile</div><div className="text-xs text-slate-900">{selectedClient.phone || "—"}</div></div>
+						
+						<div className="relative">
+						  <div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Emails</div>
+						  {(() => {
+							const allEmails = [
+							  ...(selectedClient.email ? [selectedClient.email] : []),
+							  ...(selectedClient.emails || [])
+							].filter((email, index, self) => self.indexOf(email) === index);
+							
+							if (allEmails.length > 0) {
+							  return (
+								<button onClick={() => setShowEmailDropdown(!showEmailDropdown)} className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+								  <span>📧 {allEmails.length} email{allEmails.length > 1 ? 's' : ''}</span>
+								  <span className={`text-[10px] transition-transform ${showEmailDropdown ? 'rotate-180' : ''}`}>▼</span>
+								</button>
+							  );
+							}
+							return <div className="text-xs text-slate-400">—</div>;
+						  })()}
+						  
+						  {showEmailDropdown && (() => {
+							const allEmails = [
+							  ...(selectedClient.email ? [selectedClient.email] : []),
+							  ...(selectedClient.emails || [])
+							].filter((email, index, self) => self.indexOf(email) === index);
+							
+							return (
+							  <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-2">
+								{selectedClient.email && (
+								  <>
+									<div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">⭐ Primary Email</div>
+									<button onClick={() => { handleCopyEmail(selectedClient.email!); setShowEmailDropdown(false); }} className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2 border-b border-slate-100">
+									  <span className="text-emerald-500">⭐</span>
+									  <span className="truncate">{selectedClient.email}</span>
+									</button>
+								  </>
+								)}
+								{selectedClient.emails && selectedClient.emails.length > 0 && (
+								  <>
+									<div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">Other Emails</div>
+									{selectedClient.emails.map((email, index) => (
+									  <button key={index} onClick={() => { handleCopyEmail(email); setShowEmailDropdown(false); }} className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2">
+										<span className="text-slate-400">📋</span>
+										<span className="truncate">{email}</span>
+									  </button>
+									))}
+								  </>
+								)}
+							  </div>
+							);
+						  })()}
+						</div>
+					  </div>
+					</div>
+				  )}
+
+				  {/* Stats Cards */}
+				  <div className="grid grid-cols-4 gap-4">
+					<div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">{summaryTitle}</div><div className="text-2xl font-bold text-slate-900">{dynamicContractCount}</div></div>
+					<div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Total Tariffs</div><div className="text-2xl font-bold text-slate-900">{totalTariffLines}</div></div>
+					<div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Total Value</div><div className="text-2xl font-bold text-emerald-600">{formatCurrency(totalValue)}</div></div>
+					<div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Invoiced</div><div className="text-2xl font-bold text-indigo-600">{formatCurrency(totalInvoiced)}</div></div>
+				  </div>
+
+				  {/* Contracts List */}
+				  <div>
+					<div className="flex items-center justify-between mb-4">
+					  <h3 className="text-sm font-semibold text-slate-900">Agreements</h3>
+					  <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+						{(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => (
+						  <button key={t} onClick={() => setContractTab(t)} className={`rounded-md px-3 py-1.5 font-medium transition-colors ${contractTab === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>
+							{t === "ALL" ? `All (${clientContracts.length})` : t === "CONTRACT" ? `📄 Contracts (${clientContracts.filter(c => c.type === "CONTRACT").length})` : `📦 Work Orders (${clientContracts.filter(c => c.type === "WORK_ORDER").length})`}
+						  </button>
+						))}
+					  </div>
+					</div>
+					<div className="space-y-3">
+					  {filteredContracts.map((contract) => {
+						const workProgress = calculateProgressFromTariffs(contract);
+						const invoiceProgress = calculateInvoiceProgress(contract);
+						
+						return (
+						  <div key={contract.id} onClick={() => setSelectedContract(contract)} className="rounded-lg border border-slate-200 p-4 hover:border-indigo-300 transition-colors cursor-pointer">
+							<div className="flex items-start justify-between mb-3">
+							  <div className="flex-1">
+								<div className="flex items-center gap-2 mb-1">
+								  <Badge tone={contract.type === "CONTRACT" ? "indigo" : "amber"}>{contract.type === "CONTRACT" ? "Contract" : "Work Order"}</Badge>
+								  <span className="font-mono text-xs text-slate-500">{contract.contract_no}</span>
+								  <Badge tone="slate">{contract.tariffs} {contract.tariffs === 1 ? "Tariff" : "Tariffs"}</Badge>
+								</div>
+								<h4 className="text-sm font-semibold text-slate-900">{contract.contract_title}</h4>
+							  </div>
+							  <div className="text-right">
+								<div className="text-sm font-bold text-slate-900">{formatCurrency(contract.total_value)}</div>
+								<Badge tone={contract.status === "ACTIVE" ? "emerald" : contract.status === "PENDING" ? "amber" : "slate"}>{contract.status}</Badge>
+							  </div>
+							</div>
+
+							<div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
+							  <span>Work Performed</span>
+							  <span className={`font-semibold ${getProgressTextClass(workProgress)}`}>{workProgress.toFixed(1)}%</span>
+							</div>
+							<div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+							  <div className={`h-full rounded-full ${getProgressBgClass(workProgress)}`} style={{ width: `${Math.min(workProgress, 100)}%` }} />
+							</div>
+
+							<div className="flex items-center justify-between text-[10px] text-slate-500 mt-3 mb-1">
+							  <span>Invoiced</span>
+							  <span className={`font-semibold ${getProgressTextClass(invoiceProgress)}`}>{invoiceProgress.toFixed(1)}%</span>
+							</div>
+							<div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+							  <div className={`h-full rounded-full ${getProgressBgClass(invoiceProgress)}`} style={{ width: `${Math.min(invoiceProgress, 100)}%` }} />
+							</div>
+
+							<div className="text-xs text-slate-400 mt-2">{contract.start_date} → {contract.end_date}</div>
+						  </div>
+						);
+					  })}
+					</div>
+				  </div>
+				</div>
+			  </div>
+			</>
+		    ) : (
+    /* Placeholder با لوگو - وقتی مشتری انتخاب نشده */
+    <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 relative overflow-hidden min-h-[600px]">
+      {/* Pattern پس‌زمینه */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+      }} />
+      
+      {/* محتوای مرکزی */}
+      <div className="text-center z-10 relative">
+        {/* لوگو با highlight */}
+        <div className="relative inline-block mb-8">
+          <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-indigo-400 to-violet-500 blur-xl opacity-30 animate-pulse" />
+			<div className="relative inline-block mb-8">
+			  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 blur-2xl opacity-40 animate-pulse" />
+				  <div className="relative inline-flex items-center justify-center w-44 h-44 rounded-full bg-white shadow-2xl shadow-indigo-500/30 border-4 border-white">
+					<img 
+					  src="public/images/logo.png" 
+					  alt="ICS Logo" 
+					  className="w-36 h-36 object-contain"
+					/>
+				  </div>
+			  </div>
+        </div>
+        
+        <h2 className="text-3xl font-bold text-slate-700 mb-3">OFFSHORE & ENERGY DEPARTMENT INSPECTION PLATFORM</h2>
+        <p className="text-base text-slate-500 max-w-md mx-auto leading-relaxed">
+          Select a client from the list to view details, contracts, and contact information
+        </p>
+        
+        <div className="flex items-center justify-center gap-6 mt-8">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center text-2xl">👥</div>
+            <span className="text-xs text-slate-500 font-medium">Clients</span>
           </div>
-
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="space-y-6">
-              {/* 🔑 Company Information - با Emails و Contact Persons Dropdown */}
-              {selectedClient.type === "LEGAL" && (
-                <div className="rounded-lg border border-slate-200 p-4 bg-slate-50/30">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">🏢 Company Information</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                    <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">National ID</div><div className="font-mono text-xs text-slate-900">{selectedClient.national_id || "—"}</div></div>
-                    <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Registration No</div><div className="font-mono text-xs text-slate-900">{(selectedClient as any).registration_no || "—"}</div></div>
-                    <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Economic Code</div><div className="font-mono text-xs text-slate-900">{(selectedClient as any).economic_code || "—"}</div></div>
-                    
-                    <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Abbreviated Name</div><div className="text-xs text-slate-900">{(selectedClient as any).abbreviated_name || "—"}</div></div>
-                    
-                    {/* 🔑 Emails Dropdown - Float */}
-                    <div className="relative">
-                      <div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Emails</div>
-                      {(() => {
-                        const allEmails = [
-                          ...(selectedClient.email ? [selectedClient.email] : []),
-                          ...(selectedClient.emails || [])
-                        ].filter((email, index, self) => self.indexOf(email) === index);
-                        
-                        if (allEmails.length > 0) {
-                          return (
-                            <button
-                              onClick={() => setShowEmailDropdown(!showEmailDropdown)}
-                              className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                            >
-                              <span>📧 {allEmails.length} email{allEmails.length > 1 ? 's' : ''}</span>
-                              <span className={`text-[10px] transition-transform ${showEmailDropdown ? 'rotate-180' : ''}`}>▼</span>
-                            </button>
-                          );
-                        }
-                        return <div className="text-xs text-slate-400">—</div>;
-                      })()}
-                      
-                      {showEmailDropdown && (() => {
-                        const allEmails = [
-                          ...(selectedClient.email ? [selectedClient.email] : []),
-                          ...(selectedClient.emails || [])
-                        ].filter((email, index, self) => self.indexOf(email) === index);
-                        
-                        return (
-                          <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-2 max-h-64 overflow-y-auto">
-                            {selectedClient.email && (
-                              <>
-                                <div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">⭐ Primary Email</div>
-                                <button
-                                  onClick={() => { handleCopyEmail(selectedClient.email!); setShowEmailDropdown(false); }}
-                                  className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2 border-b border-slate-100"
-                                >
-                                  <span className="text-emerald-500">⭐</span>
-                                  <span className="truncate">{selectedClient.email}</span>
-                                </button>
-                              </>
-                            )}
-                            {selectedClient.emails && selectedClient.emails.length > 0 && (
-                              <>
-                                <div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">Other Emails</div>
-                                {selectedClient.emails.map((email, index) => (
-                                  <button
-                                    key={index}
-                                    onClick={() => { handleCopyEmail(email); setShowEmailDropdown(false); }}
-                                    className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2"
-                                  >
-                                    <span className="text-slate-400">📋</span>
-                                    <span className="truncate">{email}</span>
-                                  </button>
-                                ))}
-                              </>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                    
-                    {/* 🔑 Contact Persons Dropdown - Float */}
-                    <div className="relative">
-                      <div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Contact Persons</div>
-                      {selectedClient.contactPersons && selectedClient.contactPersons.length > 0 ? (
-                        <button
-                          onClick={() => setShowContactDropdown(!showContactDropdown)}
-                          className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                        >
-                          <span>👥 {selectedClient.contactPersons.length} contact{selectedClient.contactPersons.length > 1 ? 's' : ''}</span>
-                          <span className={`text-[10px] transition-transform ${showContactDropdown ? 'rotate-180' : ''}`}>▼</span>
-                        </button>
-                      ) : (
-                        <div className="text-xs text-slate-400">—</div>
-                      )}
-                      
-                      {showContactDropdown && selectedClient.contactPersons && (
-                        <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-2 max-h-80 overflow-y-auto">
-                          <div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">Department Contacts</div>
-                          {selectedClient.contactPersons.map((cp) => (
-                            <div key={cp.id} className="px-3 py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs font-semibold text-slate-900">{cp.name}</span>
-                                <Badge tone="slate" className="text-[9px]">{cp.department}</Badge>
-                              </div>
-                              {cp.position && <div className="text-[10px] text-slate-500 mb-1">{cp.position}</div>}
-                              <div className="flex items-center gap-2 text-[10px]">
-                                <span className="text-slate-400">📞</span>
-                                <span className="font-mono text-slate-700">{cp.mobile}</span>
-                              </div>
-                              {cp.email && (
-                                <button
-                                  onClick={() => handleCopyEmail(cp.email)}
-                                  className="flex items-center gap-2 text-[10px] mt-0.5 hover:text-indigo-600 transition-colors"
-                                >
-                                  <span className="text-slate-400">✉️</span>
-                                  <span className="font-mono text-indigo-600 truncate">{cp.email}</span>
-                                  <span className="text-slate-400 ml-auto">📋</span>
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {selectedClient.type === "INDIVIDUAL" && (
-                <div className="rounded-lg border border-slate-200 p-4 bg-slate-50/30">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">👤 Personal Information</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                    <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">National Code</div><div className="font-mono text-xs text-slate-900">{selectedClient.national_id || "—"}</div></div>
-                    <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Mobile</div><div className="text-xs text-slate-900">{selectedClient.phone || "—"}</div></div>
-                    
-                    {/* 🔑 Emails Dropdown - Float */}
-                    <div className="relative">
-                      <div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Emails</div>
-                      {(() => {
-                        const allEmails = [
-                          ...(selectedClient.email ? [selectedClient.email] : []),
-                          ...(selectedClient.emails || [])
-                        ].filter((email, index, self) => self.indexOf(email) === index);
-                        
-                        if (allEmails.length > 0) {
-                          return (
-                            <button
-                              onClick={() => setShowEmailDropdown(!showEmailDropdown)}
-                              className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                            >
-                              <span>📧 {allEmails.length} email{allEmails.length > 1 ? 's' : ''}</span>
-                              <span className={`text-[10px] transition-transform ${showEmailDropdown ? 'rotate-180' : ''}`}>▼</span>
-                            </button>
-                          );
-                        }
-                        return <div className="text-xs text-slate-400">—</div>;
-                      })()}
-                      
-                      {showEmailDropdown && (() => {
-                        const allEmails = [
-                          ...(selectedClient.email ? [selectedClient.email] : []),
-                          ...(selectedClient.emails || [])
-                        ].filter((email, index, self) => self.indexOf(email) === index);
-                        
-                        return (
-                          <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-2">
-                            {selectedClient.email && (
-                              <>
-                                <div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">⭐ Primary Email</div>
-                                <button
-                                  onClick={() => { handleCopyEmail(selectedClient.email!); setShowEmailDropdown(false); }}
-                                  className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2 border-b border-slate-100"
-                                >
-                                  <span className="text-emerald-500">⭐</span>
-                                  <span className="truncate">{selectedClient.email}</span>
-                                </button>
-                              </>
-                            )}
-                            {selectedClient.emails && selectedClient.emails.length > 0 && (
-                              <>
-                                <div className="px-3 py-1.5 text-[10px] uppercase text-slate-500 font-semibold border-b border-slate-100">Other Emails</div>
-                                {selectedClient.emails.map((email, index) => (
-                                  <button
-                                    key={index}
-                                    onClick={() => { handleCopyEmail(email); setShowEmailDropdown(false); }}
-                                    className="w-full text-left px-3 py-2 text-xs font-mono text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2"
-                                  >
-                                    <span className="text-slate-400">📋</span>
-                                    <span className="truncate">{email}</span>
-                                  </button>
-                                ))}
-                              </>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-4 gap-4">
-                <div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">{summaryTitle}</div><div className="text-2xl font-bold text-slate-900">{dynamicContractCount}</div></div>
-                <div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Total Tariffs</div><div className="text-2xl font-bold text-slate-900">{totalTariffLines}</div></div>
-                <div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Total Value</div><div className="text-2xl font-bold text-emerald-600">{formatCurrency(totalValue)}</div></div>
-                <div className="rounded-lg border border-slate-200 p-4"><div className="text-xs text-slate-500 mb-1">Invoiced</div><div className="text-2xl font-bold text-indigo-600">{formatCurrency(totalInvoiced)}</div></div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-slate-900">Agreements</h3>
-                  <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
-                    {(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => (
-                      <button key={t} onClick={() => setContractTab(t)} className={`rounded-md px-3 py-1.5 font-medium transition-colors ${contractTab === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>
-                        {t === "ALL" ? `All (${clientContracts.length})` : t === "CONTRACT" ? `📄 Contracts (${clientContracts.filter(c => c.type === "CONTRACT").length})` : `📦 Work Orders (${clientContracts.filter(c => c.type === "WORK_ORDER").length})`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {filteredContracts.map((contract) => {
-                    // 🔑 محاسبه هر دو پیشرفت بر اساس قرارداد فعلی
-                    const workProgress = calculateProgressFromTariffs(contract);
-                    const invoiceProgress = calculateInvoiceProgress(contract);
-                    
-                    return (
-                      <div key={contract.id} onClick={() => setSelectedContract(contract)} className="rounded-lg border border-slate-200 p-4 hover:border-indigo-300 transition-colors cursor-pointer">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge tone={contract.type === "CONTRACT" ? "indigo" : "amber"}>{contract.type === "CONTRACT" ? "Contract" : "Work Order"}</Badge>
-                              <span className="font-mono text-xs text-slate-500">{contract.contract_no}</span>
-                              <Badge tone="slate">{contract.tariffs} {contract.tariffs === 1 ? "Tariff" : "Tariffs"}</Badge>
-                            </div>
-                            <h4 className="text-sm font-semibold text-slate-900">{contract.contract_title}</h4>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-bold text-slate-900">{formatCurrency(contract.total_value)}</div>
-                            <Badge tone={contract.status === "ACTIVE" ? "emerald" : contract.status === "PENDING" ? "amber" : "slate"}>{contract.status}</Badge>
-                          </div>
-                        </div>
-
-                        {/* 🔑 نوار پیشرفت کار انجام شده */}
-                        <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
-                          <span>Work Performed</span>
-                          <span className={`font-semibold ${getProgressTextClass(workProgress)}`}>{workProgress.toFixed(1)}%</span>
-                        </div>
-                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${getProgressBgClass(workProgress)}`} style={{ width: `${Math.min(workProgress, 100)}%` }} />
-                        </div>
-
-                        {/* 🔑 نوار پیشرفت صورتحساب */}
-                        <div className="flex items-center justify-between text-[10px] text-slate-500 mt-3 mb-1">
-                          <span>Invoiced</span>
-                          <span className={`font-semibold ${getProgressTextClass(invoiceProgress)}`}>{invoiceProgress.toFixed(1)}%</span>
-                        </div>
-                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${getProgressBgClass(invoiceProgress)}`} style={{ width: `${Math.min(invoiceProgress, 100)}%` }} />
-                        </div>
-
-                        {/* تاریخ */}
-                        <div className="text-xs text-slate-400 mt-2">{formatDate(contract.start_date)} → {formatDate(contract.end_date)}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-2xl">📄</div>
+            <span className="text-xs text-slate-500 font-medium">Contracts</span>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl">📧</div>
+            <span className="text-xs text-slate-500 font-medium">Contacts</span>
           </div>
         </div>
-      )}
+      </div>
+    </div>
+  )}
+</div>
+		
 
       {/* ADD CLIENT MODAL */}
       <Modal isOpen={isAddModalOpen} onClose={() => { setIsAddModalOpen(false); setDuplicateWarning(null); }} title="Entity Onboarding" size="xl">
@@ -794,7 +908,7 @@ export function Clients() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 p-6">
-            <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">📍 OFFICIAL ADDRESS</h2>
+            <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2"> OFFICIAL ADDRESS</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-slate-700">Address (English) *</label>
@@ -834,7 +948,7 @@ export function Clients() {
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <Button variant="ghost" onClick={() => { setIsAddModalOpen(false); setDuplicateWarning(null); }}>Cancel</Button>
-            <Button onClick={handleSaveAdd}>💾 Save Entity</Button>
+            <Button onClick={handleSaveAdd}> Save Entity</Button>
           </div>
         </div>
       </Modal>
@@ -848,7 +962,7 @@ export function Clients() {
                 <div className="text-2xl">⚠️</div>
                 <div className="flex-1">
                   <h3 className="text-sm font-semibold text-amber-900 mb-1">This client already exists in the system</h3>
-                  <p className="text-xs text-amber-800">You can view the existing information and add a new contact person for <span className="font-semibold">Unit A</span>. Other departments' contact persons are hidden for privacy.</p>
+                  <p className="text-xs text-amber-800">You can view the existing information and add a new contact person for <span className="font-semibold">{currentDepartment}</span>. Other departments' contact persons are hidden for privacy.</p>
                 </div>
               </div>
             </div>
@@ -875,7 +989,7 @@ export function Clients() {
               )}
             </div>
             <div className="rounded-2xl border border-indigo-200 bg-indigo-50/30 p-6">
-              <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">➕ Add New Contact Person for Unit A</h3>
+              <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">➕ Add New Contact Person for {currentDepartment}</h3>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="mb-1 block text-xs font-semibold text-slate-700">Contact Name *</label><input value={newContactForDuplicate.name} onChange={(e) => setNewContactForDuplicate({ ...newContactForDuplicate, name: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100" /></div>
@@ -935,7 +1049,7 @@ export function Clients() {
                   <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">👥 Contact Persons <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-full">{editForm.contactPersons?.length || 0}</span></h3>
                   <button type="button" onClick={addEditContactPerson} className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">+ ADD LIAISON</button>
                 </div>
-                <p className="text-xs text-slate-500 mb-4">Only contact persons related to your department are shown and editable. Other departments' contacts (if any) are hidden.</p>
+                <p className="text-xs text-slate-500 mb-4">Only contact persons related to your department ({currentDepartment}) are shown and editable. Other departments' contacts (if any) are hidden.</p>
                 <div className="space-y-3">
                   {editForm.contactPersons?.map((cp: any) => (
                     <div key={cp.id} className="grid grid-cols-12 gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50/50">
@@ -948,7 +1062,7 @@ export function Clients() {
                       </div>
                     </div>
                   ))}
-                  {(!editForm.contactPersons || editForm.contactPersons.length === 0) && <div className="text-center py-6 text-slate-400 text-sm">No contact persons for Unit A yet. Click "+ ADD LIAISON" to add one.</div>}
+                  {(!editForm.contactPersons || editForm.contactPersons.length === 0) && <div className="text-center py-6 text-slate-400 text-sm">No contact persons for {currentDepartment} yet. Click "+ ADD LIAISON" to add one.</div>}
                 </div>
               </div>
             )}
@@ -966,15 +1080,8 @@ export function Clients() {
         {selectedContract && (() => {
           const tariffs = contractTariffs.filter((t) => t.contract_id === selectedContract.id);
           const daysLeft = calculateDaysLeft(selectedContract.end_date);
-		 
-		  
-             // 🔑 Invoice Progress (بر اساس صورتحساب)
-		  const invoiceProgress = calculateInvoiceProgress(selectedContract);
-		  
-			
-		  // 🔑 Work Progress (بر اساس کار انجام شده)
-		  const workProgress = calculateProgressFromTariffs(selectedContract);
-
+          const workProgress = calculateProgressFromTariffs(selectedContract);
+          const invoiceProgress = calculateInvoiceProgress(selectedContract);
           
           return (
             <div className="space-y-6">
@@ -995,30 +1102,24 @@ export function Clients() {
               
               <div className="grid grid-cols-3 gap-4">
                 <Card className="p-4 bg-slate-50/50">
-					  <div className="text-xs text-slate-500 mb-1">Work Progress</div>
-					  <div className={`text-lg font-bold ${getProgressTextClass(workProgress)}`}>
-						{workProgress.toFixed(2)}%
-					  </div>
-					  <div className="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-						<div 
-						  className={`h-full rounded-full ${getProgressBgClass(workProgress)}`} 
-						  style={{ width: `${Math.min(workProgress, 100)}%` }} 
-						/>
-					  </div>
-				  </Card>
+                  <div className="text-xs text-slate-500 mb-1">Work Progress</div>
+                  <div className={`text-lg font-bold ${getProgressTextClass(workProgress)}`}>
+                    {workProgress.toFixed(2)}%
+                  </div>
+                  <div className="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${getProgressBgClass(workProgress)}`} style={{ width: `${Math.min(workProgress, 100)}%` }} />
+                  </div>
+                </Card>
 
-				  <Card className="p-4 bg-slate-50/50">
-					  <div className="text-xs text-slate-500 mb-1">Invoiced</div>
-					  <div className={`text-lg font-bold ${getProgressTextClass(invoiceProgress)}`}>
-						{invoiceProgress.toFixed(2)}%
-					  </div>
-					  <div className="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-						<div 
-						  className={`h-full rounded-full ${getProgressBgClass(invoiceProgress)}`} 
-						  style={{ width: `${Math.min(invoiceProgress, 100)}%` }} 
-						/>
-					  </div>
-				  </Card>
+                <Card className="p-4 bg-slate-50/50">
+                  <div className="text-xs text-slate-500 mb-1">Invoice Progress</div>
+                  <div className={`text-lg font-bold ${getProgressTextClass(invoiceProgress)}`}>
+                    {invoiceProgress.toFixed(2)}%
+                  </div>
+                  <div className="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${getProgressBgClass(invoiceProgress)}`} style={{ width: `${Math.min(invoiceProgress, 100)}%` }} />
+                  </div>
+                </Card>
 
                 <Card className="p-4 bg-slate-50/50">
                   <div className="text-xs text-slate-500">Time Remaining</div>
@@ -1030,7 +1131,6 @@ export function Clients() {
                     <div className="text-lg font-bold text-emerald-600">{daysLeft} days remaining</div>
                   )}
                 </Card>
-                
               </div>
               
               <div>
@@ -1047,14 +1147,14 @@ export function Clients() {
                           <th className="px-3 py-2 font-medium text-right">Rate</th>
                           <th className="px-3 py-2 font-medium text-center">Total Performed Work</th>
                           <th className="px-3 py-2 font-medium text-right">Total Value of Performed Works</th>
-						  <th className="px-3 py-2 font-medium text-right">Total Invoiced</th>
+                          <th className="px-3 py-2 font-medium text-right">Total Invoiced</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {tariffs.map((tariff) => {
                           const progress = tariff.consumed_quantity;
                           const value = tariff.consumed_quantity * tariff.rate;
-						  const invoiced = tariff.invoiced || 0;
+                          const invoiced = (tariff as any).invoiced || 0;
                           return (
                             <tr key={tariff.id} className="hover:bg-slate-50/60">
                               <td className="px-3 py-2 font-medium text-slate-800">{tariff.description}</td>
@@ -1062,29 +1162,19 @@ export function Clients() {
                               <td className="px-3 py-2 text-right font-mono">{formatCurrency(tariff.rate)}</td>
                               <td className="px-3 py-2 text-center font-mono">{progress}</td>
                               <td className="px-3 py-2 text-right font-mono font-semibold">{formatCurrency(value)}</td>
-							  <td className="px-3 py-2 text-right font-mono font-semibold text-indigo-600">{formatCurrency(invoiced)}</td>
+                              <td className="px-3 py-2 text-right font-mono font-semibold text-indigo-600">{formatCurrency(invoiced)}</td>
                             </tr>
                           );
                         })}
                       </tbody>
-					  {/* 🔑 ردیف Total */}
-					  <tfoot className="bg-slate-100 border-t-2 border-slate-300">
-						  <tr>
-							<td colSpan={1} className="px-3 py-2.5 text-xl font-bold text-slate-700 text-left uppercase tracking-wider">
-							  💰 Total
-							</td>
-							<td className="px-3 py-2.5 text-center font-mono font-bold text-slate-900"></td>
-							<td className="px-3 py-2.5 text-center font-mono font-bold text-slate-900"></td>
-							<td className="px-3 py-2.5 text-center font-mono font-bold text-slate-900"></td>
-							
-							<td className="px-3 py-2.5 text-xl text-right font-mono font-bold text-emerald-700">
-							  {formatCurrency(tariffs.reduce((sum, t) => sum + ((t.consumed_quantity || 0) * (t.rate || 0)), 0))}
-							</td>
-							<td className="px-3 py-2.5 text-xl text-right font-mono font-bold text-indigo-700">
-							  {formatCurrency(tariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}
-							</td>
-						  </tr>
-					  </tfoot>
+                      <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                        <tr>
+                          <td colSpan={3} className="px-3 py-2.5 text-sm font-bold text-slate-700 text-left uppercase tracking-wider">💰 Total</td>
+                          <td className="px-3 py-2.5 text-center font-mono font-bold text-slate-900"></td>
+                          <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-700">{formatCurrency(tariffs.reduce((sum, t) => sum + ((t.consumed_quantity || 0) * (t.rate || 0)), 0))}</td>
+                          <td className="px-3 py-2.5 text-right font-mono font-bold text-indigo-700">{formatCurrency(tariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}</td>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 )}

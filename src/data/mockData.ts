@@ -44,7 +44,7 @@ export interface Contract {
   total_value: number;
   invoiced: number;
   currency: string;
-  status: "ACTIVE" | "PENDING" | "CLOSED" | string;
+  status: "ACTIVE" | "COPLETED" | string;
   type: "CONTRACT" | "WORK_ORDER";
   tariffs: number;
   department: string;
@@ -455,7 +455,7 @@ export const contracts: Contract[] = [
     total_value: 62000,
     invoiced: 62000,
     currency: "USD",
-    status: "CLOSED",
+    status: "COMPLETED",
     type: "WORK_ORDER",
     tariffs: 3,
     department: "Unit A",
@@ -487,7 +487,7 @@ export const contracts: Contract[] = [
     total_value: 150000,
     invoiced: 0,
     currency: "USD",
-    status: "PENDING",
+    status: "COMPLETED",
     type: "CONTRACT",
     tariffs: 6,
     department: "Unit A",
@@ -535,7 +535,7 @@ export const contracts: Contract[] = [
     total_value: 580000,
     invoiced: 0,
     currency: "USD",
-    status: "PENDING",
+    status: "ACTIVE",
     type: "CONTRACT",
     tariffs: 7,
     department: "Unit A",
@@ -551,7 +551,7 @@ export const contracts: Contract[] = [
     total_value: 125000,
     invoiced: 0,
     currency: "USD",
-    status: "PENDING",
+    status: "ACTIVE",
     type: "WORK_ORDER",
     tariffs: 4,
     department: "Unit A",
@@ -565,9 +565,9 @@ export const contracts: Contract[] = [
     start_date: "1404/01/01",
     end_date: "1404/12/29",
     total_value: 8500,
-    invoiced: 8500,
+    invoiced: 8300,
     currency: "USD",
-    status: "CLOSED",
+    status: "ACTIVE",
     type: "CONTRACT",
     tariffs: 1,
     department: "Unit A",
@@ -599,7 +599,7 @@ export const contracts: Contract[] = [
     total_value: 78000,
     invoiced: 78000,
     currency: "USD",
-    status: "CLOSED",
+    status: "COMPLETED",
     type: "WORK_ORDER",
     tariffs: 2,
     department: "Unit A",
@@ -615,7 +615,7 @@ export const contracts: Contract[] = [
     total_value: 12000,
     invoiced: 0,
     currency: "USD",
-    status: "PENDING",
+    status: "COMPLETED",
     type: "CONTRACT",
     tariffs: 2,
     department: "Unit A",
@@ -652,6 +652,22 @@ export const contracts: Contract[] = [
     tariffs: 3,
     department: "Unit A",
   },
+  {
+	  id: "ct-test-needs-review",
+	  contract_no: "CTR-UNA-1403-0099",
+	  client_id: "c1",
+	  client_name: "Test Client",
+	  contract_title: "Test Contract - Needs Financial Review",
+	  start_date: "1402/01/01", 
+	  end_date: "1403/06/01",
+	  total_value: 5000000,
+	  invoiced: 3000000,
+	  currency: "USD",
+	  status: "ACTIVE",
+	  type: "CONTRACT",
+	  tariffs: 3,
+	  department: "Unit A",
+	}
 ];
 
 // ============ CONTRACT TARIFFS (با فیلد invoiced) ============
@@ -737,6 +753,7 @@ export const contractTariffs: TariffLine[] = [
   { id: "t54", contract_id: "ct15", description: "Valve Specialist", unit: "MAN_DAY", rate: 1100, total_quantity: 30, consumed_quantity: 12, invoiced: 10560 },
   { id: "t55", contract_id: "ct15", description: "Welding Inspector", unit: "MAN_DAY", rate: 900, total_quantity: 20, consumed_quantity: 8, invoiced: 5760 },
   { id: "t56", contract_id: "ct15", description: "Pressure Test", unit: "TEST", rate: 1500, total_quantity: 5, consumed_quantity: 2, invoiced: 2400 },
+  
 ];
 
 // ============ INSPECTORS ============

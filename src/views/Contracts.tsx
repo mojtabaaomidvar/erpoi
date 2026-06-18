@@ -64,7 +64,7 @@ interface Contract {
   total_value: number;
   invoiced: number;
   currency: string;
-  status: "ACTIVE" | "PENDING" | "CLOSED";
+  status: "ACTIVE" | "COMPLETED";
   type: "CONTRACT" | "WORK_ORDER";
   tariffs: number;
   contract_count?: number;
@@ -87,12 +87,36 @@ const getProgressColor = (progress: number): string => {
   return "bg-rose-500";
 };
 
+const getProgressTextClass = (progress: number): string => {
+  if (progress >= 100) return "text-emerald-600";
+  if (progress >= 80) return "text-amber-600";
+  if (progress >= 50) return "text-yellow-600";
+  if (progress >= 25) return "text-orange-600";
+  return "text-rose-600";
+};
+
 const getProgressTextColor = (progress: number): string => {
   if (progress >= 100) return "text-emerald-600";
   if (progress >= 75) return "text-emerald-500";
   if (progress >= 50) return "text-amber-600";
   if (progress >= 25) return "text-orange-600";
   return "text-rose-600";
+};
+
+const getProgressTone = (progress: number): string => {
+  if (progress >= 100) return "emerald";
+  if (progress >= 80) return "amber";
+  if (progress >= 50) return "yellow";
+  if (progress >= 25) return "orange";
+  return "rose";
+};
+
+const getProgressBgClass = (progress: number): string => {
+  if (progress >= 100) return "bg-emerald-500";
+  if (progress >= 80) return "bg-amber-500";
+  if (progress >= 50) return "bg-yellow-500";
+  if (progress >= 25) return "bg-orange-500";
+  return "bg-rose-500";
 };
 
 // ============ JALAALI HELPERS ============
@@ -125,21 +149,19 @@ const parseNumberInput = (value: string): number => {
 };
 
 // ============ PROGRESS CALCULATION ============
-const calculateProgressFromTariffs = (contract: Contract): number => {
-  if (!contract.tariffLines || contract.tariffLines.length === 0) return 0;
+const calculateProgressFromTariffs = (contract: any): number => {
+  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
+  if (tariffs.length === 0) return 0;
   if (contract.total_value <= 0) return 0;
-  const totalPerformed = contract.tariffLines.reduce((sum, t) => {
-    const rate = typeof t.rate === 'string' ? parseNumberInput(t.rate) : (t.rate || 0);
-    const consumed = t.consumed_quantity || 0;
-    return sum + (rate * consumed);
+  const totalPerformed = tariffs.reduce((sum, t) => {
+    return sum + (t.rate * t.consumed_quantity);
   }, 0);
   return (totalPerformed / contract.total_value) * 100;
 };
 
-const getProgressTone = (progress: number): string => {
-  if (progress >= 100) return "rose";
-  if (progress >= 80) return "amber";
-  return "emerald";
+const calculateInvoiceProgress = (contract: any): number => {
+  if (contract.total_value <= 0) return 0;
+  return (contract.invoiced / contract.total_value) * 100;
 };
 
 // ============ DATE CALCULATION HELPERS ============
@@ -155,9 +177,49 @@ const calculateDaysLeft = (endDate: string): number => {
   return diffDays;
 };
 
+// بررسی اینکه آیا قرارداد هنوز شروع نشده
+const isContractNotStarted = (startDate: string): boolean => {
+  if (!startDate) return false;
+  const [jy, jm, jd] = startDate.split('/').map(Number);
+  const gDate = jalaali.toGregorian(jy, jm, jd);
+  const startGregorian = new Date(gDate.gy, gDate.gm - 1, gDate.gd);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return startGregorian.getTime() > today.getTime();
+};
+
+// محاسبه روزهای باقی‌مانده تا شروع
+const getDaysUntilStart = (startDate: string): number => {
+  if (!startDate) return 0;
+  const [jy, jm, jd] = startDate.split('/').map(Number);
+  const gDate = jalaali.toGregorian(jy, jm, jd);
+  const startGregorian = new Date(gDate.gy, gDate.gm - 1, gDate.gd);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffTime = startGregorian.getTime() - today.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
 const calculateBudgetSpent = (totalValue: number, invoiced: number): number => {
   if (totalValue <= 0) return 0;
   return (invoiced / totalValue) * 100;
+};
+
+// ============ FINANCIAL STATUS HELPERS ============
+const getContractFinancialStatus = (contract: Contract): "completed" | "needs_review" | "active" => {
+  const daysLeft = calculateDaysLeft(contract.end_date);
+  const isExpired = daysLeft < 0;
+  const isFullyInvoiced = contract.invoiced >= contract.total_value;
+  
+  if (contract.status === "COMPLETED") return "completed";
+  if (isExpired && isFullyInvoiced) return "completed";
+  if (isExpired && !isFullyInvoiced) return "needs_review";
+  return "active";
+};
+
+const getInvoicedPercentage = (contract: Contract): number => {
+  if (contract.total_value <= 0) return 0;
+  return (contract.invoiced / contract.total_value) * 100;
 };
 
 // ============ PERSIAN DATE PICKER ============
@@ -519,9 +581,13 @@ export function Contracts() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [typeFilter, setTypeFilter] = useState<"ALL" | "CONTRACT" | "WORK_ORDER">("ALL");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "PENDING" | "CLOSED">("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "COMPLETED">("ALL");
   const [sortBy, setSortBy] = useState<"date" | "value" | "status">("date");
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+useEffect(() => {
+  setStatusFilter("ALL");
+}, [typeFilter]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -544,7 +610,7 @@ export function Contracts() {
     end_date: "",
     total_value: 0,
     currency: "IRR",
-    status: "PENDING" as "ACTIVE" | "PENDING" | "CLOSED",
+    status: "ACTIVE" as "ACTIVE"  | "COMPLETED",
     type: "CONTRACT" as "CONTRACT" | "WORK_ORDER",
     contract_count: 1,
     description: "",
@@ -568,7 +634,11 @@ export function Contracts() {
   const [selectedClientForView, setSelectedClientForView] = useState<any>(null);
   const [viewFilterType, setViewFilterType] = useState<"ALL" | "CONTRACT" | "WORK_ORDER">("ALL");
   const [viewFilterStatus, setViewFilterStatus] = useState<string>("ALL");
-
+  const [userRole, setUserRole] = useState<"admin" | "user">("admin");
+  const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
+  const [contractToComplete, setContractToComplete] = useState<Contract | null>(null);
+  const [completeReason, setCompleteReason] = useState("");
+  
   useEffect(() => {
     const returnData = localStorage.getItem("returnToContract");
     if (returnData && isAddModalOpen) {
@@ -588,46 +658,60 @@ export function Contracts() {
     }
   }, [isAddModalOpen]);
 
-  const contractCounts = useMemo(() => ({
-    total: contracts.length,
-    active: contracts.filter((c) => c.status === "ACTIVE").length,
-    pending: contracts.filter((c) => c.status === "PENDING").length,
-    closed: contracts.filter((c) => c.status === "CLOSED").length,
-    contractType: contracts.filter((c) => c.type === "CONTRACT").length,
-    workOrderType: contracts.filter((c) => c.type === "WORK_ORDER").length,
-    totalValue: contracts.reduce((sum, c) => sum + c.total_value, 0),
-    totalInvoiced: contracts.reduce((sum, c) => sum + c.invoiced, 0),
-  }), [contracts]);
+  // ============ 1. BASE CONTRACTS (فقط search اعمال شده) ============
+const baseContracts = useMemo(() => {
+  return contracts.filter((contract) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      !query ||
+      contract.contract_no.toLowerCase().includes(query) ||
+      (contract.external_contract_no && contract.external_contract_no.toLowerCase().includes(query)) ||
+      contract.client_name.toLowerCase().includes(query) ||
+      contract.contract_title.toLowerCase().includes(query)
+    );
+  });
+}, [searchQuery, contracts]);
 
-  const availableStatuses = useMemo(() => {
-    const statuses = new Set(contracts.map((c) => c.status));
-    return Array.from(statuses);
-  }, [contracts]);
+// ============ 2. CROSS-FILTERED COUNTS (شمارنده‌های هوشمند) ============
+const filterCounts = useMemo(() => {
+  return {
+    // 🔑 شمارنده‌های Type: بر اساس statusFilter فعلی فیلتر میشن
+    type: {
+      ALL: baseContracts.filter(c => statusFilter === "ALL" || c.status === statusFilter).length,
+      CONTRACT: baseContracts.filter(c => c.type === "CONTRACT" && (statusFilter === "ALL" || c.status === statusFilter)).length,
+      WORK_ORDER: baseContracts.filter(c => c.type === "WORK_ORDER" && (statusFilter === "ALL" || c.status === statusFilter)).length,
+    },
+    // 🔑 شمارنده‌های Status: بر اساس typeFilter فعلی فیلتر میشن
+    status: {
+      ALL: baseContracts.filter(c => typeFilter === "ALL" || c.type === typeFilter).length,
+      ACTIVE: baseContracts.filter(c => c.status === "ACTIVE" && (typeFilter === "ALL" || c.type === typeFilter)).length,
+      COMPLETED: baseContracts.filter(c => c.status === "COMPLETED" && (typeFilter === "ALL" || c.type === typeFilter)).length,
+    },
+    // آمار کلی (بدون هیچ فیلتری)
+    total: baseContracts.length,
+    totalValue: baseContracts.reduce((sum, c) => sum + c.total_value, 0),
+    totalInvoiced: baseContracts.reduce((sum, c) => sum + c.invoiced, 0),
+  };
+}, [baseContracts, typeFilter, statusFilter]);
 
-  const filteredContracts = useMemo(() => {
-    let result = contracts.filter((contract) => {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch =
-        !query ||
-        contract.contract_no.toLowerCase().includes(query) ||
-        (contract.external_contract_no && contract.external_contract_no.toLowerCase().includes(query)) ||
-        contract.client_name.toLowerCase().includes(query) ||
-        contract.contract_title.toLowerCase().includes(query);
-      const matchesType = typeFilter === "ALL" || contract.type === typeFilter;
-      const matchesStatus = statusFilter === "ALL" || contract.status === statusFilter;
-      return matchesSearch && matchesType && matchesStatus;
-    });
+// ============ 3. FINAL FILTERED (هر دو فیلتر اعمال شده) ============
+const filteredContracts = useMemo(() => {
+  let result = baseContracts.filter((contract) => {
+    const matchesType = typeFilter === "ALL" || contract.type === typeFilter;
+    const matchesStatus = statusFilter === "ALL" || contract.status === statusFilter;
+    return matchesType && matchesStatus;
+  });
 
-    return result.sort((a, b) => {
-      if (sortBy === "date") return b.start_date.localeCompare(a.start_date);
-      if (sortBy === "value") return b.total_value - a.total_value;
-      if (sortBy === "status") {
-        const order: Record<string, number> = { ACTIVE: 1, PENDING: 2, CLOSED: 3 };
-        return (order[a.status] || 99) - (order[b.status] || 99);
-      }
-      return 0;
-    });
-  }, [searchQuery, typeFilter, statusFilter, sortBy, contracts]);
+  return result.sort((a, b) => {
+    if (sortBy === "date") return b.start_date.localeCompare(a.start_date);
+    if (sortBy === "value") return b.total_value - a.total_value;
+    if (sortBy === "status") {
+      const order: Record<string, number> = { ACTIVE: 1, COMPLETED: 2 };
+      return (order[a.status] || 99) - (order[b.status] || 99);
+    }
+    return 0;
+  });
+}, [baseContracts, typeFilter, statusFilter, sortBy]);
 
   const selectedTariffs = useMemo(() => {
     if (!selectedContract) return [];
@@ -657,7 +741,7 @@ export function Contracts() {
         end_date: "",
         total_value: 0,
         currency: "IRR",
-        status: "PENDING",
+        status: "ACTIVE",
         contract_count: 1,
         description: "",
         tariffs: [
@@ -717,7 +801,7 @@ export function Contracts() {
       end_date: "",
       total_value: 0,
       currency: "IRR",
-      status: "PENDING",
+      status: "ACTIVE",
       type: "CONTRACT",
       contract_count: 1,
       description: "",
@@ -828,6 +912,32 @@ export function Contracts() {
     setIsEditModalOpen(false);
   };
 
+// 🔑 Handler برای باز کردن Modal تایید تکمیل
+  const handleRequestComplete = (contract: Contract) => {
+  setContractToComplete(contract);
+  setCompleteReason("");
+  setConfirmCompleteOpen(true);
+};
+
+// 🔑 Handler برای تایید تکمیل قرارداد توسط مدیر
+  const handleConfirmComplete = () => {
+  if (!contractToComplete) return;
+  
+  const updatedContracts = contracts.map((c) =>
+    c.id === contractToComplete.id ? { ...c, status: "COMPLETED" as const } : c
+  );
+  
+  setContracts(updatedContracts);
+  
+  if (selectedContract?.id === contractToComplete.id) {
+    setSelectedContract({ ...contractToComplete, status: "COMPLETED" });
+  }
+  
+  setConfirmCompleteOpen(false);
+  setContractToComplete(null);
+  setCompleteReason("");
+};
+
   const handleTypeChange = (type: "CONTRACT" | "WORK_ORDER") => {
     setAddForm({ ...addForm, type });
   };
@@ -882,12 +992,12 @@ export function Contracts() {
   return (
     <div className="grid grid-cols-12 gap-4 h-[calc(100vh-140px)] p-6">
       {/* LEFT PANEL */}
-      <div className={`${isDetailsOpen ? 'col-span-4' : 'col-span-12'} relative flex flex-col bg-white rounded-xl border border-slate-200/70 shadow-sm overflow-hidden transition-all duration-300 ease-in-out`}>
+      <div className="col-span-4 relative flex flex-col bg-white rounded-xl border border-slate-200/70 shadow-sm overflow-hidden transition-all duration-300 ease-in-out">
         <div className="relative z-10 border-b border-slate-100 px-4 py-4 bg-slate-50/50 space-y-4">
           <div className="flex items-center gap-3">
             <h3 className="text-sm font-semibold text-slate-900 shrink-0">Contracts</h3>
             <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
               <input
                 type="text"
                 value={searchQuery}
@@ -913,27 +1023,59 @@ export function Contracts() {
             </div>
           </div>
 
-          <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
-            {(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => {
-              const count = t === "ALL" ? contractCounts.total : t === "CONTRACT" ? contractCounts.contractType : contractCounts.workOrderType;
-              return (
-                <button key={t} onClick={() => setTypeFilter(t)} className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${typeFilter === t ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:text-slate-700"}`}>
-                  {t === "ALL" ? `All (${count})` : t === "CONTRACT" ? `📄 Contracts (${count})` : `📦 Work Orders (${count})`}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
-            {(["ALL", "ACTIVE", "PENDING", "CLOSED"] as const).map((t) => {
-              const count = t === "ALL" ? contractCounts.total : t === "ACTIVE" ? contractCounts.active : t === "PENDING" ? contractCounts.pending : contractCounts.closed;
-              return (
-                <button key={t} onClick={() => setStatusFilter(t)} className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${statusFilter === t ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:text-slate-700"}`}>
-                  {t === "ALL" ? `All (${count})` : t === "ACTIVE" ? `🟢 Active (${count})` : t === "PENDING" ? `🟡 Pending (${count})` : `⚫ Closed (${count})`}
-                </button>
-              );
-            })}
-          </div>
+			<div className="flex gap-2 rounded-lg border border-slate-200 bg-white p-1.5 text-xs">
+			  
+			  <div className="flex-1 flex gap-1 rounded-md bg-slate-100 p-0.5">
+				{(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => {
+				  const count = t === "ALL" ? contracts.length : t === "CONTRACT" ? contracts.filter(c => c.type === "CONTRACT").length : contracts.filter(c => c.type === "WORK_ORDER").length;
+				  return (
+					<button 
+					  key={t} 
+					  onClick={() => setTypeFilter(t)} 
+					  className={`flex-1 rounded px-1 py-1 font-medium transition-all whitespace-nowrap ${
+						typeFilter === t 
+						  ? "bg-white text-indigo-700 shadow-sm" 
+						  : "text-slate-500 hover:text-slate-700"
+					  }`}
+					>
+					  {t === "ALL" ? `All (${count})` : t === "CONTRACT" ? `📄 (${count})` : `📦(${count})`}
+					</button>
+				  );
+				})}
+			  </div>
+			  
+			  <div className="h-6 w-px bg-slate-200 shrink-0" />
+			  
+			  {/* Status - شمارنده بر اساس typeFilter فعلی (نه statusFilter) */}
+			  <div className="flex-1 flex gap-1 rounded-md bg-slate-100 p-0.5">
+				{(["ALL", "ACTIVE", "COMPLETED"] as const).map((t) => {
+				  // 🔑 شمارنده بر اساس typeFilter فیلتر میشه
+				  const baseContracts = typeFilter === "ALL" 
+					? contracts 
+					: contracts.filter(c => c.type === typeFilter);
+				  
+				  const count = t === "ALL" 
+					? baseContracts.length 
+					: t === "ACTIVE" 
+					  ? baseContracts.filter(c => c.status === "ACTIVE").length 
+					  : baseContracts.filter(c => c.status === "COMPLETED").length;
+				  
+				  return (
+					<button 
+					  key={t} 
+					  onClick={() => setStatusFilter(t)} 
+					  className={`flex-1 rounded px-1 py-1 font-medium transition-all whitespace-nowrap ${
+						statusFilter === t 
+						  ? "bg-white text-emerald-700 shadow-sm" 
+						  : "text-slate-500 hover:text-slate-700"
+					  }`}
+					>
+					  {t === "ALL" ? `All (${count})` : t === "ACTIVE" ? `🟢 (${count})` : `⚫ (${count})`}
+					</button>
+				  );
+				})}
+			  </div>
+			</div>
         </div>
 
         <div className="flex-1 overflow-y-auto pb-24">
@@ -963,12 +1105,26 @@ export function Contracts() {
                       <div className="text-sm font-medium text-slate-900 truncate">{contract.contract_title}</div>
                       <div className="text-xs text-slate-500 truncate">{contract.client_name}</div>
                     </div>
-                    <Badge tone={contract.status === "ACTIVE" ? "emerald" : contract.status === "PENDING" ? "amber" : "slate"}>
-                      {contract.status}
-                    </Badge>
+                    {(() => {
+					  const financialStatus = getContractFinancialStatus(contract);
+					  
+					  if (contract.status === "COMPLETED") {
+						return <Badge tone="slate">✓ Completed</Badge>;
+					  }
+					  
+					  if (financialStatus === "needs_review") {
+						return (
+						  <Badge tone="amber" className="gap-1">
+							<span>⚠️</span>
+							<span>Needs Review</span>
+						  </Badge>
+						);
+					  }
+					  return <Badge tone="emerald">🟢 Active</Badge>;
+					})()}
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500" dir="rtl">{contract.start_date} → {contract.end_date}</span>
+                    <span className="text-slate-500" d>{contract.start_date} → {contract.end_date}</span>
                     <span className="font-semibold text-slate-900">{formatCurrency(contract.total_value, contract.currency)}</span>
                   </div>
                   <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -1002,152 +1158,312 @@ export function Contracts() {
         </div>
       </div>
 
-      {/* RIGHT PANEL */}
-      {isDetailsOpen && selectedContract && (
-        <div className="col-span-8 flex flex-col bg-white rounded-xl border border-slate-200/70 shadow-sm overflow-hidden transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-right-4">
-          <div className="border-b border-slate-100 px-6 py-4 bg-gradient-to-r from-slate-50 to-white">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Contract Details</h2>
-              <Button variant="ghost" size="sm" onClick={() => setIsDetailsOpen(false)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"> Close Panel</Button>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-lg font-bold"></div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900">{selectedContract.contract_title}</h3>
-                  <p className="text-sm text-slate-500 font-mono">{selectedContract.contract_no} • {selectedContract.client_name}</p>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <Badge tone={selectedContract.type === "CONTRACT" ? "indigo" : "amber"}>
-                      {selectedContract.type === "CONTRACT" ? "Contract" : "Work Order"}
-                    </Badge>
-                    <Badge tone={selectedContract.status === "ACTIVE" ? "emerald" : selectedContract.status === "PENDING" ? "amber" : "slate"}>
-                      {selectedContract.status}
-                    </Badge>
-                    <Badge tone="slate">{selectedContract.department}</Badge>
-                  </div>
-                </div>
+      {/* RIGHT PANEL - همیشه نمایش داده می‌شود */}
+<div className="col-span-8 flex flex-col bg-white rounded-xl border border-slate-200/70 shadow-sm overflow-hidden transition-all duration-300 ease-in-out">
+  {selectedContract ? (
+    <>
+      {/* Header وقتی قرارداد انتخاب شده */}
+      <div className="border-b border-slate-100 px-6 py-4 bg-gradient-to-r from-slate-50 to-white">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Contract Details</h2>
+          <Button variant="ghost" size="sm" onClick={() => setSelectedContract(null)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">✕ Close Panel</Button>
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-lg font-bold">📄</div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-900">{selectedContract.contract_title}</h3>
+              <p className="text-sm text-slate-500 font-mono">{selectedContract.contract_no} • {selectedContract.client_name}</p>
+              <div className="flex items-center gap-2 mt-1.5">
+                <Badge tone={selectedContract.type === "CONTRACT" ? "indigo" : "amber"}>
+                  {selectedContract.type === "CONTRACT" ? "Contract" : "Work Order"}
+                </Badge>
+                {(() => {
+				  const financialStatus = getContractFinancialStatus(selectedContract);
+				  
+				  if (selectedContract.status === "COMPLETED") {
+					return <Badge tone="slate">✓ Completed</Badge>;
+				  }
+				  
+				  if (financialStatus === "needs_review") {
+					return (
+					  <div className="flex items-center gap-2">
+						<Badge tone="amber" className="gap-1">
+						  <span>⚠️</span>
+						  <span>Needs Financial Review</span>
+						</Badge>
+						
+						{/* 🔑 دکمه فقط برای مدیر نمایش داده می‌شود */}
+						{userRole === "admin" && (
+						  <Button
+							variant="outline"
+							size="sm"
+							onClick={() => handleRequestComplete(selectedContract)}
+							className="gap-1 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+						  >
+							<span>✓</span>
+							<span>Mark as Completed</span>
+						  </Button>
+						)}
+					  </div>
+					);
+				  }
+				  
+				  return <Badge tone="emerald">🟢 Active</Badge>;
+				})()}
               </div>
-              <Button variant="outline" size="md" onClick={handleEditClick} className="gap-2 shadow-sm">
-                <span>✏</span> Edit {selectedContract.type === "CONTRACT" ? "Contract" : "Work Order"}
-              </Button>
+            </div>
+          </div>
+          <Button variant="outline" size="md" onClick={handleEditClick} className="gap-2 shadow-sm">
+            <span>✏️</span> Edit {selectedContract.type === "CONTRACT" ? "Contract" : "Work Order"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="space-y-6">
+          <div className="rounded-lg border border-slate-200 p-4 bg-slate-50/30">
+            <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">📋 Contract Information</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Internal Contract No.</div><div className="font-mono text-xs text-slate-900">{selectedContract.contract_no}</div></div>
+              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">External Contract No.</div><div className="font-mono text-xs text-slate-900">{selectedContract.external_contract_no || "—"}</div></div>
+              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1"></div><div className="text-xs text-slate-900"></div></div>
+              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Start Date</div><div className="text-xs text-slate-900">{selectedContract.start_date}</div></div>
+              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">End Date</div><div className="text-xs text-slate-900">{selectedContract.end_date}</div></div>
+              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Currency</div><div className="text-xs text-slate-900">{selectedContract.currency}</div></div>
+              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Total Value</div><div className="text-xs font-semibold text-emerald-600">{formatCurrency(selectedContract.total_value, selectedContract.currency)}</div></div>
+              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Invoiced</div><div className="text-xs font-semibold text-indigo-600">{formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}</div></div>
+              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Remaining</div><div className="text-xs font-semibold text-slate-900">{formatCurrency(selectedContract.total_value - selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}</div></div>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="space-y-6">
-              <div className="rounded-lg border border-slate-200 p-4 bg-slate-50/30">
-                <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2"> Contract Information</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Internal No (ICS)</div><div className="font-mono text-xs text-slate-900">{selectedContract.contract_no}</div></div>
-                  <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">External No</div><div className="font-mono text-xs text-slate-900">{selectedContract.external_contract_no || "—"}</div></div>
-                  <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Department</div><div className="text-xs text-slate-900">{selectedContract.department}</div></div>
-                  <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Start Date</div><div className="text-xs text-slate-900">{selectedContract.start_date}</div></div>
-                  <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">End Date</div><div className="text-xs text-slate-900" >{selectedContract.end_date}</div></div>
-                  <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Currency</div><div className="text-xs text-slate-900">{selectedContract.currency}</div></div>
-                  <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Total Value</div><div className="text-xs font-semibold text-emerald-600">{formatCurrency(selectedContract.total_value, selectedContract.currency)}</div></div>
-                  <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Invoiced</div><div className="text-xs font-semibold text-indigo-600">{formatCurrency(selectedContract.invoiced, selectedContract.currency)}</div></div>
-                  <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Remaining</div><div className="text-xs font-semibold text-slate-900">{formatCurrency(selectedContract.total_value - selectedContract.invoiced, selectedContract.currency)}</div></div>
-                </div>
-              </div>
+          <div className="grid grid-cols-3 gap-4"> 
+			<Card className="p-4 bg-slate-50/50">
+			  <div className="text-xs text-slate-500">Total Performed Work (%)</div>
+			  {(() => {
+				const workProgress = calculateProgressFromTariffs(selectedContract);
+				return (
+				  <>
+					<div className={`text-lg font-bold ${getProgressTextClass(workProgress)}`}>
+					  {workProgress.toFixed(2)}%
+					</div>
+					<div className="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+					  <div
+						className={`h-full rounded-full ${getProgressColor(workProgress)}`}
+						style={{ width: `${Math.min(workProgress, 100)}%` }}
+					  />
+					</div>
+				  </>
+				);
+			  })()}
+			</Card>
+			
+			<Card className="p-4 bg-slate-50/50">
+			  <div className="text-xs text-slate-500">Total Invoiced (%)</div>
+			  {(() => {
+				const invoiceProgress = calculateInvoiceProgress(selectedContract);
+				return (
+				  <>
+					<div className={`text-lg font-bold ${getProgressTextColor(invoiceProgress)}`}>
+					  {invoiceProgress.toFixed(2)}%
+					  {invoiceProgress > 100 && <span className="text-xs ml-1">(Over)</span>}
+					</div>
+					<div className="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+					  <div
+						className={`h-full rounded-full ${getProgressColor(invoiceProgress)}`}
+						style={{ width: `${Math.min(invoiceProgress, 100)}%` }}
+					  />
+					</div>
+				  </>
+				);
+			  })()}
+			</Card>
+			
+            <Card className="p-4 bg-slate-50/50">
+			  {(() => {
+				const daysUntilStart = getDaysUntilStart(selectedContract.start_date);
+				const notStarted = daysUntilStart > 0;
+				const daysLeft = calculateDaysLeft(selectedContract.end_date);
+				const isExpired = daysLeft < 0;
+				const isFullyInvoiced = selectedContract.invoiced >= selectedContract.total_value;
+				const needsFinancialReview = isExpired && !isFullyInvoiced;
 
-              <div className="grid grid-cols-3 gap-4">
-				  {/* Budget Used */}
-				  <Card className="p-4 bg-slate-50/50">
-					<div className="text-xs text-slate-500">Budget Used</div>
-					{(() => {
-					  const spent = calculateBudgetSpent(selectedContract.total_value, selectedContract.invoiced);
-					  return (
-						<div className={`text-lg font-bold ${getProgressTextColor(spent)}`}>
-						  {spent.toFixed(1)}%
-						  {spent > 100 && <span className="text-xs ml-1">(Over)</span>}
-						</div>
-					  );
-					})()}
-				  </Card>
+				// 🔑 قرارداد هنوز شروع نشده
+				if (notStarted) {
+				  return (
+					<>
+					  <div className="text-xs text-slate-500">Status</div>
+					  <div className="text-lg font-bold text-amber-600">⏳ Not Started</div>
+					  <div className="text-[10px] text-amber-500 mt-0.5">Starts in {daysUntilStart} days</div>
+					</>
+				  );
+				}
 
-				  {/* Time Remaining / Status */}
-				  <Card className="p-4 bg-slate-50/50">
-					{selectedContract.status === "CLOSED" ? (
-					  <>
-						<div className="text-xs text-slate-500">Status</div>
-						<div className="text-lg font-bold text-slate-600">
-						  ✓ Completed
-						</div>
-					  </>
-					) : (
-					  <>
-						<div className="text-xs text-slate-500">Time Remaining</div>
-						{(() => {
-						  const daysLeft = calculateDaysLeft(selectedContract.end_date);
-						  if (daysLeft < 0) {
-							return (
-							  <div className="text-lg font-bold text-rose-600">
-								{Math.abs(daysLeft)} days overdue
-							  </div>
-							);
-						  } else if (daysLeft === 0) {
-							return (
-							  <div className="text-lg font-bold text-amber-600">
-								Today (Expires)
-							  </div>
-							);
-						  } else {
-							return (
-							  <div className="text-lg font-bold text-emerald-600">
-								{daysLeft} days remaining
-							  </div>
-							);
-						  }
-						})()}
-					  </>
-					)}
-				  </Card>
+				// 🔑 قرارداد تکمیل شده
+				if (selectedContract.status === "COMPLETED") {
+				  return (
+					<>
+					  <div className="text-xs text-slate-500">Status</div>
+					  <div className="text-lg font-bold text-slate-600">✓ Completed</div>
+					</>
+				  );
+				}
 
-				  {/* Tariffs */}
-				  <Card className="p-4 bg-slate-50/50">
-					<div className="text-xs text-slate-500">{selectedTariffs.length === 1 ? "Tariff" : "Tariffs"}</div>
-					<div className="text-lg font-bold text-slate-900">{selectedTariffs.length}</div>
-				  </Card>
-				</div>
+				// 🔑 قرارداد منقضی شده با نیاز به بررسی مالی
+				if (needsFinancialReview) {
+				  return (
+					<>
+					  <div className="text-xs text-slate-500 mb-2">Financial Status</div>
+					  <div className="text-lg font-bold text-amber-600 mb-2">⚠️ Needs Review</div>
+					  
+					  {/* 🔑 دکمه همیشه نمایش داده می‌شود */}
+					  <button
+						onClick={() => userRole === "admin" && handleRequestComplete(selectedContract)}
+						disabled={userRole !== "admin"}
+						className={`w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+						  userRole === "admin"
+							? "bg-amber-500 text-white hover:bg-amber-600 shadow-sm cursor-pointer"
+							: "bg-slate-100 text-slate-400 cursor-not-allowed opacity-60"
+						}`}
+						title={userRole !== "admin" ? "Only managers can approve completion" : "Click to mark as completed"}
+					  >
+						{userRole === "admin" ? (
+						  <span className="flex items-center justify-center gap-1.5">
+							<span>✓</span>
+							<span>Mark as Completed</span>
+						  </span>
+						) : (
+						  <span className="flex items-center justify-center gap-1.5">
+							<span>🔒</span>
+							<span>Manager Approval Required</span>
+						  </span>
+						)}
+					  </button>
+					</>
+				  );
+				}
 
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 mb-3">Tariff Lines & Consumption</h3>
-                {selectedTariffs.length === 0 ? (
-                  <div className="text-center py-8 text-slate-400 text-sm">No tariff lines defined for this contract</div>
-                ) : (
-                  <div className="overflow-x-auto rounded-lg border border-slate-200">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                        <tr>
-                          <th className="px-3 py-2 font-medium">Description</th>
-                          <th className="px-3 py-2 font-medium">Unit</th>
-                          <th className="px-3 py-2 font-medium text-right">Rate</th>
-                          <th className="px-3 py-2 font-medium text-center">Performed Work</th>
-                          <th className="px-3 py-2 font-medium text-right">Total Value</th>
+				// 🔑 قرارداد فعال - بررسی زمان باقی‌مانده
+				if (daysLeft < 0) {
+				  return (
+					<>
+					  <div className="text-xs text-slate-500">Status</div>
+					  <div className="text-lg font-bold text-rose-600">{Math.abs(daysLeft)} days overdue</div>
+					</>
+				  );
+				} else if (daysLeft === 0) {
+				  return (
+					<>
+					  <div className="text-xs text-slate-500">Time Remaining</div>
+					  <div className="text-lg font-bold text-amber-600">Today (Expires)</div>
+					</>
+				  );
+				} else {
+				  return (
+					<>
+					  <div className="text-xs text-slate-500">Time Remaining</div>
+					  <div className="text-lg font-bold text-emerald-600">{daysLeft} days remaining</div>
+					</>
+				  );
+				}
+			  })()}
+			</Card>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900 mb-3">Tariff Lines & Consumption ({selectedTariffs.length})</h3>
+            {selectedTariffs.length === 0 ? (
+              <div className="text-center py-8 text-slate-400 text-sm">No tariff lines defined for this contract</div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Description</th>
+                      <th className="px-3 py-2 font-medium">Unit</th>
+                      <th className="px-3 py-2 font-medium text-right">Rate</th>
+                      <th className="px-3 py-2 font-medium text-center">Performed Work</th>
+                      <th className="px-3 py-2 font-medium text-right">Total Value of Performed Works</th>
+                      <th className="px-3 py-2 font-medium text-right">Total Invoiced</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedTariffs.map((tariff) => {
+                      const value = tariff.consumed_quantity * tariff.rate;
+					  const progress = tariff.consumed_quantity;
+                      const invoiced = (tariff as any).invoiced || 0;
+                      return (
+                        <tr key={tariff.id} className="hover:bg-slate-50/60">
+                          <td className="px-3 py-2 font-medium text-slate-800">{tariff.description}</td>
+                          <td className="px-3 py-2"><Badge tone="indigo">{tariff.unit.replace("_", " ")}</Badge></td>
+                          <td className="px-3 py-2 text-right font-mono">{formatCurrency(tariff.rate, selectedContract.currency)}</td>
+                          <td className="px-3 py-2 text-center font-mono">{tariff.consumed_quantity}</td>
+                          <td className="px-3 py-2 text-right font-mono font-semibold">{formatCurrency(value, selectedContract.currency)}</td>
+						  <td className="px-3 py-2 text-right font-mono font-semibold text-indigo-600">{formatCurrency(invoiced)}</td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {selectedTariffs.map((tariff) => {
-                          const value = tariff.consumed_quantity * tariff.rate;
-                          return (
-                            <tr key={tariff.id} className="hover:bg-slate-50/60">
-                              <td className="px-3 py-2 font-medium text-slate-800">{tariff.description}</td>
-                              <td className="px-3 py-2"><Badge tone="indigo">{tariff.unit.replace("_", " ")}</Badge></td>
-                              <td className="px-3 py-2 text-right font-mono">{formatCurrency(tariff.rate, selectedContract.currency)}</td>
-                              <td className="px-3 py-2 text-center font-mono">{tariff.consumed_quantity}</td>
-                              <td className="px-3 py-2 text-right font-mono font-semibold">{formatCurrency(value, selectedContract.currency)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                      );
+                    })}
+                  </tbody>
+				  <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                        <tr>
+                          <td colSpan={3} className="px-3 py-2.5 text-sm font-bold text-slate-700 text-left uppercase tracking-wider">💰 Total</td>
+                          <td className="px-3 py-2.5 text-center font-mono font-bold text-slate-900"></td>
+                          <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-700">{formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t.consumed_quantity || 0) * (t.rate || 0)), 0))}</td>
+                          <td className="px-3 py-2.5 text-right font-mono font-bold text-indigo-700">{formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}</td>
+                        </tr>
+                      </tfoot>
+                </table>
               </div>
-            </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
+    </>
+  ) : (
+    /* Placeholder با لوگو - وقتی قرارداد انتخاب نشده */
+    <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 relative overflow-hidden min-h-[600px]">
+      {/* Pattern پس‌زمینه */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+      }} />
+      
+      {/* محتوای مرکزی */}
+      <div className="text-center z-10 relative">
+        {/* لوگو با highlight */}
+        <div className="relative inline-block mb-8">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 blur-2xl opacity-40 animate-pulse" />
+          <div className="relative inline-flex items-center justify-center w-44 h-44 rounded-full bg-white shadow-2xl shadow-indigo-500/30 border-4 border-white">
+            <img 
+              src="/public/images/logo.png" 
+              alt="ICS Logo" 
+              className="w-36 h-36 object-contain"
+            />
+          </div>
+        </div>
+        
+        <h2 className="text-3xl font-bold text-slate-700 mb-3">OFFSHORE & ENERGY DEPARTMENT INSPECTION PLATFORM</h2>
+        <p className="text-base text-slate-500 max-w-md mx-auto leading-relaxed">
+          Select a contract from the list to view details, tariffs, and progress information
+        </p>
+        
+        <div className="flex items-center justify-center gap-6 mt-8">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center text-2xl">📄</div>
+            <span className="text-xs text-slate-500 font-medium">Contracts</span>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-2xl">📊</div>
+            <span className="text-xs text-slate-500 font-medium">Tariffs</span>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl">📈</div>
+            <span className="text-xs text-slate-500 font-medium">Progress</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
 
       {/* ADD CONTRACT MODAL */}
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Contract" size="lg">
@@ -1275,9 +1591,8 @@ export function Contracts() {
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-700">Status</label>
                   <select value={addForm.status} onChange={(e) => setAddForm({ ...addForm, status: e.target.value as any })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100">
-                    <option value="PENDING">Pending</option>
                     <option value="ACTIVE">Active</option>
-                    <option value="CLOSED">Closed</option>
+                    <option value="COMPLETED">COMPLETED</option>
                   </select>
                 </div>
               </div>
@@ -1673,14 +1988,6 @@ export function Contracts() {
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
                         />
                       </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-slate-700">Status</label>
-                        <select value={editForm.status || "PENDING"} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400">
-                          <option value="PENDING">Pending</option>
-                          <option value="ACTIVE">Active</option>
-                          <option value="CLOSED">Closed</option>
-                        </select>
-                      </div>
                     </div>
 
                     <div>
@@ -1707,14 +2014,7 @@ export function Contracts() {
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-slate-700">Status</label>
-                        <select value={editForm.status || "PENDING"} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400">
-                          <option value="PENDING">Pending</option>
-                          <option value="ACTIVE">Active</option>
-                          <option value="CLOSED">Closed</option>
-                        </select>
-                      </div>
+ 
                       <div>
                         <label className="mb-1.5 block text-xs font-semibold text-slate-700">Total Value</label>
                         <input
@@ -1794,7 +2094,7 @@ export function Contracts() {
                     onClick={() => setViewFilterStatus(status)}
                     className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${viewFilterStatus === status ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:text-slate-700"}`}
                   >
-                    {status === "ACTIVE" ? "🟢" : status === "PENDING" ? "🟡" : ""} {status} ({clientContractCounts[status] || 0})
+                    {status === "ACTIVE" ? "🟢" : ""} {status} ({clientContractCounts[status] || 0})
                   </button>
                 ))}
               </div>
@@ -1828,7 +2128,7 @@ export function Contracts() {
                           </div>
                           <h4 className="text-sm font-semibold text-slate-900">{contract.contract_title}</h4>
                         </div>
-                        <Badge tone={contract.status === "ACTIVE" ? "emerald" : contract.status === "PENDING" ? "amber" : "slate"}>
+                        <Badge tone={contract.status === "ACTIVE" ? "emerald" : "slate"}>
                           {contract.status}
                         </Badge>
                       </div>
@@ -1877,6 +2177,113 @@ export function Contracts() {
           </div>
         )}
       </Modal>
+	  
+	<Modal
+	  isOpen={confirmCompleteOpen}
+	  onClose={() => {
+		setConfirmCompleteOpen(false);
+		setContractToComplete(null);
+		setCompleteReason("");
+	  }}
+	  title="Mark Contract as Completed"
+	  size="md"
+	>
+	  {contractToComplete && (
+		<div className="space-y-4">
+		  {/* هشدار */}
+		  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+			<div className="flex items-start gap-3">
+			  <div className="text-2xl">⚠️</div>
+			  <div className="flex-1">
+				<h3 className="text-sm font-semibold text-amber-900 mb-1">
+				  Financial Review Required
+				</h3>
+				<p className="text-xs text-amber-800">
+				  This contract has expired but invoiced amount is less than total value.
+				  Please review and confirm completion.
+				</p>
+			  </div>
+			</div>
+		  </div>
+
+		  {/* اطلاعات قرارداد */}
+		  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+			<div className="grid grid-cols-2 gap-3 text-sm">
+			  <div>
+				<div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Contract No</div>
+				<div className="font-mono text-xs text-slate-900">{contractToComplete.contract_no}</div>
+			  </div>
+			  <div>
+				<div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Client</div>
+				<div className="text-xs text-slate-900">{contractToComplete.client_name}</div>
+			  </div>
+			  <div>
+				<div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Total Value</div>
+				<div className="text-xs font-semibold text-emerald-600">
+				  {formatCurrency(contractToComplete.total_value, contractToComplete.currency)}
+				</div>
+			  </div>
+			  <div>
+				<div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Invoiced</div>
+				<div className="text-xs font-semibold text-indigo-600">
+				  {formatCurrency(contractToComplete.invoiced, contractToComplete.currency)}
+				</div>
+			  </div>
+			  <div className="col-span-2">
+				<div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Invoiced Percentage</div>
+				<div className="flex items-center gap-2">
+				  <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+					<div
+					  className="h-full bg-amber-500 rounded-full"
+					  style={{ width: `${Math.min(getInvoicedPercentage(contractToComplete), 100)}%` }}
+					/>
+				  </div>
+				  <span className="text-xs font-semibold text-amber-600">
+					{getInvoicedPercentage(contractToComplete).toFixed(1)}%
+				  </span>
+				</div>
+			  </div>
+			</div>
+		  </div>
+
+		  {/* دلیل تکمیل */}
+		  <div>
+			<label className="mb-1.5 block text-xs font-semibold text-slate-700">
+			  Reason for Completion (Optional)
+			</label>
+			<textarea
+			  value={completeReason}
+			  onChange={(e) => setCompleteReason(e.target.value)}
+			  rows={3}
+			  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+			  placeholder="e.g., Final settlement reached, remaining amount waived..."
+			/>
+		  </div>
+
+		  {/* دکمه‌ها */}
+		  <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+			<Button
+			  variant="ghost"
+			  onClick={() => {
+				setConfirmCompleteOpen(false);
+				setContractToComplete(null);
+				setCompleteReason("");
+			  }}
+			>
+			  Cancel
+			</Button>
+			<Button
+			  onClick={handleConfirmComplete}
+			  className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+			>
+			  <span>✓</span>
+			  <span>Confirm Completion</span>
+			</Button>
+		  </div>
+		</div>
+	  )}
+	</Modal>
+
     </div>
   );
 }
