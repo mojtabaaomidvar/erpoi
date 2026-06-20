@@ -11,6 +11,7 @@ import DatePicker from "react-multi-date-picker";
 import persian from "react-date-object/calendars/persian";
 import persian_fa from "react-date-object/locales/persian_fa";
 import jalaali from "jalaali-js";
+import { useTheme } from "../contexts/ThemeContext";
 
 // ============ TYPES ============
 interface TariffLine {
@@ -149,17 +150,19 @@ const parseNumberInput = (value: string): number => {
 };
 
 // ============ PROGRESS CALCULATION ============
-const calculateProgressFromTariffs = (contract: any): number => {
+const calculateProgressFromTariffs = (contract: Contract): number => {
   const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
   if (tariffs.length === 0) return 0;
   if (contract.total_value <= 0) return 0;
   const totalPerformed = tariffs.reduce((sum, t) => {
-    return sum + (t.rate * t.consumed_quantity);
+    const rate = typeof t.rate === 'string' ? parseNumberInput(t.rate) : (t.rate || 0);
+    const consumed = t.consumed_quantity || 0;
+    return sum + (rate * consumed);
   }, 0);
   return (totalPerformed / contract.total_value) * 100;
 };
 
-const calculateInvoiceProgress = (contract: any): number => {
+const calculateInvoiceProgress = (contract: Contract): number => {
   if (contract.total_value <= 0) return 0;
   return (contract.invoiced / contract.total_value) * 100;
 };
@@ -173,11 +176,9 @@ const calculateDaysLeft = (endDate: string): number => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diffTime = endGregorian.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
 
-// بررسی اینکه آیا قرارداد هنوز شروع نشده
 const isContractNotStarted = (startDate: string): boolean => {
   if (!startDate) return false;
   const [jy, jm, jd] = startDate.split('/').map(Number);
@@ -188,7 +189,6 @@ const isContractNotStarted = (startDate: string): boolean => {
   return startGregorian.getTime() > today.getTime();
 };
 
-// محاسبه روزهای باقی‌مانده تا شروع
 const getDaysUntilStart = (startDate: string): number => {
   if (!startDate) return 0;
   const [jy, jm, jd] = startDate.split('/').map(Number);
@@ -210,7 +210,6 @@ const getContractFinancialStatus = (contract: Contract): "completed" | "needs_re
   const daysLeft = calculateDaysLeft(contract.end_date);
   const isExpired = daysLeft < 0;
   const isFullyInvoiced = contract.invoiced >= contract.total_value;
-  
   if (contract.status === "COMPLETED") return "completed";
   if (isExpired && isFullyInvoiced) return "completed";
   if (isExpired && !isFullyInvoiced) return "needs_review";
@@ -240,6 +239,7 @@ function JalaaliDatePicker({
   placeholder = "Select date",
   disabled = false,
 }: JalaaliDatePickerProps) {
+  const { isDark } = useTheme();
   const handleSelect = (date: any) => {
     if (date && !Array.isArray(date)) {
       const formatted = `${date.year}/${String(date.month.index).padStart(2, "0")}/${String(date.day).padStart(2, "0")}`;
@@ -248,7 +248,6 @@ function JalaaliDatePicker({
       onChange("");
     }
   };
-
   return (
     <DatePicker
       calendar={persian}
@@ -256,7 +255,7 @@ function JalaaliDatePicker({
       value={value || undefined}
       onChange={handleSelect}
       calendarPosition="bottom-right"
-      inputClass="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm text-left font-sans focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+      inputClass={`w-full rounded-lg py-2.5 px-3 text-sm text-left font-sans input-themed`}
       placeholder={placeholder}
       disabled={disabled}
       minDate={minDate}
@@ -275,6 +274,7 @@ interface ClientSelectorModalProps {
 }
 
 function ClientSelectorModal({ value, onChange, onAddNew, error }: ClientSelectorModalProps) {
+  const { isDark } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -294,27 +294,27 @@ function ClientSelectorModal({ value, onChange, onAddNew, error }: ClientSelecto
   return (
     <>
       <div>
-        <label className="mb-1.5 block text-xs font-semibold text-slate-700">Client *</label>
+        <label className="mb-1.5 block text-xs font-semibold text-primary">Client *</label>
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className={`w-full rounded-lg border px-3 py-2 text-sm text-left focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
-            error ? "border-rose-300" : "border-slate-200 focus:border-indigo-400"
-          } ${selectedClient ? "bg-white text-slate-900" : "bg-slate-50 text-slate-400"}`}
+          className={`w-full rounded-lg border px-3 py-2 text-sm text-left focus:outline-none focus:ring-2 focus:ring-indigo-100 input-themed ${
+            error ? "border-rose-300" : ""
+          }`}
         >
           {selectedClient ? (
             <div className="flex items-center gap-2">
-              <span className="truncate">{selectedClient.name_en}</span>
+              <span className="truncate text-primary">{selectedClient.name_en}</span>
               <Badge tone="slate" className="shrink-0 text-[10px]">
                 {selectedClient.type === "LEGAL" ? "Legal" : "Individual"}
               </Badge>
             </div>
           ) : (
-            <span>Select Client...</span>
+            <span className="text-muted">Select Client...</span>
           )}
         </button>
         {error && (
-          <p className="mt-1 text-[11px] font-medium text-rose-600"> {error}</p>
+          <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {error}</p>
         )}
       </div>
 
@@ -322,20 +322,20 @@ function ClientSelectorModal({ value, onChange, onAddNew, error }: ClientSelecto
         <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); setSearch(""); }} title="Select Client" size="md">
           <div className="space-y-4">
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">🔍</span>
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by name or ID..."
-                className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                className="w-full rounded-lg py-2 pl-9 pr-3 text-sm input-themed"
                 autoFocus
               />
             </div>
 
             <div className="max-h-80 overflow-y-auto space-y-2">
               {filteredClients.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-500">
+                <div className="p-8 text-center text-sm text-secondary">
                   <div className="text-4xl mb-2">🔍</div>
                   No clients found
                 </div>
@@ -351,18 +351,14 @@ function ClientSelectorModal({ value, onChange, onAddNew, error }: ClientSelecto
                     }}
                     className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
                       value === client.id
-                        ? "border-indigo-400 bg-indigo-50"
-                        : "border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50"
+                        ? (isDark ? "border-indigo-500 bg-indigo-900/30" : "border-indigo-400 bg-indigo-50")
+                        : (isDark ? "border-slate-700 hover:border-indigo-500 hover:bg-slate-800" : "border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50")
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-slate-900 truncate">
-                          {client.name_en}
-                        </div>
-                        <div className="text-xs text-slate-500 truncate" dir="rtl">
-                          {client.name_fa}
-                        </div>
+                        <div className="text-sm font-medium text-primary truncate">{client.name_en}</div>
+                        <div className="text-xs text-secondary truncate" dir="rtl">{client.name_fa}</div>
                       </div>
                       <Badge
                         tone={client.type === "LEGAL" ? "indigo" : "violet"}
@@ -377,7 +373,7 @@ function ClientSelectorModal({ value, onChange, onAddNew, error }: ClientSelecto
             </div>
 
             {onAddNew && (
-              <div className="pt-4 border-t border-slate-100">
+              <div className={`pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}>
                 <Button
                   type="button"
                   variant="primary"
@@ -409,6 +405,8 @@ interface TariffEditorProps {
 }
 
 function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEditorProps) {
+  const { isDark } = useTheme();
+
   const addTariff = () => {
     const newTariff: TariffLine = {
       id: `t${Date.now()}`,
@@ -431,15 +429,12 @@ function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEdi
     const updated = tariffs.map((t) => {
       if (t.id !== id) return t;
       const newTariff = { ...t, [field]: value };
-
       if (field === "rate") {
-        newTariff.total = parseNumberInput(newTariff.rate);
+        newTariff.total = parseNumberInput(newTariff.rate as string);
       }
-
       if (field === "isLumpSum" && value === true) {
         newTariff.unit = "LUMP_SUM";
       }
-
       return newTariff;
     });
     onChange(updated);
@@ -448,8 +443,8 @@ function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEdi
   const totalsByCurrency = useMemo(() => {
     const totals: Record<string, number> = {};
     tariffs.forEach((t) => {
-      if (!totals[t.currency]) totals[t.currency] = 0;
-      totals[t.currency] += t.total || parseNumberInput(t.rate);
+      if (!totals[t.currency || "IRR"]) totals[t.currency || "IRR"] = 0;
+      totals[t.currency || "IRR"] += t.total || parseNumberInput(t.rate as string);
     });
     return totals;
   }, [tariffs]);
@@ -458,7 +453,7 @@ function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEdi
     <div>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-slate-900">Tariff Lines</h3>
+          <h3 className="text-sm font-semibold text-primary">Tariff Lines</h3>
           <Badge tone="indigo">{tariffs.length}</Badge>
         </div>
         <Button
@@ -484,12 +479,12 @@ function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEdi
             key={tariff.id}
             className={`rounded-lg border p-3 ${
               tariff.isLumpSum
-                ? "border-indigo-200 bg-indigo-50/30"
-                : "border-slate-200 bg-slate-50/50"
+                ? (isDark ? "border-indigo-700 bg-indigo-900/20" : "border-indigo-200 bg-indigo-50/30")
+                : (isDark ? "border-slate-700 bg-muted/50" : "border-slate-200 bg-muted/50")
             }`}
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-semibold text-slate-500">#{index + 1}</span>
+              <span className="text-xs font-semibold text-secondary">#{index + 1}</span>
               {tariff.isLumpSum && <Badge tone="indigo">Lump Sum</Badge>}
               <div className="flex-1" />
               {tariffs.length > 1 && (
@@ -511,7 +506,7 @@ function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEdi
                   value={tariff.description}
                   onChange={(e) => updateTariff(tariff.id, "description", e.target.value)}
                   placeholder="Description..."
-                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
+                  className="w-full rounded border px-2 py-1.5 text-xs input-themed"
                 />
               </div>
 
@@ -519,7 +514,7 @@ function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEdi
                 <select
                   value={tariff.unit}
                   onChange={(e) => updateTariff(tariff.id, "unit", e.target.value)}
-                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
+                  className="w-full rounded border px-2 py-1.5 text-xs input-themed"
                 >
                   {UNITS.map((u) => (
                     <option key={u} value={u}>
@@ -535,7 +530,7 @@ function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEdi
                   inputMode="numeric"
                   value={tariff.rate}
                   onChange={(e) => updateTariff(tariff.id, "rate", formatNumberInput(e.target.value))}
-                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs font-mono text-right focus:border-indigo-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-full rounded border px-2 py-1.5 text-xs font-mono text-right input-themed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   placeholder="Rate"
                 />
               </div>
@@ -544,7 +539,7 @@ function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEdi
                 <select
                   value={tariff.currency}
                   onChange={(e) => updateTariff(tariff.id, "currency", e.target.value)}
-                  className="w-full rounded border border-slate-200 bg-white px-1 py-1.5 text-[10px] font-semibold focus:border-indigo-400 focus:outline-none"
+                  className="w-full rounded border px-1 py-1.5 text-[10px] font-semibold input-themed"
                 >
                   {CURRENCIES.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -558,14 +553,16 @@ function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEdi
 
       {showTotals && Object.keys(totalsByCurrency).length > 0 && (
         <div className="mt-3 space-y-2">
-          <div className="text-xs font-semibold text-slate-700 mb-2">Totals by Currency:</div>
+          <div className="text-xs font-semibold text-primary mb-2">Totals by Currency:</div>
           {Object.entries(totalsByCurrency).map(([currency, total]) => (
-            <div key={currency} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div key={currency} className={`flex items-center justify-between rounded-lg border p-3 ${
+              isDark ? "border-slate-700 bg-muted" : "border-slate-200 bg-muted"
+            }`}>
               <div className="flex items-center gap-2">
                 <Badge tone="indigo">{currency}</Badge>
-                <span className="text-sm font-semibold text-slate-700">Total:</span>
+                <span className="text-sm font-semibold text-primary">Total:</span>
               </div>
-              <span className="text-lg font-bold text-emerald-600">{total.toLocaleString("en-US")}</span>
+              <span className="text-lg font-bold text-accent-emerald">{total.toLocaleString("en-US")}</span>
             </div>
           ))}
         </div>
@@ -576,6 +573,8 @@ function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEdi
 
 // ============ MAIN COMPONENT ============
 export function Contracts() {
+  const { isDark } = useTheme();
+
   const [contracts, setContracts] = useState<Contract[]>(initialContracts);
   const [clients, setClients] = useState<Client[]>(initialClients);
   const [searchQuery, setSearchQuery] = useState("");
@@ -585,9 +584,9 @@ export function Contracts() {
   const [sortBy, setSortBy] = useState<"date" | "value" | "status">("date");
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-useEffect(() => {
-  setStatusFilter("ALL");
-}, [typeFilter]);
+  useEffect(() => {
+    setStatusFilter("ALL");
+  }, [typeFilter]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -610,7 +609,7 @@ useEffect(() => {
     end_date: "",
     total_value: 0,
     currency: "IRR",
-    status: "ACTIVE" as "ACTIVE"  | "COMPLETED",
+    status: "ACTIVE" as "ACTIVE" | "COMPLETED",
     type: "CONTRACT" as "CONTRACT" | "WORK_ORDER",
     contract_count: 1,
     description: "",
@@ -626,9 +625,9 @@ useEffect(() => {
       },
     ] as TariffLine[],
   });
+
   const [editForm, setEditForm] = useState<any>({});
   const [addErrors, setAddErrors] = useState<any>({});
-
   const [isClientContractsOpen, setIsClientContractsOpen] = useState(false);
   const [clientContractsList, setClientContractsList] = useState<Contract[]>([]);
   const [selectedClientForView, setSelectedClientForView] = useState<any>(null);
@@ -638,7 +637,7 @@ useEffect(() => {
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
   const [contractToComplete, setContractToComplete] = useState<Contract | null>(null);
   const [completeReason, setCompleteReason] = useState("");
-  
+
   useEffect(() => {
     const returnData = localStorage.getItem("returnToContract");
     if (returnData && isAddModalOpen) {
@@ -658,75 +657,70 @@ useEffect(() => {
     }
   }, [isAddModalOpen]);
 
-  // ============ 1. BASE CONTRACTS (فقط search اعمال شده) ============
-const baseContracts = useMemo(() => {
-  return contracts.filter((contract) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      !query ||
-      contract.contract_no.toLowerCase().includes(query) ||
-      (contract.external_contract_no && contract.external_contract_no.toLowerCase().includes(query)) ||
-      contract.client_name.toLowerCase().includes(query) ||
-      contract.contract_title.toLowerCase().includes(query)
-    );
-  });
-}, [searchQuery, contracts]);
+  // ============ 1. BASE CONTRACTS ============
+  const baseContracts = useMemo(() => {
+    return contracts.filter((contract) => {
+      const query = searchQuery.toLowerCase();
+      return (
+        !query ||
+        contract.contract_no.toLowerCase().includes(query) ||
+        (contract.external_contract_no && contract.external_contract_no.toLowerCase().includes(query)) ||
+        contract.client_name.toLowerCase().includes(query) ||
+        contract.contract_title.toLowerCase().includes(query)
+      );
+    });
+  }, [searchQuery, contracts]);
 
-// ============ 2. CROSS-FILTERED COUNTS (شمارنده‌های هوشمند) ============
-const filterCounts = useMemo(() => {
-  return {
-    // 🔑 شمارنده‌های Type: بر اساس statusFilter فعلی فیلتر میشن
-    type: {
-      ALL: baseContracts.filter(c => statusFilter === "ALL" || c.status === statusFilter).length,
-      CONTRACT: baseContracts.filter(c => c.type === "CONTRACT" && (statusFilter === "ALL" || c.status === statusFilter)).length,
-      WORK_ORDER: baseContracts.filter(c => c.type === "WORK_ORDER" && (statusFilter === "ALL" || c.status === statusFilter)).length,
-    },
-    // 🔑 شمارنده‌های Status: بر اساس typeFilter فعلی فیلتر میشن
-    status: {
-      ALL: baseContracts.filter(c => typeFilter === "ALL" || c.type === typeFilter).length,
-      ACTIVE: baseContracts.filter(c => c.status === "ACTIVE" && (typeFilter === "ALL" || c.type === typeFilter)).length,
-      COMPLETED: baseContracts.filter(c => c.status === "COMPLETED" && (typeFilter === "ALL" || c.type === typeFilter)).length,
-    },
-    // آمار کلی (بدون هیچ فیلتری)
-    total: baseContracts.length,
-    totalValue: baseContracts.reduce((sum, c) => sum + c.total_value, 0),
-    totalInvoiced: baseContracts.reduce((sum, c) => sum + c.invoiced, 0),
-  };
-}, [baseContracts, typeFilter, statusFilter]);
+  // ============ 2. CROSS-FILTERED COUNTS ============
+  const filterCounts = useMemo(() => {
+    return {
+      type: {
+        ALL: baseContracts.filter(c => statusFilter === "ALL" || c.status === statusFilter).length,
+        CONTRACT: baseContracts.filter(c => c.type === "CONTRACT" && (statusFilter === "ALL" || c.status === statusFilter)).length,
+        WORK_ORDER: baseContracts.filter(c => c.type === "WORK_ORDER" && (statusFilter === "ALL" || c.status === statusFilter)).length,
+      },
+      status: {
+        ALL: baseContracts.filter(c => typeFilter === "ALL" || c.type === typeFilter).length,
+        ACTIVE: baseContracts.filter(c => c.status === "ACTIVE" && (typeFilter === "ALL" || c.type === typeFilter)).length,
+        COMPLETED: baseContracts.filter(c => c.status === "COMPLETED" && (typeFilter === "ALL" || c.type === typeFilter)).length,
+      },
+      total: baseContracts.length,
+      totalValue: baseContracts.reduce((sum, c) => sum + c.total_value, 0),
+      totalInvoiced: baseContracts.reduce((sum, c) => sum + c.invoiced, 0),
+    };
+  }, [baseContracts, typeFilter, statusFilter]);
 
-// ============ 3. FINAL FILTERED (هر دو فیلتر اعمال شده) ============
-const filteredContracts = useMemo(() => {
-  let result = baseContracts.filter((contract) => {
-    const matchesType = typeFilter === "ALL" || contract.type === typeFilter;
-    const matchesStatus = statusFilter === "ALL" || contract.status === statusFilter;
-    return matchesType && matchesStatus;
-  });
-
-  return result.sort((a, b) => {
-    if (sortBy === "date") return b.start_date.localeCompare(a.start_date);
-    if (sortBy === "value") return b.total_value - a.total_value;
-    if (sortBy === "status") {
-      const order: Record<string, number> = { ACTIVE: 1, COMPLETED: 2 };
-      return (order[a.status] || 99) - (order[b.status] || 99);
-    }
-    return 0;
-  });
-}, [baseContracts, typeFilter, statusFilter, sortBy]);
+  // ============ 3. FINAL FILTERED ============
+  const filteredContracts = useMemo(() => {
+    let result = baseContracts.filter((contract) => {
+      const matchesType = typeFilter === "ALL" || contract.type === typeFilter;
+      const matchesStatus = statusFilter === "ALL" || contract.status === statusFilter;
+      return matchesType && matchesStatus;
+    });
+    return result.sort((a, b) => {
+      if (sortBy === "date") return b.start_date.localeCompare(a.start_date);
+      if (sortBy === "value") return b.total_value - a.total_value;
+      if (sortBy === "status") {
+        const order: Record<string, number> = { ACTIVE: 1, COMPLETED: 2 };
+        return (order[a.status] || 99) - (order[b.status] || 99);
+      }
+      return 0;
+    });
+  }, [baseContracts, typeFilter, statusFilter, sortBy]);
 
   const selectedTariffs = useMemo(() => {
     if (!selectedContract) return [];
     return contractTariffs.filter((t) => t.contract_id === selectedContract.id);
   }, [selectedContract]);
 
-// 🔑 محاسبه مجموع کارهای انجام شده برای قرارداد انتخاب‌شده
-const totalPerformedWork = useMemo(() => {
-  if (!selectedContract) return 0;
-  return selectedTariffs.reduce((sum, t) => {
-    const rate = typeof t.rate === 'string' ? Number(t.rate.replace(/,/g, '')) || 0 : (t.rate || 0);
-    const consumed = t.consumed_quantity || 0;
-    return sum + (rate * consumed);
-  }, 0);
-}, [selectedContract, selectedTariffs]);
+  const totalPerformedWork = useMemo(() => {
+    if (!selectedContract) return 0;
+    return selectedTariffs.reduce((sum, t) => {
+      const rate = typeof t.rate === 'string' ? Number(t.rate.replace(/,/g, '')) || 0 : (t.rate || 0);
+      const consumed = t.consumed_quantity || 0;
+      return sum + (rate * consumed);
+    }, 0);
+  }, [selectedContract, selectedTariffs]);
 
   useEffect(() => {
     if (isAddModalOpen) {
@@ -841,14 +835,13 @@ const totalPerformedWork = useMemo(() => {
       } else if (addForm.source_type === "EMAIL") {
         if (!addForm.source_email_from.trim()) errors.source_email_from = "Email address is required";
       }
-
       if (!addForm.client_id) errors.client_id = "Client selection is required";
       if (!addForm.contract_title.trim()) errors.contract_title = "Work order title is required";
 
       if (!addForm.tariffs || addForm.tariffs.length === 0) {
         errors.tariffs = "At least one tariff line is required";
       } else {
-        const emptyTariff = addForm.tariffs.find((t) => !t.description.trim() || !t.rate || parseNumberInput(t.rate) <= 0);
+        const emptyTariff = addForm.tariffs.find((t) => !t.description.trim() || !t.rate || parseNumberInput(t.rate as string) <= 0);
         if (emptyTariff) errors.tariffs = "All tariff lines must have description and rate";
       }
     } else {
@@ -882,8 +875,6 @@ const totalPerformedWork = useMemo(() => {
     setContracts([newContract, ...contracts]);
     setSelectedContract(newContract);
     setIsDetailsOpen(true);
-
-    // ثبت ایمیل در لیست مشتریان
     if (addForm.source_type === "EMAIL" && addForm.source_email_from && addForm.client_id) {
       setClients(prevClients =>
         prevClients.map(client => {
@@ -899,10 +890,7 @@ const totalPerformedWork = useMemo(() => {
           return client;
         })
       );
-      localStorage.setItem('clients_emails', JSON.stringify(clients));
-      window.dispatchEvent(new Event('clients-updated'));
     }
-
     setIsAddModalOpen(false);
   };
 
@@ -922,31 +910,25 @@ const totalPerformedWork = useMemo(() => {
     setIsEditModalOpen(false);
   };
 
-// 🔑 Handler برای باز کردن Modal تایید تکمیل
   const handleRequestComplete = (contract: Contract) => {
-  setContractToComplete(contract);
-  setCompleteReason("");
-  setConfirmCompleteOpen(true);
-};
+    setContractToComplete(contract);
+    setCompleteReason("");
+    setConfirmCompleteOpen(true);
+  };
 
-// 🔑 Handler برای تایید تکمیل قرارداد توسط مدیر
   const handleConfirmComplete = () => {
-  if (!contractToComplete) return;
-  
-  const updatedContracts = contracts.map((c) =>
-    c.id === contractToComplete.id ? { ...c, status: "COMPLETED" as const } : c
-  );
-  
-  setContracts(updatedContracts);
-  
-  if (selectedContract?.id === contractToComplete.id) {
-    setSelectedContract({ ...contractToComplete, status: "COMPLETED" });
-  }
-  
-  setConfirmCompleteOpen(false);
-  setContractToComplete(null);
-  setCompleteReason("");
-};
+    if (!contractToComplete) return;
+    const updatedContracts = contracts.map((c) =>
+      c.id === contractToComplete.id ? { ...c, status: "COMPLETED" as const } : c
+    );
+    setContracts(updatedContracts);
+    if (selectedContract?.id === contractToComplete.id) {
+      setSelectedContract({ ...contractToComplete, status: "COMPLETED" });
+    }
+    setConfirmCompleteOpen(false);
+    setContractToComplete(null);
+    setCompleteReason("");
+  };
 
   const handleTypeChange = (type: "CONTRACT" | "WORK_ORDER") => {
     setAddForm({ ...addForm, type });
@@ -999,110 +981,123 @@ const totalPerformedWork = useMemo(() => {
     return counts;
   }, [clientContractsList]);
 
+  const availableStatuses = useMemo(() => {
+    const statuses = new Set(clientContractsList.map((c) => c.status));
+    return Array.from(statuses);
+  }, [clientContractsList]);
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 p-3 lg:p-6 h-auto lg:h-[calc(100vh-140px)]">
+    <div className={`grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 p-3 lg:p-6 h-auto lg:h-[calc(100vh-140px)]`}>
       {/* LEFT PANEL */}
-      <div className="ol-span-1 lg:col-span-4 relative flex flex-col bg-white rounded-xl border border-slate-200/70 shadow-sm overflow-hidden transition-all duration-300 ease-in-out max-h-[50vh] lg:max-h-none">
-        <div className="relative z-10 border-b border-slate-100 px-4 py-4 bg-slate-50/50 space-y-4">
+      <div className={`col-span-1 lg:col-span-4 relative flex flex-col rounded-xl border shadow-sm overflow-hidden transition-all duration-300 ease-in-out max-h-[50vh] lg:max-h-none ${
+        isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200/70"
+      }`}>
+        <div className={`relative z-10 border-b px-4 py-4 space-y-3 ${
+          isDark ? "border-slate-700 bg-slate-800/50" : "border-slate-100 bg-slate-50/50"
+        }`}>
           <div className="flex items-center gap-3">
-            <h3 className="text-sm font-semibold text-slate-900 shrink-0">Contracts</h3>
+            <h3 className="text-sm font-semibold text-primary shrink-0">Contracts</h3>
             <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">🔍</span>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by contract no, client, title..."
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-8 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                className="w-full rounded-lg py-2 pl-9 pr-8 text-sm input-themed"
               />
               {searchQuery && (
-                <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">✕</button>
+                <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary">✕</button>
               )}
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+          <div className={`flex items-center justify-end gap-3 pt-2 border-t border-theme`}>
             <Button variant="outline" size="sm" onClick={handleExportToExcel} className="shrink-0 gap-1.5 text-xs">📥 Export</Button>
             <div className="relative">
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as "date" | "value" | "status")} className="appearance-none text-xs rounded-md border border-slate-200 bg-white pl-2 pr-6 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer hover:bg-slate-50">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "date" | "value" | "status")}
+                className="appearance-none text-xs rounded-md pl-2 pr-6 py-2 font-medium cursor-pointer input-themed"
+              >
                 <option value="date">Latest First</option>
                 <option value="value">Highest Value</option>
                 <option value="status">By Status</option>
               </select>
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[10px]">▼</span>
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none text-[10px]">▼</span>
             </div>
           </div>
 
-			<div className="flex flex-col sm:flex-row gap-2 rounded-lg border border-slate-200 bg-white p-1.5 text-xs">
-			  
-			  <div className="flex-1 flex gap-1 rounded-md bg-slate-100 p-0.5">
-				{(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => {
-				  const count = t === "ALL" ? contracts.length : t === "CONTRACT" ? contracts.filter(c => c.type === "CONTRACT").length : contracts.filter(c => c.type === "WORK_ORDER").length;
-				  return (
-					<button 
-					  key={t} 
-					  onClick={() => setTypeFilter(t)} 
-					  className={`flex-1 rounded px-1 py-1 font-medium transition-all whitespace-nowrap ${
-						typeFilter === t 
-						  ? "bg-white text-indigo-700 shadow-sm" 
-						  : "text-slate-500 hover:text-slate-700"
-					  }`}
-					>
-					  {t === "ALL" ? `All (${count})` : t === "CONTRACT" ? `📄 (${count})` : `📦(${count})`}
-					</button>
-				  );
-				})}
-			  </div>
-			  
-			  <div className="h-6 w-px bg-slate-200 shrink-0" />
-			  
-			  {/* Status - شمارنده بر اساس typeFilter فعلی (نه statusFilter) */}
-			  <div className="flex-1 flex gap-1 rounded-md bg-slate-100 p-0.5">
-				{(["ALL", "ACTIVE", "COMPLETED"] as const).map((t) => {
-				  // 🔑 شمارنده بر اساس typeFilter فیلتر میشه
-				  const baseContracts = typeFilter === "ALL" 
-					? contracts 
-					: contracts.filter(c => c.type === typeFilter);
-				  
-				  const count = t === "ALL" 
-					? baseContracts.length 
-					: t === "ACTIVE" 
-					  ? baseContracts.filter(c => c.status === "ACTIVE").length 
-					  : baseContracts.filter(c => c.status === "COMPLETED").length;
-				  
-				  return (
-					<button 
-					  key={t} 
-					  onClick={() => setStatusFilter(t)} 
-					  className={`flex-1 rounded px-1 py-1 font-medium transition-all whitespace-nowrap ${
-						statusFilter === t 
-						  ? "bg-white text-emerald-700 shadow-sm" 
-						  : "text-slate-500 hover:text-slate-700"
-					  }`}
-					>
-					  {t === "ALL" ? `All (${count})` : t === "ACTIVE" ? `🟢 (${count})` : `⚫ (${count})`}
-					</button>
-				  );
-				})}
-			  </div>
-			</div>
+          <div className={`flex gap-2 rounded-lg border p-1 text-xs ${
+            isDark ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white"
+          }`}>
+            <div className="flex-1 flex gap-1 rounded-md filter-group-inner p-0.5">
+              {(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => {
+                const count = t === "ALL" ? contracts.length : t === "CONTRACT" ? contracts.filter(c => c.type === "CONTRACT").length : contracts.filter(c => c.type === "WORK_ORDER").length;
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setTypeFilter(t)}
+                    className={`flex-1 rounded px-1 py-1 font-medium transition-all whitespace-nowrap ${
+                      typeFilter === t
+                        ? (isDark ? "bg-card text-indigo-300 shadow-sm" : "bg-card text-indigo-700 shadow-sm")
+                        : (isDark ? "text-secondary hover:text-primary" : "text-secondary hover:text-slate-700")
+                    }`}
+                  >
+                    {t === "ALL" ? `All (${count})` : t === "CONTRACT" ? `📄 (${count})` : `📦(${count})`}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className={`h-6 w-px shrink-0 ${isDark ? "bg-slate-700" : "bg-slate-200"}`} />
+
+            <div className="flex-1 flex gap-1 rounded-md filter-group-inner p-0.5">
+              {(["ALL", "ACTIVE", "COMPLETED"] as const).map((t) => {
+                const baseContractsFiltered = typeFilter === "ALL"
+                  ? contracts
+                  : contracts.filter(c => c.type === typeFilter);
+                const count = t === "ALL"
+                  ? baseContractsFiltered.length
+                  : t === "ACTIVE"
+                    ? baseContractsFiltered.filter(c => c.status === "ACTIVE").length
+                    : baseContractsFiltered.filter(c => c.status === "COMPLETED").length;
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setStatusFilter(t)}
+                    className={`flex-1 rounded px-1 py-1 font-medium transition-all whitespace-nowrap ${
+                      statusFilter === t
+                        ? (isDark ? "bg-card text-emerald-300 shadow-sm" : "bg-card text-emerald-700 shadow-sm")
+                        : (isDark ? "text-secondary hover:text-primary" : "text-secondary hover:text-slate-700")
+                    }`}
+                  >
+                    {t === "ALL" ? `All (${count})` : t === "ACTIVE" ? `🟢 (${count})` : `⚫ (${count})`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto pb-24">
           {filteredContracts.length === 0 ? (
             <div className="p-8 text-center">
               <div className="text-4xl mb-2">📄</div>
-              <p className="text-sm text-slate-500">No contracts found</p>
+              <p className="text-sm text-secondary">No contracts found</p>
             </div>
           ) : (
             filteredContracts.map((contract) => {
               const progress = calculateProgressFromTariffs(contract);
-              const tone = getProgressTone(progress);
               return (
                 <div
                   key={contract.id}
                   onClick={() => { setSelectedContract(contract); setIsDetailsOpen(true); }}
-                  className={`flex flex-col gap-2 px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors ${selectedContract?.id === contract.id ? "bg-indigo-50 border-l-4 border-l-indigo-500" : "hover:bg-slate-50"}`}
+                  className={`flex flex-col gap-2 px-4 py-3 border-b border-theme cursor-pointer transition-colors ${
+                    selectedContract?.id === contract.id
+                      ? (isDark ? "bg-indigo-900/30 border-l-4 border-l-indigo-400" : "bg-indigo-50 border-l-4 border-l-indigo-500")
+                      : (isDark ? "hover:bg-muted" : "hover:bg-muted")
+                  }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -1110,52 +1105,51 @@ const totalPerformedWork = useMemo(() => {
                         <Badge tone={contract.type === "CONTRACT" ? "indigo" : "amber"}>
                           {contract.type === "CONTRACT" ? "Contract" : "Work Order"}
                         </Badge>
-                        <span className="font-mono text-xs text-slate-500">{contract.contract_no}</span>
+                        <span className="font-mono text-xs text-secondary">{contract.contract_no}</span>
                       </div>
-                      <div className="text-sm font-medium text-slate-900 truncate">{contract.contract_title}</div>
-                      <div className="text-xs text-slate-500 truncate">{contract.client_name}</div>
+                      <div className="text-sm font-medium text-primary truncate">{contract.contract_title}</div>
+                      <div className="text-xs text-secondary truncate">{contract.client_name}</div>
                     </div>
                     {(() => {
-					  const financialStatus = getContractFinancialStatus(contract);
-					  
-					  if (contract.status === "COMPLETED") {
-						return <Badge tone="slate">✓ Completed</Badge>;
-					  }
-					  
-					  if (financialStatus === "needs_review") {
-						return (
-						  <Badge tone="amber" className="gap-1">
-							<span>⚠️</span>
-							<span>Needs Review</span>
-						  </Badge>
-						);
-					  }
-					  return <Badge tone="emerald">🟢 Active</Badge>;
-					})()}
+                      const financialStatus = getContractFinancialStatus(contract);
+                      if (contract.status === "COMPLETED") {
+                        return <Badge tone="slate">✓ Completed</Badge>;
+                      }
+                      if (financialStatus === "needs_review") {
+                        return (
+                          <Badge tone="amber" className="gap-1">
+                            <span>⚠️</span>
+                            <span>Needs Review</span>
+                          </Badge>
+                        );
+                      }
+                      return <Badge tone="emerald">🟢 Active</Badge>;
+                    })()}
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500" d>{contract.start_date} → {contract.end_date}</span>
-                    <span className="font-semibold text-slate-900">{formatCurrency(contract.total_value, contract.currency)}</span>
+                    <span className="text-secondary" dir="rtl">{contract.start_date} → {contract.end_date}</span>
+                    <span className="font-semibold text-primary">{formatCurrency(contract.total_value, contract.currency)}</span>
                   </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-				    {(() => {
-					const progress = calculateProgressFromTariffs(contract);
-					return (
-					  <div 
-						className={`h-full rounded-full ${getProgressColor(progress)}`} 
-						style={{ width: `${Math.min(progress, 100)}%` }} 
-					  />
-					);
-				    })()}
-				  </div>
+                  <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-100"}`}>
+                    {(() => {
+                      const progress = calculateProgressFromTariffs(contract);
+                      return (
+                        <div
+                          className={`h-full rounded-full ${getProgressColor(progress)}`}
+                          style={{ width: `${Math.min(progress, 100)}%` }}
+                        />
+                      );
+                    })()}
+                  </div>
                 </div>
               );
             })
           )}
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white via-white/90 to-transparent pointer-events-none z-10" />
-
+        <div className={`absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t pointer-events-none z-10 ${
+          isDark ? "from-card via-card/90" : "from-card via-card/90"
+        } to-transparent`} />
         <div className="absolute bottom-6 left-0 right-0 px-6 z-20">
           <Button
             variant="primary"
@@ -1168,363 +1162,402 @@ const totalPerformedWork = useMemo(() => {
         </div>
       </div>
 
-      {/* RIGHT PANEL - همیشه نمایش داده می‌شود */}
-<div className="col-span-1 lg:col-span-8 flex flex-col bg-white rounded-xl border border-slate-200/70 shadow-sm overflow-hidden transition-all duration-300 ease-in-out">
-  {selectedContract ? (
-    <>
-      {/* Header وقتی قرارداد انتخاب شده */}
-      <div className="border-b border-slate-100 px-6 py-4 bg-gradient-to-r from-slate-50 to-white">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Contract Details</h2>
-          <Button variant="ghost" size="sm" onClick={() => setSelectedContract(null)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">✕ Close Panel</Button>
-        </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-lg font-bold">📄</div>
-            <div>
-              <h3 className="text-xl font-bold text-slate-900">{selectedContract.contract_title}</h3>
-              <p className="text-sm text-slate-500 font-mono">{selectedContract.contract_no} • {selectedContract.client_name}</p>
-              <div className="flex items-center gap-2 mt-1.5">
-                <Badge tone={selectedContract.type === "CONTRACT" ? "indigo" : "amber"}>
-                  {selectedContract.type === "CONTRACT" ? "Contract" : "Work Order"}
-                </Badge>
-                {(() => {
-				  const financialStatus = getContractFinancialStatus(selectedContract);
-				  
-				  if (selectedContract.status === "COMPLETED") {
-					return <Badge tone="slate">✓ Completed</Badge>;
-				  }
-				  
-				  if (financialStatus === "needs_review") {
-					return (
-					  <div className="flex items-center gap-2">
-						<Badge tone="amber" className="gap-1">
-						  <span>⚠️</span>
-						  <span>Needs Financial Review</span>
-						</Badge>
-						
-						{/* 🔑 دکمه فقط برای مدیر نمایش داده می‌شود */}
-						{userRole === "admin" && (
-						  <Button
-							variant="outline"
-							size="sm"
-							onClick={() => handleRequestComplete(selectedContract)}
-							className="gap-1 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
-						  >
-							<span>✓</span>
-							<span>Mark as Completed</span>
-						  </Button>
-						)}
-					  </div>
-					);
-				  }
-				  
-				  return <Badge tone="emerald">🟢 Active</Badge>;
-				})()}
+      {/* RIGHT PANEL */}
+      <div className={`col-span-1 lg:col-span-8 flex flex-col rounded-xl border shadow-sm overflow-hidden transition-all duration-300 ease-in-out ${
+        isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200/70"
+      }`}>
+        {selectedContract ? (
+          <>
+            <div className={`border-b border-theme px-6 py-4 ${
+              isDark
+                ? "bg-gradient-to-r from-slate-800 to-card"
+                : "bg-gradient-to-r from-slate-50 to-white"
+            }`}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-secondary">Contract Details</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedContract(null)}
+                  className={`transition-colors ${
+                    isDark ? "text-muted hover:text-rose-400 hover:bg-rose-900/30" : "text-muted hover:text-rose-600 hover:bg-rose-50"
+                  }`}
+                >✕ Close Panel</Button>
+              </div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-lg font-bold">📄</div>
+                  <div>
+                    <h3 className="text-xl font-bold text-primary">{selectedContract.contract_title}</h3>
+                    <p className="text-sm text-secondary font-mono">{selectedContract.contract_no} • {selectedContract.client_name}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Badge tone={selectedContract.type === "CONTRACT" ? "indigo" : "amber"}>
+                        {selectedContract.type === "CONTRACT" ? "Contract" : "Work Order"}
+                      </Badge>
+                      {(() => {
+                        const financialStatus = getContractFinancialStatus(selectedContract);
+                        if (selectedContract.status === "COMPLETED") {
+                          return <Badge tone="slate">✓ Completed</Badge>;
+                        }
+                        if (financialStatus === "needs_review") {
+                          return (
+                            <div className="flex items-center gap-2">
+                              <Badge tone="amber" className="gap-1">
+                                <span>⚠️</span>
+                                <span>Needs Financial Review</span>
+                              </Badge>
+                              {userRole === "admin" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRequestComplete(selectedContract)}
+                                  className={`gap-1 text-xs ${
+                                    isDark ? "border-amber-600 text-amber-300 hover:bg-amber-900/30" : "border-amber-300 text-amber-700 hover:bg-amber-50"
+                                  }`}
+                                >
+                                  <span>✓</span>
+                                  <span>Mark as Completed</span>
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        }
+                        return <Badge tone="emerald">🟢 Active</Badge>;
+                      })()}
+                    </div>
+                  </div>
+                </div>
+                <Button variant="outline" size="md" onClick={handleEditClick} className="gap-2 shadow-sm">
+                  <span>✏️</span> Edit {selectedContract.type === "CONTRACT" ? "Contract" : "Work Order"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
+                <div className={`rounded-lg border border-theme p-4 bg-muted/30`}>
+                  <h3 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">📋 Contract Information</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 text-sm">
+                    <div>
+                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Internal Contract No.</div>
+                      <div className="font-mono text-xs text-primary">{selectedContract.contract_no}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">External Contract No.</div>
+                      <div className="font-mono text-xs text-primary">{selectedContract.external_contract_no || "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Currency</div>
+                      <div className="text-xs text-primary">{selectedContract.currency}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Start Date</div>
+                      <div className="text-xs text-primary">{selectedContract.start_date}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">End Date</div>
+                      <div className="text-xs text-primary">{selectedContract.end_date}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Total Value</div>
+                      <div className="text-xs font-semibold text-accent-emerald">{formatCurrency(selectedContract.total_value, selectedContract.currency)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Total Performed Works</div>
+                      <div className="text-xs font-semibold text-accent-emerald">{formatCurrency(totalPerformedWork, selectedContract.currency)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Invoiced</div>
+                      <div className="text-xs font-semibold text-accent-indigo">
+                        {formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Not Invoiced</div>
+                      {(() => {
+                        const totalInvoiced = selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0);
+                        const notInvoiced = Math.max(0, totalPerformedWork - totalInvoiced);
+                        return <div className="text-xs font-semibold text-accent-rose">{formatCurrency(notInvoiced, selectedContract.currency)}</div>;
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
+                  <Card className={`p-4 bg-muted/50`}>
+                    <div className="text-xs text-secondary">Total Performed Work (%)</div>
+                    {(() => {
+                      const workProgress = calculateProgressFromTariffs(selectedContract);
+                      return (
+                        <>
+                          <div className={`text-lg font-bold ${getProgressTextClass(workProgress)}`}>
+                            {workProgress.toFixed(2)}%
+                          </div>
+                          <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}>
+                            <div
+                              className={`h-full rounded-full ${getProgressColor(workProgress)}`}
+                              style={{ width: `${Math.min(workProgress, 100)}%` }}
+                            />
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </Card>
+
+                  <Card className={`p-4 bg-muted/50`}>
+                    <div className="text-xs text-secondary">Total Invoiced (%)</div>
+                    {(() => {
+                      const spent = calculateBudgetSpent(selectedContract.total_value, selectedContract.invoiced);
+                      return (
+                        <>
+                          <div className={`text-lg font-bold ${getProgressTextColor(spent)}`}>
+                            {spent.toFixed(1)}%
+                            {spent > 100 && <span className="text-xs ml-1">(Over)</span>}
+                          </div>
+                          <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}>
+                            <div
+                              className={`h-full rounded-full ${getProgressColor(spent)}`}
+                              style={{ width: `${Math.min(spent, 100)}%` }}
+                            />
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </Card>
+
+                  <Card className={`p-4 bg-muted/50`}>
+                    {(() => {
+                      const daysUntilStart = getDaysUntilStart(selectedContract.start_date);
+                      const notStarted = daysUntilStart > 0;
+                      const daysLeft = calculateDaysLeft(selectedContract.end_date);
+                      const isExpired = daysLeft < 0;
+                      const isFullyInvoiced = selectedContract.invoiced >= selectedContract.total_value;
+                      const needsFinancialReview = isExpired && !isFullyInvoiced;
+
+                      if (notStarted) {
+                        return (
+                          <>
+                            <div className="text-xs text-secondary">Status</div>
+                            <div className="text-lg font-bold text-amber-600">⏳ Not Started</div>
+                            <div className="text-[10px] text-amber-500 mt-0.5">Starts in {daysUntilStart} days</div>
+                          </>
+                        );
+                      }
+
+                      if (selectedContract.status === "COMPLETED") {
+                        return (
+                          <>
+                            <div className="text-xs text-secondary">Status</div>
+                            <div className="text-lg font-bold text-slate-600">✓ Completed</div>
+                          </>
+                        );
+                      }
+
+                      if (needsFinancialReview) {
+                        return (
+                          <>
+                            <div className="text-xs text-secondary mb-2">Financial Status</div>
+                            <div className="text-lg font-bold text-amber-600 mb-2">⚠️ Needs Review</div>
+                            <button
+                              onClick={() => userRole === "admin" && handleRequestComplete(selectedContract)}
+                              disabled={userRole !== "admin"}
+                              className={`w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+                                userRole === "admin"
+                                  ? "bg-amber-500 text-white hover:bg-amber-600 shadow-sm cursor-pointer"
+                                  : (isDark ? "bg-slate-700 text-slate-400 cursor-not-allowed opacity-60" : "bg-slate-100 text-slate-400 cursor-not-allowed opacity-60")
+                              }`}
+                              title={userRole !== "admin" ? "Only managers can approve completion" : "Click to mark as completed"}
+                            >
+                              {userRole === "admin" ? (
+                                <span className="flex items-center justify-center gap-1.5">
+                                  <span>✓</span>
+                                  <span>Mark as Completed</span>
+                                </span>
+                              ) : (
+                                <span className="flex items-center justify-center gap-1.5">
+                                  <span>🔒</span>
+                                  <span>Manager Approval Required</span>
+                                </span>
+                              )}
+                            </button>
+                          </>
+                        );
+                      }
+
+                      if (daysLeft < 0) {
+                        return (
+                          <>
+                            <div className="text-xs text-secondary">Status</div>
+                            <div className="text-lg font-bold text-rose-600">{Math.abs(daysLeft)} days overdue</div>
+                          </>
+                        );
+                      } else if (daysLeft === 0) {
+                        return (
+                          <>
+                            <div className="text-xs text-secondary">Time Remaining</div>
+                            <div className="text-lg font-bold text-amber-600">Today (Expires)</div>
+                          </>
+                        );
+                      } else {
+                        return (
+                          <>
+                            <div className="text-xs text-secondary">Time Remaining</div>
+                            <div className="text-lg font-bold text-emerald-600">{daysLeft} days remaining</div>
+                          </>
+                        );
+                      }
+                    })()}
+                  </Card>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-primary mb-3">Tariff Lines & Consumption ({selectedTariffs.length})</h3>
+                  {selectedTariffs.length === 0 ? (
+                    <div className="text-center py-8 text-muted text-sm">No tariff lines defined for this contract</div>
+                  ) : (
+                    <div className={`overflow-x-auto rounded-lg border border-theme`}>
+                      <table className="w-full text-left text-xs">
+                        <thead className={`bg-muted text-[10px] uppercase tracking-wide text-secondary`}>
+                          <tr>
+                            <th className="px-3 py-2 font-medium">Description</th>
+                            <th className="px-3 py-2 font-medium">Unit</th>
+                            <th className="px-3 py-2 font-medium text-right">Rate</th>
+                            <th className="px-3 py-2 font-medium text-center">Performed Work</th>
+                            <th className="px-3 py-2 font-medium text-right">Total Value of Performed Works</th>
+                            <th className="px-3 py-2 font-medium text-right">Total Invoiced</th>
+                          </tr>
+                        </thead>
+                        <tbody className={isDark ? "divide-y divide-slate-700" : "divide-y divide-slate-100"}>
+                          {selectedTariffs.map((tariff) => {
+                            const value = tariff.consumed_quantity * tariff.rate;
+                            const invoiced = (tariff as any).invoiced || 0;
+                            return (
+                              <tr key={tariff.id} className={isDark ? "hover:bg-muted/60" : "hover:bg-muted/60"}>
+                                <td className={`px-3 py-2 font-medium text-primary`}>{tariff.description}</td>
+                                <td className="px-3 py-2"><Badge tone="indigo">{tariff.unit.replace("_", " ")}</Badge></td>
+                                <td className="px-3 py-2 text-right font-mono">{formatCurrency(tariff.rate, selectedContract.currency)}</td>
+                                <td className="px-3 py-2 text-center font-mono">{tariff.consumed_quantity}</td>
+                                <td className="px-3 py-2 text-right font-mono font-semibold text-accent-emerald">{formatCurrency(value, selectedContract.currency)}</td>
+                                <td className="px-3 py-2 text-right font-mono font-semibold text-accent-indigo">{formatCurrency(invoiced)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className={isDark ? "bg-muted border-t-2 border-slate-600" : "bg-slate-100 border-t-2 border-slate-300"}>
+                          <tr>
+                            <td colSpan={3} className={`px-3 py-2.5 text-sm font-bold text-left uppercase tracking-wider text-primary`}>💰 Total</td>
+                            <td className="px-3 py-2.5 text-center font-mono font-bold text-primary"></td>
+                            <td className="px-3 py-2.5 text-right font-mono font-bold text-accent-emerald">
+                              {formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t.consumed_quantity || 0) * (t.rate || 0)), 0))}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-mono font-bold text-accent-indigo">
+                              {formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className={`flex-1 flex items-center justify-center relative overflow-hidden min-h-[600px] ${
+            isDark
+              ? "bg-gradient-to-br from-slate-800 via-card to-indigo-950/30"
+              : "bg-gradient-to-br from-slate-50 via-white to-indigo-50/30"
+          }`}>
+            <div className="absolute inset-0 opacity-[0.03]" style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='${isDark ? '%23ffffff' : '%23000000'}' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+            }} />
+
+            <div className="text-center z-10 relative">
+              <div className="relative inline-block mb-8">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 blur-2xl opacity-40 animate-pulse" />
+                <div className={`relative inline-flex items-center justify-center w-44 h-44 rounded-full shadow-2xl shadow-indigo-500/30 border-4 ${
+                  isDark ? "bg-card border-slate-700" : "bg-card border-white"
+                }`}>
+                  <img src="/public/images/logo.png" alt="ICS Logo" className="w-36 h-36 object-contain" />
+                </div>
+              </div>
+
+              <h2 className={`text-xl sm:text-2xl lg:text-3xl font-bold mb-3 ${isDark ? "text-slate-200" : "text-slate-700"}`}>
+                OFFSHORE & ENERGY DEPARTMENT INSPECTION PLATFORM
+              </h2>
+              <p className={`text-base max-w-md mx-auto leading-relaxed ${isDark ? "text-secondary" : "text-slate-500"}`}>
+                Select a contract from the list to view details, tariffs, and progress information
+              </p>
+
+              <div className="flex items-center justify-center gap-6 mt-8">
+                <div className="flex flex-col items-center gap-2">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-indigo-900/50" : "bg-indigo-100"}`}>📄</div>
+                  <span className={`text-xs font-medium ${isDark ? "text-secondary" : "text-slate-500"}`}>Contracts</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-emerald-900/50" : "bg-emerald-100"}`}>📊</div>
+                  <span className={`text-xs font-medium ${isDark ? "text-secondary" : "text-slate-500"}`}>Tariffs</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-amber-900/50" : "bg-amber-100"}`}>📈</div>
+                  <span className={`text-xs font-medium ${isDark ? "text-secondary" : "text-slate-500"}`}>Progress</span>
+                </div>
               </div>
             </div>
           </div>
-          <Button variant="outline" size="md" onClick={handleEditClick} className="gap-2 shadow-sm">
-            <span>✏️</span> Edit {selectedContract.type === "CONTRACT" ? "Contract" : "Work Order"}
-          </Button>
-        </div>
+        )}
       </div>
-
-      <div className="flex-1 overflow-y-auto p-6">
-	  
-        <div className="space-y-6">
-          <div className="rounded-lg border border-slate-200 p-4 bg-slate-50/30">
-            <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">📋 Contract Information</h3>
-			
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 text-sm">
-              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Internal Contract No.</div><div className="font-mono text-xs text-slate-900">{selectedContract.contract_no}</div></div>
-              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">External Contract No.</div><div className="font-mono text-xs text-slate-900">{selectedContract.external_contract_no || "—"}</div></div>
-              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1"></div><div className="text-xs text-slate-900"></div></div>
-              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Start Date</div><div className="text-xs text-slate-900">{selectedContract.start_date}</div></div>
-              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">End Date</div><div className="text-xs text-slate-900">{selectedContract.end_date}</div></div>
-              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Total Value</div><div className="text-xs font-semibold text-emerald-600">{formatCurrency(selectedContract.total_value, selectedContract.currency)}</div></div>
-              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Total Performed Works</div><div className="text-xs font-semibold text-emerald-600">{formatCurrency(totalPerformedWork, selectedContract.currency)}</div></div>
-			  <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Invoiced</div><div className="text-xs font-semibold text-indigo-600">{formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}</div></div>
-              <div><div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Not Invoiced</div>
-			  {(() => {
-				  const totalInvoiced = selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0);
-				  const notInvoiced = Math.max(0, totalPerformedWork - totalInvoiced);
-				  return (
-				<div className="text-xs font-semibold text-rose-600">{formatCurrency(notInvoiced, selectedContract.currency)}</div>);
-				})()}
-				</div></div></div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4"> 
-			<Card className="p-4 bg-slate-50/50">
-			  <div className="text-xs text-slate-500">Total Performed Work (%)</div>
-			  {(() => {
-				const workProgress = calculateProgressFromTariffs(selectedContract);
-				return (
-				  <>
-					<div className={`text-lg font-bold ${getProgressTextClass(workProgress)}`}>
-					  {workProgress.toFixed(2)}%
-					</div>
-					<div className="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-					  <div
-						className={`h-full rounded-full ${getProgressColor(workProgress)}`}
-						style={{ width: `${Math.min(workProgress, 100)}%` }}
-					  />
-					</div>
-				  </>
-				);
-			  })()}
-			</Card>
-			
-			<Card className="p-4 bg-slate-50/50">
-			  <div className="text-xs text-slate-500">Total Invoiced (%)</div>
-			  {(() => {
-				const invoiceProgress = calculateInvoiceProgress(selectedContract);
-				return (
-				  <>
-					<div className={`text-lg font-bold ${getProgressTextColor(invoiceProgress)}`}>
-					  {invoiceProgress.toFixed(2)}%
-					  {invoiceProgress > 100 && <span className="text-xs ml-1">(Over)</span>}
-					</div>
-					<div className="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-					  <div
-						className={`h-full rounded-full ${getProgressColor(invoiceProgress)}`}
-						style={{ width: `${Math.min(invoiceProgress, 100)}%` }}
-					  />
-					</div>
-				  </>
-				);
-			  })()}
-			</Card>
-			
-            <Card className="p-4 bg-slate-50/50">
-			  {(() => {
-				const daysUntilStart = getDaysUntilStart(selectedContract.start_date);
-				const notStarted = daysUntilStart > 0;
-				const daysLeft = calculateDaysLeft(selectedContract.end_date);
-				const isExpired = daysLeft < 0;
-				const isFullyInvoiced = selectedContract.invoiced >= selectedContract.total_value;
-				const needsFinancialReview = isExpired && !isFullyInvoiced;
-
-				// 🔑 قرارداد هنوز شروع نشده
-				if (notStarted) {
-				  return (
-					<>
-					  <div className="text-xs text-slate-500">Status</div>
-					  <div className="text-lg font-bold text-amber-600">⏳ Not Started</div>
-					  <div className="text-[10px] text-amber-500 mt-0.5">Starts in {daysUntilStart} days</div>
-					</>
-				  );
-				}
-
-				// 🔑 قرارداد تکمیل شده
-				if (selectedContract.status === "COMPLETED") {
-				  return (
-					<>
-					  <div className="text-xs text-slate-500">Status</div>
-					  <div className="text-lg font-bold text-slate-600">✓ Completed</div>
-					</>
-				  );
-				}
-
-				// 🔑 قرارداد منقضی شده با نیاز به بررسی مالی
-				if (needsFinancialReview) {
-				  return (
-					<>
-					  <div className="text-xs text-slate-500 mb-2">Financial Status</div>
-					  <div className="text-lg font-bold text-amber-600 mb-2">⚠️ Needs Review</div>
-					  
-					  {/* 🔑 دکمه همیشه نمایش داده می‌شود */}
-					  <button
-						onClick={() => userRole === "admin" && handleRequestComplete(selectedContract)}
-						disabled={userRole !== "admin"}
-						className={`w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-						  userRole === "admin"
-							? "bg-amber-500 text-white hover:bg-amber-600 shadow-sm cursor-pointer"
-							: "bg-slate-100 text-slate-400 cursor-not-allowed opacity-60"
-						}`}
-						title={userRole !== "admin" ? "Only managers can approve completion" : "Click to mark as completed"}
-					  >
-						{userRole === "admin" ? (
-						  <span className="flex items-center justify-center gap-1.5">
-							<span>✓</span>
-							<span>Mark as Completed</span>
-						  </span>
-						) : (
-						  <span className="flex items-center justify-center gap-1.5">
-							<span>🔒</span>
-							<span>Manager Approval Required</span>
-						  </span>
-						)}
-					  </button>
-					</>
-				  );
-				}
-
-				// 🔑 قرارداد فعال - بررسی زمان باقی‌مانده
-				if (daysLeft < 0) {
-				  return (
-					<>
-					  <div className="text-xs text-slate-500">Status</div>
-					  <div className="text-lg font-bold text-rose-600">{Math.abs(daysLeft)} days overdue</div>
-					</>
-				  );
-				} else if (daysLeft === 0) {
-				  return (
-					<>
-					  <div className="text-xs text-slate-500">Time Remaining</div>
-					  <div className="text-lg font-bold text-amber-600">Today (Expires)</div>
-					</>
-				  );
-				} else {
-				  return (
-					<>
-					  <div className="text-xs text-slate-500">Time Remaining</div>
-					  <div className="text-lg font-bold text-emerald-600">{daysLeft} days remaining</div>
-					</>
-				  );
-				}
-			  })()}
-			</Card>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 mb-3">Tariff Lines & Consumption ({selectedTariffs.length})</h3>
-            {selectedTariffs.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-sm">No tariff lines defined for this contract</div>
-            ) : (
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">Description</th>
-                      <th className="px-3 py-2 font-medium">Unit</th>
-                      <th className="px-3 py-2 font-medium text-right">Rate</th>
-                      <th className="px-3 py-2 font-medium text-center">Performed Work</th>
-                      <th className="px-3 py-2 font-medium text-right">Total Value of Performed Works</th>
-                      <th className="px-3 py-2 font-medium text-right">Total Invoiced</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {selectedTariffs.map((tariff) => {
-                      const value = tariff.consumed_quantity * tariff.rate;
-					  const progress = tariff.consumed_quantity;
-                      const invoiced = (tariff as any).invoiced || 0;
-                      return (
-                        <tr key={tariff.id} className="hover:bg-slate-50/60">
-                          <td className="px-3 py-2 font-medium text-slate-800">{tariff.description}</td>
-                          <td className="px-3 py-2"><Badge tone="indigo">{tariff.unit.replace("_", " ")}</Badge></td>
-                          <td className="px-3 py-2 text-right font-mono">{formatCurrency(tariff.rate, selectedContract.currency)}</td>
-                          <td className="px-3 py-2 text-center font-mono">{tariff.consumed_quantity}</td>
-                          <td className="px-3 py-2 text-right font-mono font-semibold">{formatCurrency(value, selectedContract.currency)}</td>
-						  <td className="px-3 py-2 text-right font-mono font-semibold text-indigo-600">{formatCurrency(invoiced)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-				  <tfoot className="bg-slate-100 border-t-2 border-slate-300">
-                        <tr>
-                          <td colSpan={3} className="px-3 py-2.5 text-sm font-bold text-slate-700 text-left uppercase tracking-wider">💰 Total</td>
-                          <td className="px-3 py-2.5 text-center font-mono font-bold text-slate-900"></td>
-                          <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-700">{formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t.consumed_quantity || 0) * (t.rate || 0)), 0))}</td>
-                          <td className="px-3 py-2.5 text-right font-mono font-bold text-indigo-700">{formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}</td>
-                        </tr>
-                      </tfoot>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
-  ) : (
-    /* Placeholder با لوگو - وقتی قرارداد انتخاب نشده */
-    <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 relative overflow-hidden min-h-[600px]">
-      {/* Pattern پس‌زمینه */}
-      <div className="absolute inset-0 opacity-[0.03]" style={{
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-      }} />
-      
-      {/* محتوای مرکزی */}
-      <div className="text-center z-10 relative">
-        {/* لوگو با highlight */}
-        <div className="relative inline-block mb-8">
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 blur-2xl opacity-40 animate-pulse" />
-          <div className="relative inline-flex items-center justify-center w-44 h-44 rounded-full bg-white shadow-2xl shadow-indigo-500/30 border-4 border-white">
-            <img 
-              src="/public/images/logo.png" 
-              alt="ICS Logo" 
-              className="w-36 h-36 object-contain"
-            />
-          </div>
-        </div>
-        
-        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-700 mb-3">OFFSHORE & ENERGY DEPARTMENT INSPECTION PLATFORM</h2>
-        <p className="text-base text-slate-500 max-w-md mx-auto leading-relaxed">
-          Select a contract from the list to view details, tariffs, and progress information
-        </p>
-        
-        <div className="flex items-center justify-center gap-6 mt-8">
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center text-2xl">📄</div>
-            <span className="text-xs text-slate-500 font-medium">Contracts</span>
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-2xl">📊</div>
-            <span className="text-xs text-slate-500 font-medium">Tariffs</span>
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl">📈</div>
-            <span className="text-xs text-slate-500 font-medium">Progress</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
-</div>
 
       {/* ADD CONTRACT MODAL */}
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Contract" size="lg">
         <div className="space-y-4">
-          {/* Type Selection */}
           <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-700">Type *</label>
+            <label className="mb-1.5 block text-xs font-semibold text-primary">Type *</label>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => handleTypeChange("CONTRACT")}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${addForm.type === "CONTRACT" ? "bg-indigo-600 text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  addForm.type === "CONTRACT"
+                    ? "bg-indigo-600 text-white shadow-md"
+                    : (isDark ? "bg-muted text-secondary hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200")
+                }`}
               >
                 📄 Contract
               </button>
               <button
                 type="button"
                 onClick={() => handleTypeChange("WORK_ORDER")}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${addForm.type === "WORK_ORDER" ? "bg-amber-600 text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  addForm.type === "WORK_ORDER"
+                    ? "bg-amber-600 text-white shadow-md"
+                    : (isDark ? "bg-muted text-secondary hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200")
+                }`}
               >
                 📦 Work Order
               </button>
             </div>
           </div>
 
-          {/* Internal Contract Number */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <label className="mb-1.5 block text-xs font-semibold text-slate-700">Internal Contract No (ICS)</label>
-            <div className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm font-mono text-slate-700 font-semibold">
+          <div className={`rounded-lg border border-theme bg-muted p-3`}>
+            <label className="mb-1.5 block text-xs font-semibold text-primary">Internal Contract No (ICS)</label>
+            <div className={`w-full rounded-lg border border-theme bg-card py-2.5 px-3 text-sm font-mono font-semibold text-primary`}>
               {addForm.contract_no}
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">Auto-generated, unique per department</p>
+            <p className="text-[10px] text-secondary mt-1">Auto-generated, unique per department</p>
           </div>
 
-          {/* Form based on type */}
           {addForm.type === "CONTRACT" ? (
             <>
-              {/* Contract Number Count */}
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-700">Contract Count *</label>
+                <label className="mb-1.5 block text-xs font-semibold text-primary">Contract Count *</label>
                 <input
                   type="number"
                   value={addForm.contract_count || ""}
                   onChange={(e) => setAddForm({ ...addForm, contract_count: Math.max(1, Number(e.target.value)) })}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${addErrors.contract_count ? "border-rose-300" : "border-slate-200 focus:border-indigo-400"}`}
+                  className={`w-full rounded-lg px-3 py-2 text-sm input-themed ${
+                    addErrors.contract_count ? "border-rose-300" : ""
+                  }`}
                   placeholder="1"
                   min="1"
                 />
@@ -1533,11 +1566,11 @@ const totalPerformedWork = useMemo(() => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">External Contract No (Optional)</label>
+                  <label className="mb-1.5 block text-xs font-semibold text-primary">External Contract No (Optional)</label>
                   <input
                     value={addForm.external_contract_no}
                     onChange={(e) => setAddForm({ ...addForm, external_contract_no: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                    className="w-full rounded-lg px-3 py-2 text-sm font-mono input-themed"
                     placeholder="Client's contract number"
                   />
                 </div>
@@ -1552,11 +1585,13 @@ const totalPerformedWork = useMemo(() => {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-700">Contract Title *</label>
+                <label className="mb-1.5 block text-xs font-semibold text-primary">Contract Title *</label>
                 <input
                   value={addForm.contract_title}
                   onChange={(e) => setAddForm({ ...addForm, contract_title: e.target.value })}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${addErrors.contract_title ? "border-rose-300" : "border-slate-200 focus:border-indigo-400"}`}
+                  className={`w-full rounded-lg px-3 py-2 text-sm input-themed ${
+                    addErrors.contract_title ? "border-rose-300" : ""
+                  }`}
                   placeholder="e.g., South Pars Phase 22 — TPI"
                 />
                 {addErrors.contract_title && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.contract_title}</p>}
@@ -1564,7 +1599,7 @@ const totalPerformedWork = useMemo(() => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">Start Date *</label>
+                  <label className="mb-1.5 block text-xs font-semibold text-primary">Start Date *</label>
                   <JalaaliDatePicker
                     value={addForm.start_date}
                     onChange={(date) => setAddForm({ ...addForm, start_date: date })}
@@ -1573,7 +1608,7 @@ const totalPerformedWork = useMemo(() => {
                   {addErrors.start_date && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.start_date}</p>}
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">End Date *</label>
+                  <label className="mb-1.5 block text-xs font-semibold text-primary">End Date *</label>
                   <JalaaliDatePicker
                     value={addForm.end_date}
                     onChange={(date) => setAddForm({ ...addForm, end_date: date })}
@@ -1586,27 +1621,37 @@ const totalPerformedWork = useMemo(() => {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">Total Value *</label>
+                  <label className="mb-1.5 block text-xs font-semibold text-primary">Total Value *</label>
                   <input
                     type="number"
                     value={addForm.total_value || ""}
                     onChange={(e) => setAddForm({ ...addForm, total_value: Number(e.target.value) })}
-                    className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${addErrors.total_value ? "border-rose-300" : "border-slate-200 focus:border-indigo-400"}`}
+                    className={`w-full rounded-lg px-3 py-2 text-sm input-themed ${
+                      addErrors.total_value ? "border-rose-300" : ""
+                    }`}
                     placeholder="0"
                   />
                   {addErrors.total_value && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.total_value}</p>}
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">Currency</label>
-                  <select value={addForm.currency} onChange={(e) => setAddForm({ ...addForm, currency: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100">
+                  <label className="mb-1.5 block text-xs font-semibold text-primary">Currency</label>
+                  <select
+                    value={addForm.currency}
+                    onChange={(e) => setAddForm({ ...addForm, currency: e.target.value })}
+                    className="w-full rounded-lg px-3 py-2 text-sm input-themed"
+                  >
                     <option value="USD">USD</option>
                     <option value="EUR">EUR</option>
                     <option value="IRR">IRR</option>
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">Status</label>
-                  <select value={addForm.status} onChange={(e) => setAddForm({ ...addForm, status: e.target.value as any })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100">
+                  <label className="mb-1.5 block text-xs font-semibold text-primary">Status</label>
+                  <select
+                    value={addForm.status}
+                    onChange={(e) => setAddForm({ ...addForm, status: e.target.value as any })}
+                    className="w-full rounded-lg px-3 py-2 text-sm input-themed"
+                  >
                     <option value="ACTIVE">Active</option>
                     <option value="COMPLETED">COMPLETED</option>
                   </select>
@@ -1614,56 +1659,61 @@ const totalPerformedWork = useMemo(() => {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-700">Description</label>
+                <label className="mb-1.5 block text-xs font-semibold text-primary">Description</label>
                 <textarea
                   value={addForm.description}
                   onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
                   rows={3}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-lg px-3 py-2 text-sm input-themed"
                   placeholder="Optional description..."
                 />
               </div>
             </>
           ) : (
             <>
-              {/* Work Order Form */}
-              {/* Source Type Selector */}
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-700">Source Type *</label>
+                <label className="mb-1.5 block text-xs font-semibold text-primary">Source Type *</label>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setAddForm({ ...addForm, source_type: "LETTER" })}
-                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${addForm.source_type === "LETTER" ? "bg-emerald-600 text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      addForm.source_type === "LETTER"
+                        ? "bg-emerald-600 text-white shadow-md"
+                        : (isDark ? "bg-muted text-secondary hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200")
+                    }`}
                   >
                     📄 Letter
                   </button>
                   <button
                     type="button"
                     onClick={() => setAddForm({ ...addForm, source_type: "EMAIL" })}
-                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${addForm.source_type === "EMAIL" ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      addForm.source_type === "EMAIL"
+                        ? "bg-blue-600 text-white shadow-md"
+                        : (isDark ? "bg-muted text-secondary hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200")
+                    }`}
                   >
                     📧 Email
                   </button>
                 </div>
               </div>
 
-              {/* Source-specific fields */}
               {addForm.source_type === "LETTER" ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-700">Letter Number *</label>
+                      <label className="mb-1.5 block text-xs font-semibold text-primary">Letter Number *</label>
                       <input
                         value={addForm.source_ref}
                         onChange={(e) => setAddForm({ ...addForm, source_ref: e.target.value })}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-mono focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                        className="w-full rounded-lg bg-card px-3 py-2.5 text-sm font-mono input-themed"
                         placeholder="e.g., 1404/1234"
                       />
                       {addErrors.source_ref && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.source_ref}</p>}
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-700">Letter Date *</label>
+                      <label className="mb-1.5 block text-xs font-semibold text-primary">Letter Date *</label>
                       <JalaaliDatePicker
                         value={addForm.source_letter_date || ""}
                         onChange={(date) => setAddForm({ ...addForm, source_letter_date: date })}
@@ -1673,9 +1723,8 @@ const totalPerformedWork = useMemo(() => {
                     </div>
                   </div>
 
-                  {/* Letter Image Upload - Required */}
                   <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+                    <label className="mb-1.5 block text-xs font-semibold text-primary">
                       Letter Image * <span className="text-rose-500">(Required)</span>
                     </label>
                     <div className="relative">
@@ -1701,8 +1750,8 @@ const totalPerformedWork = useMemo(() => {
                         htmlFor="letter-image-input"
                         className={`flex items-center justify-between gap-2 w-full rounded-lg border-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${
                           addForm.source_letter_image
-                            ? "border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                            : "border-dashed border-slate-300 bg-slate-50 text-slate-600 hover:border-indigo-400 hover:bg-indigo-50"
+                            ? (isDark ? "border-emerald-600 bg-emerald-900/30 text-emerald-300 hover:bg-emerald-900/50" : "border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100")
+                            : (isDark ? "border-dashed border-slate-600 bg-muted text-secondary hover:border-indigo-500 hover:bg-slate-800" : "border-dashed border-slate-300 bg-muted text-slate-600 hover:border-indigo-400 hover:bg-indigo-50")
                         }`}
                       >
                         {addForm.source_letter_image ? (
@@ -1713,11 +1762,7 @@ const totalPerformedWork = useMemo(() => {
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               {addForm.source_letter_image_preview && (
-                                <img
-                                  src={addForm.source_letter_image_preview}
-                                  alt="Preview"
-                                  className="h-8 w-8 object-cover rounded border border-slate-200"
-                                />
+                                <img src={addForm.source_letter_image_preview} alt="Preview" className="h-8 w-8 object-cover rounded border border-slate-200" />
                               )}
                               <button
                                 type="button"
@@ -1742,7 +1787,7 @@ const totalPerformedWork = useMemo(() => {
                           </>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <span></span>
+                            <span>📎</span>
                             <span>Click to attach letter image (JPG, PNG, PDF)</span>
                           </div>
                         )}
@@ -1753,33 +1798,33 @@ const totalPerformedWork = useMemo(() => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Email Date و Email Address در یک سطر */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-700">From Email Address *</label>
+                      <label className="mb-1.5 block text-xs font-semibold text-primary">From Email Address *</label>
                       <input
                         type="email"
                         value={addForm.source_email_from || ""}
                         onChange={(e) => setAddForm({ ...addForm, source_email_from: e.target.value })}
-                        className={`w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-100 ${addErrors.source_email_from ? "border-rose-300" : "focus:border-indigo-400"}`}
+                        className={`w-full rounded-lg bg-card px-3 py-2.5 text-sm font-mono input-themed ${
+                          addErrors.source_email_from ? "border-rose-300" : ""
+                        }`}
                         placeholder="sender@example.com"
                       />
                       {addErrors.source_email_from && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.source_email_from}</p>}
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-700">Email Date</label>
+                      <label className="mb-1.5 block text-xs font-semibold text-primary">Email Date</label>
                       <input
                         type="date"
                         value={addForm.source_email_date || ""}
                         onChange={(e) => setAddForm({ ...addForm, source_email_date: e.target.value })}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                        className="w-full rounded-lg bg-card px-3 py-2.5 text-sm input-themed"
                       />
                     </div>
                   </div>
 
-                  {/* Attach Email File */}
                   <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-700">Attach Email File</label>
+                    <label className="mb-1.5 block text-xs font-semibold text-primary">Attach Email File</label>
                     <div className="relative">
                       <input
                         type="file"
@@ -1801,8 +1846,8 @@ const totalPerformedWork = useMemo(() => {
                         htmlFor="email-file-input"
                         className={`flex items-center justify-between gap-2 w-full rounded-lg border-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${
                           addForm.source_file
-                            ? "border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                            : "border-dashed border-slate-300 bg-slate-50 text-slate-600 hover:border-indigo-400 hover:bg-indigo-50"
+                            ? (isDark ? "border-emerald-600 bg-emerald-900/30 text-emerald-300 hover:bg-emerald-900/50" : "border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100")
+                            : (isDark ? "border-dashed border-slate-600 bg-muted text-secondary hover:border-indigo-500 hover:bg-slate-800" : "border-dashed border-slate-300 bg-muted text-slate-600 hover:border-indigo-400 hover:bg-indigo-50")
                         }`}
                       >
                         {addForm.source_file ? (
@@ -1850,7 +1895,6 @@ const totalPerformedWork = useMemo(() => {
                 </div>
               )}
 
-              {/* Client Selection with Modal */}
               <ClientSelectorModal
                 value={addForm.client_id}
                 onChange={(clientId) => setAddForm({ ...addForm, client_id: clientId })}
@@ -1858,19 +1902,19 @@ const totalPerformedWork = useMemo(() => {
                 error={addErrors.client_id}
               />
 
-              {/* Work Order Title */}
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-700">Work Order Title *</label>
+                <label className="mb-1.5 block text-xs font-semibold text-primary">Work Order Title *</label>
                 <input
                   value={addForm.contract_title}
                   onChange={(e) => setAddForm({ ...addForm, contract_title: e.target.value })}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${addErrors.contract_title ? "border-rose-300" : "border-slate-200 focus:border-indigo-400"}`}
+                  className={`w-full rounded-lg px-3 py-2 text-sm input-themed ${
+                    addErrors.contract_title ? "border-rose-300" : ""
+                  }`}
                   placeholder="Brief title of the work order"
                 />
-                {addErrors.contract_title && <p className="mt-1 text-[11px] font-medium text-rose-600"> {addErrors.contract_title}</p>}
+                {addErrors.contract_title && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.contract_title}</p>}
               </div>
 
-              {/* Tariff Lines */}
               <TariffEditor
                 tariffs={addForm.tariffs}
                 onChange={(tariffs) => setAddForm({ ...addForm, tariffs })}
@@ -1878,21 +1922,20 @@ const totalPerformedWork = useMemo(() => {
                 showTotals={false}
               />
 
-              {/* Description */}
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-700">Description (Optional)</label>
+                <label className="mb-1.5 block text-xs font-semibold text-primary">Description (Optional)</label>
                 <textarea
                   value={addForm.description}
                   onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
                   rows={3}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-lg px-3 py-2 text-sm input-themed"
                   placeholder="Additional details..."
                 />
               </div>
             </>
           )}
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <div className={`flex justify-end gap-3 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}>
             <Button variant="ghost" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveAdd}>💾 Save {addForm.type === "CONTRACT" ? "Contract" : "Work Order"}</Button>
           </div>
@@ -1903,35 +1946,35 @@ const totalPerformedWork = useMemo(() => {
       <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Contract" size="lg">
         {selectedContract && (
           <div className="space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className={`rounded-lg border border-theme bg-muted p-4`}>
               <div className="flex items-center gap-2 mb-3">
                 <span>🔒</span>
-                <h3 className="text-sm font-semibold text-slate-700">Read-Only Information</h3>
+                <h3 className="text-sm font-semibold text-secondary">Read-Only Information</h3>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500">Internal Contract No</label>
-                  <div className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2.5 px-3 text-sm font-mono text-slate-600">{editForm.contract_no}</div>
+                  <label className="mb-1.5 block text-xs font-semibold text-secondary">Internal Contract No</label>
+                  <div className={`w-full rounded-lg border border-theme bg-slate-100 py-2.5 px-3 text-sm font-mono ${isDark ? "text-slate-300" : "text-slate-600"}`}>{editForm.contract_no}</div>
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500">Type</label>
-                  <div className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2.5 px-3 text-sm text-slate-600">{editForm.type === "CONTRACT" ? "Contract" : "Work Order"}</div>
+                  <label className="mb-1.5 block text-xs font-semibold text-secondary">Type</label>
+                  <div className={`w-full rounded-lg border border-theme bg-slate-100 py-2.5 px-3 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>{editForm.type === "CONTRACT" ? "Contract" : "Work Order"}</div>
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500">Department</label>
-                  <div className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2.5 px-3 text-sm text-slate-600">{editForm.department}</div>
+                  <label className="mb-1.5 block text-xs font-semibold text-secondary">Department</label>
+                  <div className={`w-full rounded-lg border border-theme bg-slate-100 py-2.5 px-3 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>{editForm.department}</div>
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-500">Created Date</label>
-                  <div className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2.5 px-3 text-sm text-slate-600" dir="rtl">{editForm.start_date}</div>
+                  <label className="mb-1.5 block text-xs font-semibold text-secondary">Created Date</label>
+                  <div className={`w-full rounded-lg border border-theme bg-slate-100 py-2.5 px-3 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`} dir="rtl">{editForm.start_date}</div>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-lg border border-indigo-200 bg-indigo-50/30 p-4">
+            <div className={`rounded-lg border p-4 ${isDark ? "border-indigo-700 bg-indigo-950/30" : "border-indigo-200 bg-indigo-50/30"}`}>
               <div className="flex items-center gap-2 mb-3">
                 <span>✏️</span>
-                <h3 className="text-sm font-semibold text-slate-900">Editable Information</h3>
+                <h3 className="text-sm font-semibold text-primary">Editable Information</h3>
               </div>
 
               <div className="space-y-4">
@@ -1939,11 +1982,11 @@ const totalPerformedWork = useMemo(() => {
                   <>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-slate-700">External Contract No</label>
+                        <label className="mb-1.5 block text-xs font-semibold text-primary">External Contract No</label>
                         <input
                           value={editForm.external_contract_no || ""}
                           onChange={(e) => setEditForm({ ...editForm, external_contract_no: e.target.value })}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                          className="w-full rounded-lg bg-card px-3 py-2 text-sm font-mono input-themed"
                           placeholder="Client's contract number"
                         />
                       </div>
@@ -1957,17 +2000,17 @@ const totalPerformedWork = useMemo(() => {
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-700">Contract Title</label>
+                      <label className="mb-1.5 block text-xs font-semibold text-primary">Contract Title</label>
                       <input
                         value={editForm.contract_title || ""}
                         onChange={(e) => setEditForm({ ...editForm, contract_title: e.target.value })}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                        className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-slate-700">Start Date</label>
+                        <label className="mb-1.5 block text-xs font-semibold text-primary">Start Date</label>
                         <JalaaliDatePicker
                           value={editForm.start_date || ""}
                           onChange={(date) => setEditForm({ ...editForm, start_date: date })}
@@ -1975,7 +2018,7 @@ const totalPerformedWork = useMemo(() => {
                         />
                       </div>
                       <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-slate-700">End Date</label>
+                        <label className="mb-1.5 block text-xs font-semibold text-primary">End Date</label>
                         <JalaaliDatePicker
                           value={editForm.end_date || ""}
                           onChange={(date) => setEditForm({ ...editForm, end_date: date })}
@@ -1987,67 +2030,68 @@ const totalPerformedWork = useMemo(() => {
 
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-slate-700">Total Value</label>
+                        <label className="mb-1.5 block text-xs font-semibold text-primary">Total Value</label>
                         <input
                           type="number"
                           value={editForm.total_value || 0}
                           onChange={(e) => setEditForm({ ...editForm, total_value: Number(e.target.value) })}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                          className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
                         />
                       </div>
                       <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-slate-700">Invoiced</label>
+                        <label className="mb-1.5 block text-xs font-semibold text-primary">Invoiced</label>
                         <input
                           type="number"
                           value={editForm.invoiced || 0}
                           onChange={(e) => setEditForm({ ...editForm, invoiced: Number(e.target.value) })}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                          className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-700">Description</label>
+                      <label className="mb-1.5 block text-xs font-semibold text-primary">Description</label>
                       <textarea
                         value={editForm.description || ""}
                         onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                         rows={3}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                        className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
                       />
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
-                      <p className="text-xs text-amber-800"> Work Order - Source: {editForm.source_type === "LETTER" ? `Letter #${editForm.source_ref}` : `Email from ${editForm.source_email_from}`}</p>
+                    <div className={`rounded-lg border p-3 ${isDark ? "border-amber-700 bg-amber-900/30" : "border-amber-200 bg-amber-50/50"}`}>
+                      <p className={`text-xs ${isDark ? "text-amber-300" : "text-amber-800"}`}>
+                        Work Order - Source: {editForm.source_type === "LETTER" ? `Letter #${editForm.source_ref}` : `Email from ${editForm.source_email_from}`}
+                      </p>
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-700">Work Order Title</label>
+                      <label className="mb-1.5 block text-xs font-semibold text-primary">Work Order Title</label>
                       <input
                         value={editForm.contract_title || ""}
                         onChange={(e) => setEditForm({ ...editForm, contract_title: e.target.value })}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                        className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
- 
                       <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-slate-700">Total Value</label>
+                        <label className="mb-1.5 block text-xs font-semibold text-primary">Total Value</label>
                         <input
                           type="number"
                           value={editForm.total_value || 0}
                           onChange={(e) => setEditForm({ ...editForm, total_value: Number(e.target.value) })}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                          className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-700">Description</label>
+                      <label className="mb-1.5 block text-xs font-semibold text-primary">Description</label>
                       <textarea
                         value={editForm.description || ""}
                         onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                         rows={3}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                        className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
                       />
                     </div>
                   </>
@@ -2055,7 +2099,7 @@ const totalPerformedWork = useMemo(() => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <div className={`flex justify-end gap-3 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}>
               <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
               <Button onClick={handleSaveEdit}>💾 Save Changes</Button>
             </div>
@@ -2078,15 +2122,15 @@ const totalPerformedWork = useMemo(() => {
       >
         {selectedClientForView && (
           <div className="space-y-4">
-            <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-4">
+            <div className={`rounded-lg border p-4 ${isDark ? "border-indigo-700 bg-indigo-950/50" : "border-indigo-200 bg-indigo-50/50"}`}>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-sm font-bold">
                   {selectedClientForView.name_en.split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase()}
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-slate-900">{selectedClientForView.name_en}</h3>
-                  <p className="text-xs text-slate-500" dir="rtl">{selectedClientForView.name_fa}</p>
-                  <p className="text-xs text-indigo-600 font-medium mt-0.5">
+                  <h3 className="text-sm font-semibold text-primary">{selectedClientForView.name_en}</h3>
+                  <p className="text-xs text-secondary" dir="rtl">{selectedClientForView.name_fa}</p>
+                  <p className="text-xs font-medium mt-0.5 text-accent-indigo">
                     {clientContractsList.length} {clientContractsList.length === 1 ? "contract" : "contracts"} in {CURRENT_DEPARTMENT}
                   </p>
                 </div>
@@ -2097,10 +2141,14 @@ const totalPerformedWork = useMemo(() => {
             </div>
 
             <div className="space-y-3">
-              <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
+              <div className="flex gap-1 filter-group p-0.5 text-xs">
                 <button
                   onClick={() => setViewFilterStatus("ALL")}
-                  className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${viewFilterStatus === "ALL" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:text-slate-700"}`}
+                  className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${
+                    viewFilterStatus === "ALL"
+                      ? (isDark ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700")
+                      : (isDark ? "text-secondary hover:text-primary" : "text-secondary hover:text-slate-700")
+                  }`}
                 >
                   All ({clientContractCounts.ALL || 0})
                 </button>
@@ -2108,16 +2156,20 @@ const totalPerformedWork = useMemo(() => {
                   <button
                     key={status}
                     onClick={() => setViewFilterStatus(status)}
-                    className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${viewFilterStatus === status ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:text-slate-700"}`}
+                    className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${
+                      viewFilterStatus === status
+                        ? (isDark ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700")
+                        : (isDark ? "text-secondary hover:text-primary" : "text-secondary hover:text-slate-700")
+                    }`}
                   >
-                    {status === "ACTIVE" ? "🟢" : ""} {status} ({clientContractCounts[status] || 0})
+                    {status === "ACTIVE" ? "🟢" : "⚫"} {status} ({clientContractCounts[status] || 0})
                   </button>
                 ))}
               </div>
             </div>
 
             {filteredClientContracts.length === 0 ? (
-              <div className="text-center py-8 text-slate-400">
+              <div className="text-center py-8 text-muted">
                 <div className="text-4xl mb-2">📄</div>
                 <p className="text-sm">No contracts found with current filters</p>
               </div>
@@ -2125,11 +2177,12 @@ const totalPerformedWork = useMemo(() => {
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {filteredClientContracts.map((contract) => {
                   const progress = calculateProgressFromTariffs(contract);
-                  const tone = getProgressTone(progress);
                   return (
                     <div
                       key={contract.id}
-                      className="rounded-lg border border-slate-200 p-3 hover:border-indigo-300 transition-colors"
+                      className={`rounded-lg border p-3 transition-colors ${
+                        isDark ? "border-slate-700 hover:border-indigo-500" : "border-slate-200 hover:border-indigo-300"
+                      }`}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
@@ -2137,46 +2190,42 @@ const totalPerformedWork = useMemo(() => {
                             <Badge tone={contract.type === "CONTRACT" ? "indigo" : "amber"}>
                               {contract.type === "CONTRACT" ? "Contract" : "Work Order"}
                             </Badge>
-                            <span className="font-mono text-xs text-slate-500">{contract.contract_no}</span>
+                            <span className="font-mono text-xs text-secondary">{contract.contract_no}</span>
                             {contract.external_contract_no && (
-                              <span className="text-xs text-slate-400 font-mono">({contract.external_contract_no})</span>
+                              <span className="text-xs text-muted font-mono">({contract.external_contract_no})</span>
                             )}
                           </div>
-                          <h4 className="text-sm font-semibold text-slate-900">{contract.contract_title}</h4>
+                          <h4 className="text-sm font-semibold text-primary">{contract.contract_title}</h4>
                         </div>
                         <Badge tone={contract.status === "ACTIVE" ? "emerald" : "slate"}>
                           {contract.status}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-500" dir="rtl">{contract.start_date} → {contract.end_date}</span>
-                        <span className="font-semibold text-slate-900">{formatCurrency(contract.total_value, contract.currency)}</span>
+                        <span className="text-secondary" dir="rtl">{contract.start_date} → {contract.end_date}</span>
+                        <span className="font-semibold text-primary">{formatCurrency(contract.total_value, contract.currency)}</span>
                       </div>
-                      <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-						  {(() => {
-							const progress = calculateProgressFromTariffs(contract);
-							return (
-							  <div 
-								className={`h-full rounded-full ${getProgressColor(progress)}`} 
-								style={{ width: `${Math.min(progress, 100)}%` }} 
-							  />
-							);
-						  })()}
-						</div>
-						<div className="text-[10px] text-slate-500 mt-1">
-						  {(() => {
-							const progress = calculateProgressFromTariffs(contract);
-							return `${progress.toFixed(0)}% performed`;
-						  })()}
-					  </div>
-                      <div className="text-[10px] text-slate-500 mt-1">{progress.toFixed(0)}% performed</div>
+                      <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-100"}`}>
+                        {(() => {
+                          const progress = calculateProgressFromTariffs(contract);
+                          return (
+                            <div
+                              className={`h-full rounded-full ${getProgressColor(progress)}`}
+                              style={{ width: `${Math.min(progress, 100)}%` }}
+                            />
+                          );
+                        })()}
+                      </div>
+                      <div className="text-[10px] text-secondary mt-1">
+                        {progress.toFixed(0)}% performed
+                      </div>
                     </div>
                   );
                 })}
               </div>
             )}
 
-            <div className="flex justify-end pt-4 border-t border-slate-100">
+            <div className={`flex justify-end pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}>
               <Button
                 variant="ghost"
                 onClick={() => {
@@ -2193,113 +2242,109 @@ const totalPerformedWork = useMemo(() => {
           </div>
         )}
       </Modal>
-	  
-	<Modal
-	  isOpen={confirmCompleteOpen}
-	  onClose={() => {
-		setConfirmCompleteOpen(false);
-		setContractToComplete(null);
-		setCompleteReason("");
-	  }}
-	  title="Mark Contract as Completed"
-	  size="md"
-	>
-	  {contractToComplete && (
-		<div className="space-y-4">
-		  {/* هشدار */}
-		  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-			<div className="flex items-start gap-3">
-			  <div className="text-2xl">⚠️</div>
-			  <div className="flex-1">
-				<h3 className="text-sm font-semibold text-amber-900 mb-1">
-				  Financial Review Required
-				</h3>
-				<p className="text-xs text-amber-800">
-				  This contract has expired but invoiced amount is less than total value.
-				  Please review and confirm completion.
-				</p>
-			  </div>
-			</div>
-		  </div>
 
-		  {/* اطلاعات قرارداد */}
-		  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-			<div className="grid grid-cols-2 gap-3 text-sm">
-			  <div>
-				<div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Contract No</div>
-				<div className="font-mono text-xs text-slate-900">{contractToComplete.contract_no}</div>
-			  </div>
-			  <div>
-				<div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Client</div>
-				<div className="text-xs text-slate-900">{contractToComplete.client_name}</div>
-			  </div>
-			  <div>
-				<div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Total Value</div>
-				<div className="text-xs font-semibold text-emerald-600">
-				  {formatCurrency(contractToComplete.total_value, contractToComplete.currency)}
-				</div>
-			  </div>
-			  <div>
-				<div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Invoiced</div>
-				<div className="text-xs font-semibold text-indigo-600">
-				  {formatCurrency(contractToComplete.invoiced, contractToComplete.currency)}
-				</div>
-			  </div>
-			  <div className="col-span-2">
-				<div className="text-[10px] uppercase text-slate-500 font-semibold mb-1">Invoiced Percentage</div>
-				<div className="flex items-center gap-2">
-				  <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-					<div
-					  className="h-full bg-amber-500 rounded-full"
-					  style={{ width: `${Math.min(getInvoicedPercentage(contractToComplete), 100)}%` }}
-					/>
-				  </div>
-				  <span className="text-xs font-semibold text-amber-600">
-					{getInvoicedPercentage(contractToComplete).toFixed(1)}%
-				  </span>
-				</div>
-			  </div>
-			</div>
-		  </div>
+      {/* MODAL تایید تکمیل قرارداد */}
+      <Modal
+        isOpen={confirmCompleteOpen}
+        onClose={() => {
+          setConfirmCompleteOpen(false);
+          setContractToComplete(null);
+          setCompleteReason("");
+        }}
+        title="Mark Contract as Completed"
+        size="md"
+      >
+        {contractToComplete && (
+          <div className="space-y-4">
+            <div className={`rounded-lg border p-4 ${isDark ? "border-amber-700 bg-amber-900/30" : "border-amber-200 bg-amber-50"}`}>
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">⚠️</div>
+                <div className="flex-1">
+                  <h3 className={`text-sm font-semibold mb-1 ${isDark ? "text-amber-200" : "text-amber-900"}`}>
+                    Financial Review Required
+                  </h3>
+                  <p className={`text-xs ${isDark ? "text-amber-300" : "text-amber-800"}`}>
+                    This contract has expired but invoiced amount is less than total value.
+                    Please review and confirm completion.
+                  </p>
+                </div>
+              </div>
+            </div>
 
-		  {/* دلیل تکمیل */}
-		  <div>
-			<label className="mb-1.5 block text-xs font-semibold text-slate-700">
-			  Reason for Completion (Optional)
-			</label>
-			<textarea
-			  value={completeReason}
-			  onChange={(e) => setCompleteReason(e.target.value)}
-			  rows={3}
-			  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
-			  placeholder="e.g., Final settlement reached, remaining amount waived..."
-			/>
-		  </div>
+            <div className={`rounded-lg border border-theme bg-muted p-4`}>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Contract No</div>
+                  <div className="font-mono text-xs text-primary">{contractToComplete.contract_no}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Client</div>
+                  <div className="text-xs text-primary">{contractToComplete.client_name}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Total Value</div>
+                  <div className="text-xs font-semibold text-accent-emerald">
+                    {formatCurrency(contractToComplete.total_value, contractToComplete.currency)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Invoiced</div>
+                  <div className="text-xs font-semibold text-accent-indigo">
+                    {formatCurrency(contractToComplete.invoiced, contractToComplete.currency)}
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Invoiced Percentage</div>
+                  <div className="flex items-center gap-2">
+                    <div className={`flex-1 h-2 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}>
+                      <div
+                        className="h-full bg-amber-500 rounded-full"
+                        style={{ width: `${Math.min(getInvoicedPercentage(contractToComplete), 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold text-amber-600">
+                      {getInvoicedPercentage(contractToComplete).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-		  {/* دکمه‌ها */}
-		  <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-			<Button
-			  variant="ghost"
-			  onClick={() => {
-				setConfirmCompleteOpen(false);
-				setContractToComplete(null);
-				setCompleteReason("");
-			  }}
-			>
-			  Cancel
-			</Button>
-			<Button
-			  onClick={handleConfirmComplete}
-			  className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-			>
-			  <span>✓</span>
-			  <span>Confirm Completion</span>
-			</Button>
-		  </div>
-		</div>
-	  )}
-	</Modal>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-primary">
+                Reason for Completion (Optional)
+              </label>
+              <textarea
+                value={completeReason}
+                onChange={(e) => setCompleteReason(e.target.value)}
+                rows={3}
+                className="w-full rounded-lg px-3 py-2 text-sm input-themed"
+                placeholder="e.g., Final settlement reached, remaining amount waived..."
+              />
+            </div>
 
+            <div className={`flex justify-end gap-3 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setConfirmCompleteOpen(false);
+                  setContractToComplete(null);
+                  setCompleteReason("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmComplete}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+              >
+                <span>✓</span>
+                <span>Confirm Completion</span>
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -64,7 +64,6 @@ export function Billing() {
                   </td>
                   <td className="px-5 py-3 text-sm text-slate-800">{inv.client_name}</td>
                   <td className="px-5 py-3 text-sm font-semibold text-slate-900">
-                    //{formatCurrency(inv.total_amount, inv.currency)}
 					{formatCurrency(inv.total_amount, inv.currency as any)}
                   </td>
                   <td className="px-5 py-3 text-xs text-slate-600">{formatDate(inv.due_date)}</td>
