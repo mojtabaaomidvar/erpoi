@@ -22,7 +22,9 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
-import { Card, CardHeader, StatCard, StatusPill, Avatar, Button } from "../components/ui";
+
+import { Card, CardHeader, StatCard, StatusPill, Avatar, Button } from "../design-system";
+
 import {
   inspections,
   invoices,
@@ -100,7 +102,7 @@ export function Dashboard() {
               </div>
             }
           />
-          <div className="h-72 p-4">
+          <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={inspectionsByMonth} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                 <defs>
@@ -149,7 +151,7 @@ export function Dashboard() {
 
         <Card>
           <CardHeader title="By Discipline" subtitle="Current period distribution" />
-          <div className="h-72 p-4">
+          <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -190,7 +192,7 @@ export function Dashboard() {
             subtitle="Completed inspections and NCRs issued per inspector"
             action={<Button variant="outline" size="sm">Export <ArrowUpRight className="h-3.5 w-3.5" /></Button>}
           />
-          <div className="h-64 p-4">
+          <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={inspectorPerformance} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />

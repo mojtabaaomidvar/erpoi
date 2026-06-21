@@ -1,45 +1,33 @@
-import React from 'react';
-import { useTheme } from '../theme/ThemeProvider';
-import { cn } from '../../utils/cn';
+import { cn } from "../../lib/cn";
 
-interface BadgeProps {
+export type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info" | "purple";
+
+export interface BadgeProps {
   children: React.ReactNode;
-  tone?: 'slate' | 'emerald' | 'amber' | 'rose' | 'indigo' | 'violet';
+  tone?: BadgeTone;
+  dot?: boolean;
   className?: string;
 }
 
-export function Badge({ children, tone = 'slate', className }: BadgeProps) {
-  const { theme } = useTheme();
-  
-  const tones = {
-    slate: theme === 'dark'
-      ? 'bg-slate-700 text-slate-300 border-slate-600'
-      : 'bg-slate-100 text-slate-700 border-slate-200',
-    emerald: theme === 'dark'
-      ? 'bg-emerald-900/30 text-emerald-300 border-emerald-700'
-      : 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    amber: theme === 'dark'
-      ? 'bg-amber-900/30 text-amber-300 border-amber-700'
-      : 'bg-amber-50 text-amber-700 border-amber-200',
-    rose: theme === 'dark'
-      ? 'bg-rose-900/30 text-rose-300 border-rose-700'
-      : 'bg-rose-50 text-rose-700 border-rose-200',
-    indigo: theme === 'dark'
-      ? 'bg-indigo-900/30 text-indigo-300 border-indigo-700'
-      : 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    violet: theme === 'dark'
-      ? 'bg-violet-900/30 text-violet-300 border-violet-700'
-      : 'bg-violet-50 text-violet-700 border-violet-200',
+export function Badge({ children, tone = "neutral", dot, className }: BadgeProps) {
+  const tones: Record<BadgeTone, string> = {
+    neutral: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    success: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    warning: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    danger: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+    info: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+    purple: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
   };
-  
+
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium',
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
         tones[tone],
         className
       )}
     >
+      {dot && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
       {children}
     </span>
   );

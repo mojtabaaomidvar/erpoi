@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Card, Badge, Button, Avatar, Modal } from "../components/ui";
+import { Button, Badge, Card, Avatar, Modal } from "../design-system";
 import {
   contracts as initialContracts,
   clients as initialClients,
@@ -1476,9 +1476,9 @@ export function Contracts() {
               <div className="relative inline-block mb-8">
                 <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 blur-2xl opacity-40 animate-pulse" />
                 <div className={`relative inline-flex items-center justify-center w-44 h-44 rounded-full shadow-2xl shadow-indigo-500/30 border-4 ${
-                  isDark ? "bg-card border-slate-700" : "bg-card border-white"
+                  isDark ? "bg-slate-800 border-slate-700" : "bg-white border-white"
                 }`}>
-                  <img src="/public/images/logo.png" alt="ICS Logo" className="w-36 h-36 object-contain" />
+                  <img src="public/images/logo.png" alt="ICS Logo" className="w-36 h-36 object-contain" />
                 </div>
               </div>
 

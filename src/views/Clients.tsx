@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
-import { Card, Badge, Button, Avatar, Modal } from "../components/ui";
+import { Card, Badge, Button, Avatar, Modal } from "../design-system";
 import { clients as initialClients, contracts as initialContracts, contractTariffs } from "../data/mockData";
 import { formatCurrency, formatDate } from "../lib/formatters";
 import { exportToExcel } from "../lib/exportToExcel";
-import { validateNationalCode, validateNationalId, validateMobile } from "../lib/validators";
+//import { validateNationalCode, validateNationalId, validateMobile } from "../lib/validators";
 import jalaali from "jalaali-js";
 import { useTheme } from "../contexts/ThemeContext";
 

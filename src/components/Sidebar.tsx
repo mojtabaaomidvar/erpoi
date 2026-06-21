@@ -1,5 +1,5 @@
 import { LayoutDashboard, Users, FileText, UserCheck, ClipboardCheck, Receipt, BarChart3, ShieldCheck } from "lucide-react";
-import { cn } from "../utils/cn";
+import { cn } from "../lib/cn";
 import { useTheme } from "../contexts/ThemeContext";
 
 export type ViewKey = "dashboard" | "clients" | "contracts" | "inspectors" | "inspections" | "billing" | "reports";

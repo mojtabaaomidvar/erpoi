@@ -1,4 +1,4 @@
-import { Badge, Button } from "../components/ui";
+import { Card, Badge, Button, StatusPill } from "../design-system";
 import { inspections } from "../data/mockData";
 import { formatDateShort } from "../lib/formatters";
 

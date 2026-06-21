@@ -1,4 +1,4 @@
-import { Card, Badge, Button, StatusPill } from "../components/ui";
+import { Card, Badge, Button, StatusPill } from "../design-system";
 import { inspectors } from "../data/mockData";
 
 export function Inspectors() {

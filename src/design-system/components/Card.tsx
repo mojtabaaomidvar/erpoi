@@ -1,31 +1,24 @@
-import React from 'react';
-import { useTheme } from '../theme/ThemeProvider';
-import { cn } from '../../utils/cn';
+import { cn } from "../../lib/cn";
 
-interface CardProps {
+export interface CardProps {
   children: React.ReactNode;
   className?: string;
-  padding?: 'none' | 'sm' | 'md' | 'lg';
+  padding?: "none" | "sm" | "md" | "lg";
 }
 
-export function Card({ children, className, padding = 'md' }: CardProps) {
-  const { theme } = useTheme();
-  
-  const paddings = {
-    none: '',
-    sm: 'p-3',
-    md: 'p-4',
-    lg: 'p-6',
-  };
-  
+export function Card({ children, className, padding = "md" }: CardProps) {
+  const paddingClass = {
+    none: "",
+    sm: "p-3",
+    md: "p-5",
+    lg: "p-7",
+  }[padding];
+
   return (
     <div
       className={cn(
-        'rounded-xl border shadow-sm',
-        paddings[padding],
-        theme === 'dark'
-          ? 'bg-slate-900 border-slate-700'
-          : 'bg-white border-slate-200',
+        "rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900",
+        paddingClass,
         className
       )}
     >

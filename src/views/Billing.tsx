@@ -1,6 +1,6 @@
-//import { Card, CardHeader, Badge, Button, StatusPill } from "../components/ui";
 
-import { Card, CardHeader, Button, StatusPill } from "../components/ui";
+
+import { Card, CardHeader, Badge, Button, StatusPill } from "../design-system";
 import { invoices } from "../data/mockData";
 import { formatCurrency, formatDate } from "../lib/formatters";
 
