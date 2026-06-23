@@ -1,6 +1,127 @@
 {
   "communities": {
     "0": [
+      "components_avatar",
+      "components_avatar_avatar",
+      "components_avatar_avatarprops",
+      "components_badge",
+      "components_badge_badgeprops",
+      "components_badge_badgetone",
+      "components_button",
+      "components_button_buttonprops",
+      "components_button_buttonvariant",
+      "components_card",
+      "components_card_cardprops",
+      "components_cardheader",
+      "components_cardheader_cardheaderprops",
+      "components_modal",
+      "components_modal_modal",
+      "components_statcard",
+      "components_statcard_statcard",
+      "components_statcard_statcardprops",
+      "components_statcard_statcardtone",
+      "components_statuspill",
+      "components_statuspill_statuspillprops",
+      "components_statuspill_statustype",
+      "components_table",
+      "components_table_table",
+      "components_table_tableprops",
+      "design_system_index",
+      "lib_cn",
+      "lib_cn_cn",
+      "theme_themeprovider",
+      "theme_themeprovider_theme",
+      "theme_themeprovider_themecontext",
+      "theme_themeprovider_themecontexttype",
+      "theme_themeprovider_themeprovider",
+      "theme_themeprovider_usetheme",
+      "tokens_colors",
+      "tokens_colors_colors",
+      "tokens_colors_themecolors",
+      "tokens_spacing",
+      "tokens_spacing_borderradius",
+      "tokens_spacing_spacing",
+      "tokens_typography",
+      "tokens_typography_typography"
+    ],
+    "1": [
+      "components_clientselector",
+      "components_clientselector_clientselector",
+      "components_clientselector_clientselectorprops",
+      "components_clientselectormodal",
+      "components_clientselectormodal_clientselectormodal",
+      "components_clientselectormodal_clientselectormodalprops",
+      "components_contractform",
+      "data_mockdata",
+      "data_mockdata_clients",
+      "data_mockdata_contracts",
+      "data_mockdata_inspectorperformance",
+      "data_mockdata_ncrs",
+      "lib_contractcalculations_getnextjalaaliyearstart",
+      "lib_contractnumber",
+      "lib_contractnumber_generateinternalcontractno",
+      "types_contract",
+      "types_contract_adjustment",
+      "types_contract_adjustmentmode",
+      "types_contract_attachmentcategory",
+      "types_contract_client",
+      "types_contract_clienttype",
+      "types_contract_contactperson",
+      "types_contract_contractattachment",
+      "types_contract_contractfinancialterms",
+      "types_contract_contractlike",
+      "types_contract_contractmodification",
+      "types_contract_contractstatus",
+      "types_contract_contracttype",
+      "types_contract_guarantee",
+      "types_contract_guaranteetype",
+      "types_contract_inspection",
+      "types_contract_inspector",
+      "types_contract_invoice",
+      "types_contract_ncr",
+      "types_contract_servicedescription",
+      "types_contract_sourcetype",
+      "types_contract_tarifflike",
+      "types_contract_tariffline",
+      "types_index"
+    ],
+    "2": [
+      "components_contractdetails",
+      "components_contractdetails_contractdetails",
+      "components_contractdetails_contractdetailsprops",
+      "components_contractform_contractformprops",
+      "components_contractlist",
+      "components_contractlist_contractlistprops",
+      "data_mockdata_contracttariffs",
+      "hooks_usecontracts",
+      "lib_contractcalculations",
+      "lib_contractcalculations_calculatebudgetspent",
+      "lib_contractcalculations_calculatedaysleft",
+      "lib_contractcalculations_calculatedaysprogress",
+      "lib_contractcalculations_calculateinvoiceprogress",
+      "lib_contractcalculations_calculateperformedworkvalue",
+      "lib_contractcalculations_calculateprogressfromtariffs",
+      "lib_contractcalculations_calculatetotalinvoicedfromtariffs",
+      "lib_contractcalculations_calculateuninvoicedwork",
+      "lib_contractcalculations_contractlike",
+      "lib_contractcalculations_getadjustmentreminder",
+      "lib_contractcalculations_getcontractfinancialstatus",
+      "lib_contractcalculations_getdaysprogresscolor",
+      "lib_contractcalculations_getdaysuntilstart",
+      "lib_contractcalculations_getneedsreviewtype",
+      "lib_contractcalculations_getprogressbgclass",
+      "lib_contractcalculations_getprogresscolor",
+      "lib_contractcalculations_getprogresstextclass",
+      "lib_contractcalculations_getprogresstextcolor",
+      "lib_contractcalculations_getprogresstone",
+      "lib_contractcalculations_iscontractnotstarted",
+      "lib_contractcalculations_isexpiringsoon",
+      "lib_contractcalculations_tarifflike",
+      "lib_formatters",
+      "lib_formatters_contracthealth",
+      "types_contract_contract"
+    ],
+    "3": [
       "app",
       "app_app",
       "app_appcontent",
@@ -8,6 +129,9 @@
       "components_header",
       "components_header_header",
       "components_header_headerprops",
+      "components_jalaalidatepicker",
+      "components_jalaalidatepicker_jalaalidatepicker",
+      "components_jalaalidatepicker_jalaalidatepickerprops",
       "components_sidebar",
       "components_sidebar_navitems",
       "components_sidebar_sidebar",
@@ -18,129 +142,31 @@
       "config_views_view_meta",
       "config_views_viewmeta",
       "contexts_themecontext",
-      "contexts_themecontext_theme",
+      "contexts_themecontext_isnighttime",
       "contexts_themecontext_themecontext",
       "contexts_themecontext_themecontexttype",
+      "contexts_themecontext_thememode",
       "contexts_themecontext_themeprovider",
       "contexts_themecontext_usetheme",
+      "hooks_usepersistedstate_usepersistedstate",
       "main",
       "views_clients_clients",
-      "views_contracts_clientselectormodal",
-      "views_contracts_jalaalidatepicker",
-      "views_contracts_tariffeditor"
-    ],
-    "1": [
-      "components_clientselector",
-      "components_clientselector_clientselector",
-      "components_clientselector_clientselectorprops",
-      "data_mockdata",
-      "data_mockdata_client",
-      "data_mockdata_clients",
-      "data_mockdata_contactperson",
-      "data_mockdata_contract",
-      "data_mockdata_contracts",
-      "data_mockdata_contracttariffs",
-      "data_mockdata_inspection",
-      "data_mockdata_inspections",
-      "data_mockdata_inspectionsbydiscipline",
-      "data_mockdata_inspectionsbymonth",
-      "data_mockdata_inspector",
-      "data_mockdata_inspectorperformance",
-      "data_mockdata_invoice",
-      "data_mockdata_invoices",
-      "data_mockdata_ncr",
-      "data_mockdata_ncrs",
-      "data_mockdata_tariffline",
-      "lib_contractnumber",
-      "lib_contractnumber_generateinternalcontractno",
-      "views_dashboard",
-      "views_dashboard_dashboard",
-      "views_reports",
+      "views_inspectors_inspectors",
       "views_reports_reports"
     ],
-    "2": [
-      "views_contracts",
-      "views_contracts_calculatebudgetspent",
-      "views_contracts_calculatedaysleft",
-      "views_contracts_calculateinvoiceprogress",
-      "views_contracts_calculateprogressfromtariffs",
-      "views_contracts_client",
-      "views_contracts_clientselectormodalprops",
-      "views_contracts_contract",
-      "views_contracts_contracts",
-      "views_contracts_currencies",
-      "views_contracts_formatnumberinput",
-      "views_contracts_generatecontractno",
-      "views_contracts_getcontractfinancialstatus",
-      "views_contracts_getcurrentjalaaliyear",
-      "views_contracts_getdaysuntilstart",
-      "views_contracts_getinvoicedpercentage",
-      "views_contracts_getprogressbgclass",
-      "views_contracts_getprogresscolor",
-      "views_contracts_getprogresstextclass",
-      "views_contracts_getprogresstextcolor",
-      "views_contracts_getprogresstone",
-      "views_contracts_iscontractnotstarted",
-      "views_contracts_jalaalidatepickerprops",
-      "views_contracts_parsenumberinput",
-      "views_contracts_tariffeditorprops",
-      "views_contracts_tariffline",
-      "views_contracts_units"
-    ],
-    "3": [
-      "components_avatar",
-      "components_avatar_avatar",
-      "components_avatar_avatarprops",
-      "components_button",
-      "components_button_button",
-      "components_button_buttonprops",
-      "components_button_buttonvariant",
-      "components_card",
-      "components_card_card",
-      "components_card_cardprops",
-      "components_cardheader",
-      "components_cardheader_cardheader",
-      "components_cardheader_cardheaderprops",
-      "components_modal",
-      "components_modal_modal",
-      "components_statcard",
-      "components_statcard_statcard",
-      "components_statcard_statcardprops",
-      "components_statcard_statcardtone",
-      "components_table",
-      "components_table_table",
-      "components_table_tableprops",
-      "lib_cn",
-      "lib_cn_cn"
-    ],
     "4": [
-      "components_badge",
-      "components_badge_badge",
-      "components_badge_badgeprops",
-      "components_badge_badgetone",
-      "components_statuspill",
-      "components_statuspill_statuspill",
-      "components_statuspill_statuspillprops",
-      "components_statuspill_statustype",
-      "data_mockdata_inspectors",
-      "lib_formatters",
-      "lib_formatters_contracthealth",
-      "lib_formatters_formatcurrency",
-      "lib_formatters_formatdate",
-      "lib_formatters_formatdateshort",
-      "views_billing",
-      "views_billing_billing",
-      "views_inspections",
-      "views_inspections_inspections",
-      "views_inspectors",
-      "views_inspectors_inspectors"
-    ],
-    "5": [
       "components_virtualclientlist",
       "components_virtualclientlist_virtualclientlist",
       "components_virtualclientlist_virtualclientlistprops",
       "lib_exporttoexcel",
       "lib_exporttoexcel_exporttoexcel",
+      "lib_formatters_formatdate",
+      "lib_validators",
+      "lib_validators_formatprice",
+      "lib_validators_parseprice",
+      "lib_validators_validatemobile",
+      "lib_validators_validatenationalcode",
+      "lib_validators_validatenationalid",
       "views_clients",
       "views_clients_calculatebudgetspent",
       "views_clients_calculatedaysleft",
@@ -157,22 +183,50 @@
       "views_clients_getprogresstone",
       "views_clients_parsenumberinput"
     ],
+    "5": [
+      "components_contractattachmentseditor",
+      "components_contractattachmentseditor_attachment_categories",
+      "components_contractattachmentseditor_contractattachment",
+      "components_contractattachmentseditor_contractattachmentseditor",
+      "components_contractattachmentseditor_contractattachmentseditorprops",
+      "components_contractform_contractform",
+      "components_contractlist_contractlist",
+      "components_tariffeditor",
+      "components_tariffeditor_currencies",
+      "components_tariffeditor_tariffeditor",
+      "components_tariffeditor_tariffeditorprops",
+      "components_tariffeditor_tariffline",
+      "components_tariffeditor_units",
+      "hooks_usecontracts_usecontracts",
+      "lib_contractcalculations_formatnumberinput",
+      "lib_contractcalculations_generatecontractno",
+      "lib_contractcalculations_getcurrentjalaaliyear",
+      "lib_contractcalculations_getinvoicedpercentage",
+      "lib_contractcalculations_parsenumberinput",
+      "views_contracts",
+      "views_contracts_contracts"
+    ],
     "6": [
-      "design_system_index",
-      "theme_themeprovider",
-      "theme_themeprovider_theme",
-      "theme_themeprovider_themecontext",
-      "theme_themeprovider_themecontexttype",
-      "theme_themeprovider_themeprovider",
-      "theme_themeprovider_usetheme",
-      "tokens_colors",
-      "tokens_colors_colors",
-      "tokens_colors_themecolors",
-      "tokens_spacing",
-      "tokens_spacing_borderradius",
-      "tokens_spacing_spacing",
-      "tokens_typography",
-      "tokens_typography_typography"
+      "components_badge_badge",
+      "components_button_button",
+      "components_card_card",
+      "components_cardheader_cardheader",
+      "components_statuspill_statuspill",
+      "data_mockdata_inspections",
+      "data_mockdata_inspectionsbydiscipline",
+      "data_mockdata_inspectionsbymonth",
+      "data_mockdata_inspectors",
+      "data_mockdata_invoices",
+      "lib_formatters_formatcurrency",
+      "lib_formatters_formatdateshort",
+      "views_billing",
+      "views_billing_billing",
+      "views_dashboard",
+      "views_dashboard_dashboard",
+      "views_inspections",
+      "views_inspections_inspections",
+      "views_inspectors",
+      "views_reports"
     ],
     "7": [
       "constants_contractconstants",
@@ -185,73 +239,72 @@
       "constants_contractconstants_gettypeconfig"
     ],
     "8": [
-      "lib_validators",
-      "lib_validators_formatprice",
-      "lib_validators_parseprice",
-      "lib_validators_validatemobile",
-      "lib_validators_validatenationalcode",
-      "lib_validators_validatenationalid"
+      "hooks_usepersistedstate",
+      "lib_storage",
+      "lib_storage_loadfromstorage",
+      "lib_storage_removefromstorage",
+      "lib_storage_resetalldata",
+      "lib_storage_savetostorage",
+      "lib_storage_storage",
+      "lib_storage_storage_keys"
     ],
     "9": [
-      "components_tariffeditor",
-      "components_tariffeditor_tariffeditor",
-      "components_tariffeditor_tariffeditorprops",
-      "components_tariffeditor_tariffline",
-      "components_tariffeditor_units"
-    ],
-    "10": [
-      "components_jalaalidatepicker",
-      "components_jalaalidatepicker_jalaalidatepicker",
-      "components_jalaalidatepicker_jalaalidatepickerprops"
-    ],
-    "11": [
       "lib_debounce",
       "lib_debounce_usedebounce"
-    ],
-    "12": [
-      "types_index",
-      "types_index_client"
-    ],
-    "13": [
-      "types_jalaali_d"
     ]
   },
   "cohesion": {
-    "0": 0.11396011396011396,
-    "1": 0.09971509971509972,
-    "2": 0.08262108262108261,
-    "3": 0.13405797101449277,
-    "4": 0.15263157894736842,
-    "5": 0.12631578947368421,
-    "6": 0.17142857142857143,
+    "0": 0.07665505226480836,
+    "1": 0.07692307692307693,
+    "2": 0.1497326203208556,
+    "3": 0.1053763440860215,
+    "4": 0.09686609686609686,
+    "5": 0.12380952380952381,
+    "6": 0.21052631578947367,
     "7": 0.25,
-    "8": 0.3333333333333333,
-    "9": 0.4,
-    "10": 0.6666666666666666,
-    "11": 1.0,
-    "12": 1.0,
-    "13": 1.0
+    "8": 0.32142857142857145,
+    "9": 1.0
   },
   "gods": [
+    {
+      "id": "contexts_themecontext_usetheme",
+      "label": "useTheme()",
+      "degree": 25
+    },
     {
       "id": "lib_cn_cn",
       "label": "cn()",
       "degree": 19
     },
     {
-      "id": "contexts_themecontext_usetheme",
-      "label": "useTheme()",
+      "id": "lib_formatters_formatcurrency",
+      "label": "formatCurrency()",
+      "degree": 16
+    },
+    {
+      "id": "components_button_button",
+      "label": "Button()",
       "degree": 14
     },
     {
       "id": "components_badge_badge",
       "label": "Badge()",
-      "degree": 9
+      "degree": 13
     },
     {
-      "id": "components_button_button",
-      "label": "Button()",
-      "degree": 9
+      "id": "lib_contractcalculations_calculatedaysleft",
+      "label": "calculateDaysLeft()",
+      "degree": 10
+    },
+    {
+      "id": "lib_contractcalculations_getdaysuntilstart",
+      "label": "getDaysUntilStart()",
+      "degree": 10
+    },
+    {
+      "id": "types_contract_contract",
+      "label": "Contract",
+      "degree": 10
     },
     {
       "id": "components_card_card",
@@ -259,70 +312,17 @@
       "degree": 9
     },
     {
-      "id": "lib_formatters_formatcurrency",
-      "label": "formatCurrency()",
+      "id": "components_contractdetails_contractdetails",
+      "label": "ContractDetails()",
       "degree": 9
-    },
-    {
-      "id": "components_statuspill_statuspill",
-      "label": "StatusPill()",
-      "degree": 6
-    },
-    {
-      "id": "components_avatar_avatar",
-      "label": "Avatar()",
-      "degree": 5
-    },
-    {
-      "id": "components_cardheader_cardheader",
-      "label": "CardHeader()",
-      "degree": 5
-    },
-    {
-      "id": "views_contracts_contracts",
-      "label": "Contracts()",
-      "degree": 5
     }
   ],
   "surprises": [
     {
-      "source": "AppContent()",
-      "target": "useTheme()",
-      "source_files": [
-        "App.tsx",
-        "contexts/ThemeContext.tsx"
-      ],
-      "confidence": "EXTRACTED",
-      "relation": "calls",
-      "why": "connects across different repos/directories; peripheral node `AppContent()` unexpectedly reaches hub `useTheme()`"
-    },
-    {
-      "source": "Sidebar()",
-      "target": "cn()",
-      "source_files": [
-        "components/Sidebar.tsx",
-        "lib/cn.ts"
-      ],
-      "confidence": "EXTRACTED",
-      "relation": "calls",
-      "why": "connects across different repos/directories; bridges separate communities"
-    },
-    {
       "source": "ClientSelectorModal()",
       "target": "useTheme()",
       "source_files": [
-        "views/Contracts.tsx",
-        "contexts/ThemeContext.tsx"
-      ],
-      "confidence": "EXTRACTED",
-      "relation": "calls",
-      "why": "connects across different repos/directories; peripheral node `ClientSelectorModal()` unexpectedly reaches hub `useTheme()`"
-    },
-    {
-      "source": "Contracts()",
-      "target": "useTheme()",
-      "source_files": [
-        "views/Contracts.tsx",
+        "components/ClientSelectorModal.tsx",
         "contexts/ThemeContext.tsx"
       ],
       "confidence": "EXTRACTED",
@@ -330,15 +330,48 @@
       "why": "connects across different repos/directories; bridges separate communities"
     },
     {
-      "source": "JalaaliDatePicker()",
+      "source": "TariffEditor()",
       "target": "useTheme()",
       "source_files": [
-        "views/Contracts.tsx",
+        "components/TariffEditor.tsx",
         "contexts/ThemeContext.tsx"
       ],
       "confidence": "EXTRACTED",
       "relation": "calls",
-      "why": "connects across different repos/directories; peripheral node `JalaaliDatePicker()` unexpectedly reaches hub `useTheme()`"
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "ContractDetails()",
+      "target": "useTheme()",
+      "source_files": [
+        "views/contracts/components/ContractDetails.tsx",
+        "contexts/ThemeContext.tsx"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "ContractForm()",
+      "target": "useTheme()",
+      "source_files": [
+        "views/contracts/components/ContractForm.tsx",
+        "contexts/ThemeContext.tsx"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "ContractList()",
+      "target": "useTheme()",
+      "source_files": [
+        "views/contracts/components/ContractList.tsx",
+        "contexts/ThemeContext.tsx"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
     }
   ],
   "tokens": {

@@ -1,0 +1,2999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>src — Complete Call Flow &amp; Architecture Documentation</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+:root {
+  --bg: #0f172a; --surface: #1e293b; --border: #334155;
+  --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+  --warn: #fbbf24; --err: #f87171; --ok: #34d399;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+.container { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+h1 { font-size: 2.4rem; margin-bottom: 8px; background: linear-gradient(135deg, var(--accent), #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+h2 { font-size: 1.7rem; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); }
+h3 { font-size: 1.25rem; margin: 32px 0 12px; color: var(--accent); }
+h4 { font-size: 1.05rem; margin: 20px 0 8px; color: var(--warn); }
+p { margin: 8px 0; color: var(--muted); }
+.subtitle { color: var(--muted); font-size: 1.1rem; margin-bottom: 32px; }
+.mermaid { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 20px 0; overflow-x: auto; position: relative; }
+.mermaid.is-enhanced { padding: 0; overflow: hidden; min-height: 260px; }
+.mermaid-viewport { padding: 54px 24px 24px; overflow: hidden; cursor: grab; touch-action: none; min-height: 260px; }
+.mermaid-viewport.is-dragging { cursor: grabbing; }
+.mermaid-viewport svg { max-width: none !important; height: auto; transform-origin: 0 0; transition: transform 120ms ease; }
+.mermaid-toolbar { position: absolute; top: 10px; right: 10px; z-index: 3; display: flex; align-items: center; gap: 6px; padding: 6px; background: rgba(15,23,42,0.92); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.28); }
+.mermaid-toolbar button, .mermaid-toolbar .zoom-level { height: 28px; min-width: 32px; border: 1px solid var(--border); border-radius: 6px; background: #1e293b; color: var(--text); font: 600 0.78rem system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; }
+.mermaid-toolbar button { cursor: pointer; }
+.mermaid-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+.mermaid-toolbar .zoom-level { min-width: 52px; color: var(--muted); background: transparent; }
+.call-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.92rem; }
+.call-table th { background: #1a2744; color: var(--accent); text-align: left; padding: 10px 14px; border: 1px solid var(--border); }
+.call-table td { padding: 8px 14px; border: 1px solid var(--border); vertical-align: top; }
+.call-table tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+.tag-async { background: #7c3aed33; color: #a78bfa; }
+.tag-class { background: #05966933; color: var(--ok); }
+.tag-func { background: #2563eb33; color: var(--accent); }
+.tag-cmd { background: #d9770633; color: var(--warn); }
+.tag-endpoint { background: #dc262633; color: var(--err); }
+.tag-hook { background: #db277733; color: #f472b6; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin: 16px 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin: 16px 0; }
+.arrow-chain { font-family: 'Fira Code', monospace; font-size: 0.85rem; color: var(--accent); padding: 10px; background: rgba(56,189,248,0.06); border-radius: 6px; }
+code { font-family: 'Fira Code', 'Cascadia Code', monospace; background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 3px; font-size: 0.88em; }
+ul, ol { margin: 8px 0 8px 24px; color: var(--muted); }
+li { margin: 4px 0; }
+a { color: var(--accent); }
+hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+.nav { position: sticky; top: 0; background: var(--bg); z-index: 10; padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9rem; }
+.nav a { text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+@media (max-width: 768px) { .container { padding: 16px; } h1 { font-size: 1.8rem; } }
+
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>src — Complete Call Flow &amp; Architecture Documentation</h1>
+<p class="subtitle">Generated from graphify knowledge graph: 232 nodes, 558 edges, 10 communities. Commit: b2c8c09</p>
+
+<div class="nav">
+    <a href="#overview">Architecture Overview</a>
+    <a href="#cli-skills">CLI &amp; Skill Installers</a>
+    <a href="#community-0">Community 0</a>
+    <a href="#community-1">Community 1</a>
+    <a href="#community-2">Community 2</a>
+    <a href="#community-4">Community 4</a>
+    <a href="#community-5">Community 5</a>
+    <a href="#community-6">Community 6</a>
+    <a href="#community-7">Community 7</a>
+    <a href="#community-8">Community 8</a>
+    <a href="#community-9">Community 9</a>
+</div>
+
+<!-- ====== Architecture Overview ====== -->
+<h2 id="overview">1. Architecture Overview</h2>
+
+<div class="mermaid">
+
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    CLI_SKILLS_9964CBB8("CLI &amp; Skill Installers<br/><small>31 nodes</small>")
+    class CLI_SKILLS_9964CBB8 module;
+    COMMUNITY_0_B056AD3D("Community 0<br/><small>42 nodes</small>")
+    class COMMUNITY_0_B056AD3D module;
+    COMMUNITY_1_3073A0DB("Community 1<br/><small>39 nodes</small>")
+    class COMMUNITY_1_3073A0DB module;
+    COMMUNITY_2_8C8DF7B9("Community 2<br/><small>34 nodes</small>")
+    class COMMUNITY_2_8C8DF7B9 module;
+    COMMUNITY_4_AC2DC2A9("Community 4<br/><small>27 nodes</small>")
+    class COMMUNITY_4_AC2DC2A9 module;
+    COMMUNITY_5_2966028D("Community 5<br/><small>21 nodes</small>")
+    class COMMUNITY_5_2966028D module;
+    COMMUNITY_6_7D637A07("Community 6<br/><small>20 nodes</small>")
+    class COMMUNITY_6_7D637A07 module;
+    COMMUNITY_7_989501FC("Community 7<br/><small>8 nodes</small>")
+    class COMMUNITY_7_989501FC module;
+    COMMUNITY_8_9FC4FAC0("Community 8<br/><small>8 nodes</small>")
+    class COMMUNITY_8_9FC4FAC0 module;
+    COMMUNITY_9_1D55D1EE("Community 9<br/><small>2 nodes</small>")
+    class COMMUNITY_9_1D55D1EE module;
+    COMMUNITY_1_3073A0DB -->|imports x14| COMMUNITY_2_8C8DF7B9
+    COMMUNITY_1_3073A0DB -->|contains x13| COMMUNITY_6_7D637A07
+    COMMUNITY_0_B056AD3D -->|contains x12| COMMUNITY_6_7D637A07
+    COMMUNITY_2_8C8DF7B9 -->|contains x12| COMMUNITY_5_2966028D
+    CLI_SKILLS_9964CBB8 -->|calls x10| COMMUNITY_5_2966028D
+    CLI_SKILLS_9964CBB8 -->|imports x9| COMMUNITY_2_8C8DF7B9
+    CLI_SKILLS_9964CBB8 -->|imports x8| COMMUNITY_6_7D637A07
+    COMMUNITY_6_7D637A07 -->|imports x8| COMMUNITY_2_8C8DF7B9
+    COMMUNITY_1_3073A0DB -->|imports x7| COMMUNITY_5_2966028D
+    COMMUNITY_5_2966028D -->|imports x7| COMMUNITY_1_3073A0DB
+    COMMUNITY_2_8C8DF7B9 -->|imports x7| COMMUNITY_6_7D637A07
+    COMMUNITY_5_2966028D -->|imports x6| COMMUNITY_2_8C8DF7B9
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h4>Architecture Layers</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>Layer</th><th>Nodes</th><th>Communities</th></tr>
+      <tr><td>CLI &amp; Skill Installers</td><td>31</td><td><code>3</code></td></tr><tr><td>Community 0</td><td>42</td><td><code>0</code></td></tr><tr><td>Community 1</td><td>39</td><td><code>1</code></td></tr><tr><td>Community 2</td><td>34</td><td><code>2</code></td></tr><tr><td>Community 4</td><td>27</td><td><code>4</code></td></tr><tr><td>Community 5</td><td>21</td><td><code>5</code></td></tr><tr><td>Community 6</td><td>20</td><td><code>6</code></td></tr><tr><td>Community 7</td><td>8</td><td><code>7</code></td></tr><tr><td>Community 8</td><td>8</td><td><code>8</code></td></tr><tr><td>Community 9</td><td>2</td><td><code>9</code></td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Core Flow</h4>
+    <div class="arrow-chain">Community 7 -&gt; CLI &amp; Skill Installers -&gt; Community 5 -&gt; Community 1 -&gt; Community 2 -&gt; Community 6 -&gt; Community 0</div>
+  </div>
+</div>
+<div class="grid">
+  <div class="card">
+    <h4>Graph Report Highlights</h4>
+    <ul>
+      <li>232 nodes · 558 edges · 10 communities</li>
+      <li>Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS</li>
+      <li>Token cost: 0 input · 0 output</li>
+      <li>1. `useTheme()` - 25 edges</li>
+      <li>2. `cn()` - 19 edges</li>
+      <li>3. `formatCurrency()` - 16 edges</li>
+    </ul>
+  </div>
+</div>
+<hr>
+<!-- ====== 2. CLI & Skill Installers ====== -->
+<h2 id="cli-skills">2. CLI &amp; Skill Installers</h2>
+<p>CLI &amp; Skill Installers groups implementation around components, themecontexttsx, contexts, sidebartsx, mostly in contexts/ThemeContext.tsx, components/Sidebar.tsx, App.tsx. This section covers 31 nodes and 49 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: CLI &amp; Skill Installers (31 nodes, 49 edges)
+    subgraph cli_skills_contexts_ThemeContext_tsx_94ee9fc5["contexts/ThemeContext.tsx"]
+        contexts_themecontext_usetheme_70255d57("useTheme()<br/><small>contexts/ThemeContext.tsx</small>")
+        contexts_themecontext_isnighttime_176b0e3d("isNightTime()<br/><small>contexts/ThemeContext.tsx</small>")
+        contexts_themecontext_themeprovider_e71cdbd4("ThemeProvider()<br/><small>contexts/ThemeContext.tsx</small>")
+        contexts_themecontext_83528ba4("ThemeContext.tsx")
+    end
+    subgraph cli_skills_components_Sidebar_tsx_a5093a9d["components/Sidebar.tsx"]
+        components_sidebar_566d09f7("Sidebar.tsx")
+        components_sidebar_sidebar_d95efc99("Sidebar()<br/><small>components/Sidebar.tsx</small>")
+        components_sidebar_viewkey_7ba1c16f("ViewKey<br/><small>components/Sidebar.tsx</small>")
+    end
+    subgraph cli_skills_App_tsx_07b964da["App.tsx"]
+        app_7d104347("App.tsx")
+        app_appcontent_686f5ff1("AppContent()<br/><small>App.tsx</small>")
+    end
+    subgraph cli_skills_components_Header_tsx_22ac3baf["components/Header.tsx"]
+        components_header_e71efc6a("Header.tsx")
+        components_header_header_9e0fa858("Header()<br/><small>components/Header.tsx</small>")
+    end
+    subgraph cli_skills_components_JalaaliDatePicker_tsx_22cca05d["components/JalaaliDatePicker.tsx"]
+        components_jalaalidatepicker_b898ad2e("JalaaliDatePicker.tsx")
+        components_jalaalidatepicker_jalaalidatepicker_431c081e("JalaaliDatePicker()<br/><small>components/JalaaliDatePicker.tsx</small>")
+    end
+    hooks_usepersistedstate_usepersistedstate_7be6e200("usePersistedState()<br/><small>hooks/usePersistedState.ts</small>")
+    main_b28b7af6("main.tsx")
+    views_clients_clients_ffe21585("Clients()<br/><small>views/Clients.tsx</small>")
+    views_inspectors_inspectors_7ba34c2b("Inspectors()<br/><small>views/Inspectors.tsx</small>")
+    views_reports_reports_28205f27("Reports()<br/><small>views/Reports.tsx</small>")
+    app_appcontent_686f5ff1 -->|calls| contexts_themecontext_usetheme_70255d57
+    app_appcontent_686f5ff1 -->|calls| hooks_usepersistedstate_usepersistedstate_7be6e200
+    components_header_header_9e0fa858 -->|calls| contexts_themecontext_usetheme_70255d57
+    components_jalaalidatepicker_jalaalidatepicker_431c081e -->|calls| contexts_themecontext_usetheme_70255d57
+    components_sidebar_sidebar_d95efc99 -->|calls| contexts_themecontext_usetheme_70255d57
+    contexts_themecontext_isnighttime_176b0e3d -->|calls| contexts_themecontext_themeprovider_e71cdbd4
+    contexts_themecontext_usetheme_70255d57 -->|calls| views_clients_clients_ffe21585
+    hooks_usepersistedstate_usepersistedstate_7be6e200 -->|calls| views_clients_clients_ffe21585
+    app_7d104347 -->|imports| components_header_e71efc6a
+    app_7d104347 -->|imports| components_header_header_9e0fa858
+    app_7d104347 -->|imports| components_sidebar_566d09f7
+    app_7d104347 -->|imports| components_sidebar_sidebar_d95efc99
+    app_7d104347 -->|imports| components_sidebar_viewkey_7ba1c16f
+    app_7d104347 -->|imports| contexts_themecontext_83528ba4
+    app_7d104347 -->|imports| contexts_themecontext_themeprovider_e71cdbd4
+    app_7d104347 -->|imports| contexts_themecontext_usetheme_70255d57
+    app_7d104347 -->|imports| hooks_usepersistedstate_usepersistedstate_7be6e200
+    app_7d104347 -->|imports| views_clients_clients_ffe21585
+    app_7d104347 -->|imports| views_inspectors_inspectors_7ba34c2b
+    app_7d104347 -->|imports| views_reports_reports_28205f27
+    app_7d104347 -->|imports| main_b28b7af6
+    components_header_e71efc6a -->|imports| contexts_themecontext_83528ba4
+    components_header_e71efc6a -->|imports| contexts_themecontext_usetheme_70255d57
+    components_jalaalidatepicker_b898ad2e -->|imports| contexts_themecontext_83528ba4
+    %% Omitted for readability: 13 nodes, 3 edges
+    class contexts_themecontext_usetheme_70255d57 ui;
+    class contexts_themecontext_isnighttime_176b0e3d ui;
+    class contexts_themecontext_themeprovider_e71cdbd4 ui;
+    class contexts_themecontext_83528ba4 ui;
+    class components_sidebar_566d09f7 ui;
+    class components_sidebar_sidebar_d95efc99 ui;
+    class components_sidebar_viewkey_7ba1c16f ui;
+    class app_7d104347 ui;
+    class app_appcontent_686f5ff1 ui;
+    class components_header_e71efc6a ui;
+    class components_header_header_9e0fa858 ui;
+    class components_jalaalidatepicker_b898ad2e ui;
+    class components_jalaalidatepicker_jalaalidatepicker_431c081e ui;
+    class hooks_usepersistedstate_usepersistedstate_7be6e200 ui;
+    class main_b28b7af6 ui;
+    class views_clients_clients_ffe21585 entry;
+    class views_inspectors_inspectors_7ba34c2b test;
+    class views_reports_reports_28205f27 ui;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Clients()</code><br><small style="color:var(--muted)">views/Clients.tsx</small><br><code>Header()</code><br><small style="color:var(--muted)">components/Header.tsx</small><br><code>Header.tsx</code><br><small style="color:var(--muted)">components/Header.tsx</small><br>+10 more</td>
+  <td>Module file in App.tsx.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>meta</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>meta node in App.tsx.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>AppContent()</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>usePersistedState()</code><br><small style="color:var(--muted)">hooks/usePersistedState.ts</small><br><code>useTheme()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td>AppContent() node in App.tsx.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>App()</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>App() node in App.tsx.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>Header.tsx</code><br><small style="color:var(--muted)">components/Header.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td><code>ThemeContext.tsx</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small><br><code>useTheme()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td>Module file in components/Header.tsx.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>HeaderProps</code><br><small style="color:var(--muted)">components/Header.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>HeaderProps node in components/Header.tsx.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>Header()</code><br><small style="color:var(--muted)">components/Header.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td><code>useTheme()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td>Header() node in components/Header.tsx.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>JalaaliDatePicker.tsx</code><br><small style="color:var(--muted)">components/JalaaliDatePicker.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ThemeContext.tsx</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small><br><code>useTheme()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td>Module file in components/JalaaliDatePicker.tsx.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>JalaaliDatePickerProps</code><br><small style="color:var(--muted)">components/JalaaliDatePicker.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>JalaaliDatePickerProps node in components/JalaaliDatePicker.tsx.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>JalaaliDatePicker()</code><br><small style="color:var(--muted)">components/JalaaliDatePicker.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>useTheme()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td>JalaaliDatePicker() node in components/JalaaliDatePicker.tsx.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>Sidebar.tsx</code><br><small style="color:var(--muted)">components/Sidebar.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td><code>ThemeContext.tsx</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small><br><code>useTheme()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small><br><code>views.ts</code><br><small style="color:var(--muted)">config/views.ts</small></td>
+  <td>Module file in components/Sidebar.tsx.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>ViewKey</code><br><small style="color:var(--muted)">components/Sidebar.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td><code>views.ts</code><br><small style="color:var(--muted)">config/views.ts</small></td>
+  <td>ViewKey node in components/Sidebar.tsx.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>SidebarProps</code><br><small style="color:var(--muted)">components/Sidebar.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Organizes documentation pages, navigation, or content lookup.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>navItems</code><br><small style="color:var(--muted)">components/Sidebar.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>navItems node in components/Sidebar.tsx.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>Sidebar()</code><br><small style="color:var(--muted)">components/Sidebar.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td><code>useTheme()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td>Organizes documentation pages, navigation, or content lookup.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>index.ts</code><br><small style="color:var(--muted)">config/index.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in config/index.ts.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>views.ts</code><br><small style="color:var(--muted)">config/views.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>Sidebar.tsx</code><br><small style="color:var(--muted)">components/Sidebar.tsx</small><br><code>ViewKey</code><br><small style="color:var(--muted)">components/Sidebar.tsx</small></td>
+  <td>No direct outbound edge</td>
+  <td>Module file in config/views.ts.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>ViewMeta</code><br><small style="color:var(--muted)">config/views.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ViewMeta node in config/views.ts.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>VIEW_META</code><br><small style="color:var(--muted)">config/views.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>VIEW_META node in config/views.ts.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>ThemeContext.tsx</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small><br><code>Header.tsx</code><br><small style="color:var(--muted)">components/Header.tsx</small><br><code>JalaaliDatePicker.tsx</code><br><small style="color:var(--muted)">components/JalaaliDatePicker.tsx</small><br>+1 more</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in contexts/ThemeContext.tsx.</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>ThemeMode</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ThemeMode node in contexts/ThemeContext.tsx.</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>ThemeContextType</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ThemeContextType node in contexts/ThemeContext.tsx.</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>ThemeContext</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ThemeContext node in contexts/ThemeContext.tsx.</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>isNightTime()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ThemeProvider()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td>isNightTime() node in contexts/ThemeContext.tsx.</td>
+</tr>
+<tr>
+  <td>25</td>
+  <td><code>ThemeProvider()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small><br><code>isNightTime()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td>No direct outbound edge</td>
+  <td>ThemeProvider() node in contexts/ThemeContext.tsx.</td>
+</tr>
+<tr>
+  <td>26</td>
+  <td><code>useTheme()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small><br><code>AppContent()</code><br><small style="color:var(--muted)">App.tsx</small><br><code>Header()</code><br><small style="color:var(--muted)">components/Header.tsx</small><br>+5 more</td>
+  <td><code>Clients()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>useTheme() node in contexts/ThemeContext.tsx.</td>
+</tr>
+<tr>
+  <td>27</td>
+  <td><code>usePersistedState()</code><br><small style="color:var(--muted)">hooks/usePersistedState.ts</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small><br><code>AppContent()</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td><code>Clients()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>usePersistedState() node in hooks/usePersistedState.ts.</td>
+</tr>
+<tr>
+  <td>28</td>
+  <td><code>main.tsx</code><br><small style="color:var(--muted)">main.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td>No direct outbound edge</td>
+  <td>Module file in main.tsx.</td>
+</tr>
+<tr>
+  <td>29</td>
+  <td><code>Clients()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small><br><code>usePersistedState()</code><br><small style="color:var(--muted)">hooks/usePersistedState.ts</small><br><code>useTheme()</code><br><small style="color:var(--muted)">contexts/ThemeContext.tsx</small></td>
+  <td>No direct outbound edge</td>
+  <td>Clients() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>30</td>
+  <td><code>Inspectors()</code><br><small style="color:var(--muted)">views/Inspectors.tsx</small></td>
+  <td><span class="tag tag-func">Test</span></td>
+  <td><code>App.tsx</code><br><small style="color:var(--muted)">App.tsx</small></td>
+  <td>No direct outbound edge</td>
+  <td>Inspectors() node in views/Inspectors.tsx.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>contexts/ThemeContext.tsx</code></td><td>7 nodes</td></tr>
+<tr><td><code>components/Sidebar.tsx</code></td><td>5 nodes</td></tr>
+<tr><td><code>App.tsx</code></td><td>4 nodes</td></tr>
+<tr><td><code>components/Header.tsx</code></td><td>3 nodes</td></tr>
+<tr><td><code>components/JalaaliDatePicker.tsx</code></td><td>3 nodes</td></tr>
+<tr><td><code>config/views.ts</code></td><td>3 nodes</td></tr>
+<tr><td><code>config/index.ts</code></td><td>1 nodes</td></tr>
+<tr><td><code>hooks/usePersistedState.ts</code></td><td>1 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x19, imports x13, imports x8, calls x8. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 3. Community 0 ====== -->
+<h2 id="community-0">3. Community 0</h2>
+<p>Community 0 groups implementation around design, system, components, tokens, mostly in design-system/theme/ThemeProvider.tsx, design-system/components/StatCard.tsx, design-system/components/Avatar.tsx. This section covers 42 nodes and 66 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Community 0 (42 nodes, 66 edges)
+    subgraph community_0_design_system_components_Avatar_tsx_550f17b0["design-system/components/Avatar.tsx"]
+        components_avatar_1c72645c("Avatar.tsx")
+        components_avatar_avatar_882c6170("Avatar()<br/><small>design-system/components/Avatar.tsx</small>")
+    end
+    subgraph community_0_design_system_components_Badge_tsx_5aa9685f["design-system/components/Badge.tsx"]
+        components_badge_aae92a72("Badge.tsx")
+        components_badge_badgetone_1f333a9a("BadgeTone<br/><small>design-system/components/Badge.tsx</small>")
+    end
+    subgraph community_0_design_system_components_Modal_tsx_4bb7d686["design-system/components/Modal.tsx"]
+        components_modal_2925498d("Modal.tsx")
+        components_modal_modal_0afaed3e("Modal()<br/><small>design-system/components/Modal.tsx</small>")
+    end
+    subgraph community_0_design_system_components_StatCard_ts_2e4ab155["design-system/components/StatCard.tsx"]
+        components_statcard_statcard_0ca4d6d7("StatCard()<br/><small>design-system/components/StatCard.tsx</small>")
+        components_statcard_d925ed41("StatCard.tsx")
+    end
+    subgraph community_0_design_system_components_Table_tsx_aa1038ff["design-system/components/Table.tsx"]
+        components_table_table_1d6c7c08("Table()<br/><small>design-system/components/Table.tsx</small>")
+        components_table_a311fa88("Table.tsx")
+    end
+    subgraph community_0_lib_cn_ts_601ca080["lib/cn.ts"]
+        lib_cn_cn_9e63c94c("cn()<br/><small>lib/cn.ts</small>")
+        lib_cn_12e79e89("cn.ts")
+    end
+    components_button_eb594b34("Button.tsx")
+    components_card_f08eb179("Card.tsx")
+    components_cardheader_3f158fb0("CardHeader.tsx")
+    components_statuspill_060bd9c3("StatusPill.tsx")
+    theme_themeprovider_d23c2505("ThemeProvider.tsx")
+    tokens_colors_317c6e89("colors.ts")
+    components_avatar_avatar_882c6170 -->|calls| lib_cn_cn_9e63c94c
+    components_modal_modal_0afaed3e -->|calls| lib_cn_cn_9e63c94c
+    components_statcard_statcard_0ca4d6d7 -->|calls| lib_cn_cn_9e63c94c
+    components_table_table_1d6c7c08 -->|calls| lib_cn_cn_9e63c94c
+    components_avatar_1c72645c -->|imports| lib_cn_12e79e89
+    components_avatar_1c72645c -->|imports| lib_cn_cn_9e63c94c
+    components_badge_aae92a72 -->|imports| lib_cn_12e79e89
+    components_badge_aae92a72 -->|imports| lib_cn_cn_9e63c94c
+    components_badge_aae92a72 -->|imports| components_statuspill_060bd9c3
+    components_badge_badgetone_1f333a9a -->|imports| components_statuspill_060bd9c3
+    components_button_eb594b34 -->|imports| lib_cn_12e79e89
+    components_button_eb594b34 -->|imports| lib_cn_cn_9e63c94c
+    components_card_f08eb179 -->|imports| lib_cn_12e79e89
+    components_card_f08eb179 -->|imports| lib_cn_cn_9e63c94c
+    components_cardheader_3f158fb0 -->|imports| lib_cn_12e79e89
+    components_cardheader_3f158fb0 -->|imports| lib_cn_cn_9e63c94c
+    components_modal_2925498d -->|imports| lib_cn_12e79e89
+    components_modal_2925498d -->|imports| lib_cn_cn_9e63c94c
+    components_statcard_d925ed41 -->|imports| lib_cn_12e79e89
+    components_statcard_d925ed41 -->|imports| lib_cn_cn_9e63c94c
+    components_table_a311fa88 -->|imports| lib_cn_12e79e89
+    components_table_a311fa88 -->|imports| lib_cn_cn_9e63c94c
+    theme_themeprovider_d23c2505 -->|imports| tokens_colors_317c6e89
+    %% Omitted for readability: 24 nodes, 0 edges
+    class components_avatar_1c72645c ui;
+    class components_avatar_avatar_882c6170 ui;
+    class components_badge_aae92a72 ui;
+    class components_badge_badgetone_1f333a9a ui;
+    class components_modal_2925498d ui;
+    class components_modal_modal_0afaed3e ui;
+    class components_statcard_statcard_0ca4d6d7 ui;
+    class components_statcard_d925ed41 ui;
+    class components_table_table_1d6c7c08 ui;
+    class components_table_a311fa88 ui;
+    class lib_cn_cn_9e63c94c function;
+    class lib_cn_12e79e89 module;
+    class components_button_eb594b34 ui;
+    class components_card_f08eb179 ui;
+    class components_cardheader_3f158fb0 ui;
+    class components_statuspill_060bd9c3 ui;
+    class theme_themeprovider_d23c2505 ui;
+    class tokens_colors_317c6e89 module;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>Avatar.tsx</code><br><small style="color:var(--muted)">design-system/components/Avatar.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small><br><code>cn.ts</code><br><small style="color:var(--muted)">lib/cn.ts</small></td>
+  <td>Module file in design-system/components/Avatar.tsx.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>AvatarProps</code><br><small style="color:var(--muted)">design-system/components/Avatar.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>AvatarProps node in design-system/components/Avatar.tsx.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>Avatar()</code><br><small style="color:var(--muted)">design-system/components/Avatar.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small></td>
+  <td>Avatar() node in design-system/components/Avatar.tsx.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>Badge.tsx</code><br><small style="color:var(--muted)">design-system/components/Badge.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small><br><code>cn.ts</code><br><small style="color:var(--muted)">lib/cn.ts</small><br><code>StatusPill.tsx</code><br><small style="color:var(--muted)">design-system/components/StatusPill.tsx</small></td>
+  <td>Module file in design-system/components/Badge.tsx.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>BadgeTone</code><br><small style="color:var(--muted)">design-system/components/Badge.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>StatusPill.tsx</code><br><small style="color:var(--muted)">design-system/components/StatusPill.tsx</small></td>
+  <td>BadgeTone node in design-system/components/Badge.tsx.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>BadgeProps</code><br><small style="color:var(--muted)">design-system/components/Badge.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>BadgeProps node in design-system/components/Badge.tsx.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>Button.tsx</code><br><small style="color:var(--muted)">design-system/components/Button.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small><br><code>cn.ts</code><br><small style="color:var(--muted)">lib/cn.ts</small></td>
+  <td>Module file in design-system/components/Button.tsx.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>ButtonVariant</code><br><small style="color:var(--muted)">design-system/components/Button.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ButtonVariant node in design-system/components/Button.tsx.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>ButtonProps</code><br><small style="color:var(--muted)">design-system/components/Button.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ButtonProps node in design-system/components/Button.tsx.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>Card.tsx</code><br><small style="color:var(--muted)">design-system/components/Card.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small><br><code>cn.ts</code><br><small style="color:var(--muted)">lib/cn.ts</small></td>
+  <td>Module file in design-system/components/Card.tsx.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>CardProps</code><br><small style="color:var(--muted)">design-system/components/Card.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>CardProps node in design-system/components/Card.tsx.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>CardHeader.tsx</code><br><small style="color:var(--muted)">design-system/components/CardHeader.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small><br><code>cn.ts</code><br><small style="color:var(--muted)">lib/cn.ts</small></td>
+  <td>Module file in design-system/components/CardHeader.tsx.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>CardHeaderProps</code><br><small style="color:var(--muted)">design-system/components/CardHeader.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>CardHeaderProps node in design-system/components/CardHeader.tsx.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>Modal.tsx</code><br><small style="color:var(--muted)">design-system/components/Modal.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small><br><code>cn.ts</code><br><small style="color:var(--muted)">lib/cn.ts</small></td>
+  <td>Module file in design-system/components/Modal.tsx.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>Modal()</code><br><small style="color:var(--muted)">design-system/components/Modal.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small></td>
+  <td>Modal() node in design-system/components/Modal.tsx.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>StatCard.tsx</code><br><small style="color:var(--muted)">design-system/components/StatCard.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small><br><code>cn.ts</code><br><small style="color:var(--muted)">lib/cn.ts</small></td>
+  <td>Module file in design-system/components/StatCard.tsx.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>StatCardTone</code><br><small style="color:var(--muted)">design-system/components/StatCard.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>StatCardTone node in design-system/components/StatCard.tsx.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>StatCardProps</code><br><small style="color:var(--muted)">design-system/components/StatCard.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>StatCardProps node in design-system/components/StatCard.tsx.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>StatCard()</code><br><small style="color:var(--muted)">design-system/components/StatCard.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small></td>
+  <td>StatCard() node in design-system/components/StatCard.tsx.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>StatusPill.tsx</code><br><small style="color:var(--muted)">design-system/components/StatusPill.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Badge.tsx</code><br><small style="color:var(--muted)">design-system/components/Badge.tsx</small><br><code>BadgeTone</code><br><small style="color:var(--muted)">design-system/components/Badge.tsx</small></td>
+  <td>No direct outbound edge</td>
+  <td>Module file in design-system/components/StatusPill.tsx.</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>StatusType</code><br><small style="color:var(--muted)">design-system/components/StatusPill.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>StatusType node in design-system/components/StatusPill.tsx.</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>StatusPillProps</code><br><small style="color:var(--muted)">design-system/components/StatusPill.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>StatusPillProps node in design-system/components/StatusPill.tsx.</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>Table.tsx</code><br><small style="color:var(--muted)">design-system/components/Table.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small><br><code>cn.ts</code><br><small style="color:var(--muted)">lib/cn.ts</small></td>
+  <td>Module file in design-system/components/Table.tsx.</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>TableProps</code><br><small style="color:var(--muted)">design-system/components/Table.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>TableProps node in design-system/components/Table.tsx.</td>
+</tr>
+<tr>
+  <td>25</td>
+  <td><code>Table()</code><br><small style="color:var(--muted)">design-system/components/Table.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>cn()</code><br><small style="color:var(--muted)">lib/cn.ts</small></td>
+  <td>Table() node in design-system/components/Table.tsx.</td>
+</tr>
+<tr>
+  <td>26</td>
+  <td><code>index.ts</code><br><small style="color:var(--muted)">design-system/index.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in design-system/index.ts.</td>
+</tr>
+<tr>
+  <td>27</td>
+  <td><code>ThemeProvider.tsx</code><br><small style="color:var(--muted)">design-system/theme/ThemeProvider.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>colors.ts</code><br><small style="color:var(--muted)">design-system/tokens/colors.ts</small><br><code>themeColors</code><br><small style="color:var(--muted)">design-system/tokens/colors.ts</small></td>
+  <td>Module file in design-system/theme/ThemeProvider.tsx.</td>
+</tr>
+<tr>
+  <td>28</td>
+  <td><code>Theme</code><br><small style="color:var(--muted)">design-system/theme/ThemeProvider.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Theme node in design-system/theme/ThemeProvider.tsx.</td>
+</tr>
+<tr>
+  <td>29</td>
+  <td><code>ThemeContextType</code><br><small style="color:var(--muted)">design-system/theme/ThemeProvider.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ThemeContextType node in design-system/theme/ThemeProvider.tsx.</td>
+</tr>
+<tr>
+  <td>30</td>
+  <td><code>ThemeContext</code><br><small style="color:var(--muted)">design-system/theme/ThemeProvider.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ThemeContext node in design-system/theme/ThemeProvider.tsx.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>design-system/theme/ThemeProvider.tsx</code></td><td>6 nodes</td></tr>
+<tr><td><code>design-system/components/StatCard.tsx</code></td><td>4 nodes</td></tr>
+<tr><td><code>design-system/components/Avatar.tsx</code></td><td>3 nodes</td></tr>
+<tr><td><code>design-system/components/Badge.tsx</code></td><td>3 nodes</td></tr>
+<tr><td><code>design-system/components/Button.tsx</code></td><td>3 nodes</td></tr>
+<tr><td><code>design-system/components/StatusPill.tsx</code></td><td>3 nodes</td></tr>
+<tr><td><code>design-system/components/Table.tsx</code></td><td>3 nodes</td></tr>
+<tr><td><code>design-system/tokens/colors.ts</code></td><td>3 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x27, re exports x14, imports x10, imports x10. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 4. Community 1 ====== -->
+<h2 id="community-1">4. Community 1</h2>
+<p>Community 1 groups implementation around contractts, types, components, mockdatats, mostly in types/contract.ts, data/mockData.ts, components/ClientSelector.tsx. This section covers 39 nodes and 57 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Community 1 (39 nodes, 57 edges)
+    subgraph community_1_types_contract_ts_101c7eb6["types/contract.ts"]
+        types_contract_84d32a54("contract.ts")
+        types_contract_client_92c793ee("Client<br/><small>types/contract.ts</small>")
+        types_contract_contactperson_20ef7e16("ContactPerson<br/><small>types/contract.ts</small>")
+        types_contract_inspection_32136ebf("Inspection<br/><small>types/contract.ts</small>")
+        types_contract_inspector_7c859122("Inspector<br/><small>types/contract.ts</small>")
+        types_contract_invoice_34496ff8("Invoice<br/><small>types/contract.ts</small>")
+        types_contract_ncr_cc1faf63("NCR<br/><small>types/contract.ts</small>")
+        types_contract_tariffline_c216c4bb("TariffLine<br/><small>types/contract.ts</small>")
+        types_contract_adjustment_5d0e3d09("Adjustment<br/><small>types/contract.ts</small>")
+    end
+    subgraph community_1_data_mockData_ts_3d374bfd["data/mockData.ts"]
+        data_mockdata_475d966c("mockData.ts")
+        data_mockdata_contracts_ab15ef3e("contracts<br/><small>data/mockData.ts</small>")
+        data_mockdata_clients_a5ec671a("clients<br/><small>data/mockData.ts</small>")
+    end
+    subgraph community_1_components_ClientSelectorModal_tsx_800e6d59["components/ClientSelectorModal.tsx"]
+        components_clientselectormodal_0da62ab1("ClientSelectorModal.tsx")
+        components_clientselectormodal_clientselectormod_67acea75("ClientSelectorModal()<br/><small>components/ClientSelectorModal.tsx</small>")
+    end
+    components_clientselector_7a909996("ClientSelector.tsx")
+    components_contractform_497dcdb7("ContractForm.tsx")
+    lib_contractcalculations_getnextjalaaliyearstart_228da32e("getNextJalaaliYearStart()<br/><small>lib/contractCalculations.ts</small>")
+    lib_contractnumber_c9a9e6e8("contractNumber.ts")
+    components_clientselector_7a909996 -->|imports| data_mockdata_475d966c
+    components_clientselector_7a909996 -->|imports| data_mockdata_clients_a5ec671a
+    components_clientselectormodal_0da62ab1 -->|imports| data_mockdata_475d966c
+    components_clientselectormodal_0da62ab1 -->|imports| data_mockdata_clients_a5ec671a
+    components_clientselectormodal_0da62ab1 -->|imports| components_contractform_497dcdb7
+    components_clientselectormodal_clientselectormod_67acea75 -->|imports| components_contractform_497dcdb7
+    data_mockdata_475d966c -->|imports| components_contractform_497dcdb7
+    data_mockdata_475d966c -->|imports| types_contract_84d32a54
+    data_mockdata_475d966c -->|imports| types_contract_client_92c793ee
+    data_mockdata_475d966c -->|imports| types_contract_contactperson_20ef7e16
+    data_mockdata_475d966c -->|imports| types_contract_inspection_32136ebf
+    data_mockdata_475d966c -->|imports| types_contract_inspector_7c859122
+    data_mockdata_475d966c -->|imports| types_contract_invoice_34496ff8
+    data_mockdata_475d966c -->|imports| types_contract_ncr_cc1faf63
+    data_mockdata_475d966c -->|imports| types_contract_tariffline_c216c4bb
+    data_mockdata_475d966c -->|imports| lib_contractnumber_c9a9e6e8
+    data_mockdata_clients_a5ec671a -->|imports| components_contractform_497dcdb7
+    data_mockdata_contracts_ab15ef3e -->|imports| lib_contractnumber_c9a9e6e8
+    lib_contractcalculations_getnextjalaaliyearstart_228da32e -->|imports| components_contractform_497dcdb7
+    types_contract_84d32a54 -->|imports| components_contractform_497dcdb7
+    types_contract_tariffline_c216c4bb -->|imports| components_contractform_497dcdb7
+    types_contract_adjustment_5d0e3d09 -->|imports| components_contractform_497dcdb7
+    %% Omitted for readability: 21 nodes, 0 edges
+    class types_contract_84d32a54 module;
+    class types_contract_client_92c793ee entry;
+    class types_contract_contactperson_20ef7e16 klass;
+    class types_contract_inspection_32136ebf klass;
+    class types_contract_inspector_7c859122 klass;
+    class types_contract_invoice_34496ff8 klass;
+    class types_contract_ncr_cc1faf63 klass;
+    class types_contract_tariffline_c216c4bb klass;
+    class types_contract_adjustment_5d0e3d09 klass;
+    class data_mockdata_475d966c module;
+    class data_mockdata_contracts_ab15ef3e function;
+    class data_mockdata_clients_a5ec671a entry;
+    class components_clientselectormodal_0da62ab1 entry;
+    class components_clientselectormodal_clientselectormod_67acea75 entry;
+    class components_clientselector_7a909996 entry;
+    class components_contractform_497dcdb7 ui;
+    class lib_contractcalculations_getnextjalaaliyearstart_228da32e function;
+    class lib_contractnumber_c9a9e6e8 module;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>ClientSelector.tsx</code><br><small style="color:var(--muted)">components/ClientSelector.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>clients</code><br><small style="color:var(--muted)">data/mockData.ts</small><br><code>mockData.ts</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td>Module file in components/ClientSelector.tsx.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>ClientSelectorProps</code><br><small style="color:var(--muted)">components/ClientSelector.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ClientSelectorProps node in components/ClientSelector.tsx.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>ClientSelector()</code><br><small style="color:var(--muted)">components/ClientSelector.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ClientSelector() node in components/ClientSelector.tsx.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>ClientSelectorModal.tsx</code><br><small style="color:var(--muted)">components/ClientSelectorModal.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>clients</code><br><small style="color:var(--muted)">data/mockData.ts</small><br><code>ContractForm.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small><br><code>mockData.ts</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td>Module file in components/ClientSelectorModal.tsx.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>ClientSelectorModalProps</code><br><small style="color:var(--muted)">components/ClientSelectorModal.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ClientSelectorModalProps node in components/ClientSelectorModal.tsx.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>ClientSelectorModal()</code><br><small style="color:var(--muted)">components/ClientSelectorModal.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractForm.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small></td>
+  <td>ClientSelectorModal() node in components/ClientSelectorModal.tsx.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>mockData.ts</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>ClientSelector.tsx</code><br><small style="color:var(--muted)">components/ClientSelector.tsx</small><br><code>ClientSelectorModal.tsx</code><br><small style="color:var(--muted)">components/ClientSelectorModal.tsx</small></td>
+  <td><code>Client</code><br><small style="color:var(--muted)">types/contract.ts</small><br><code>ContactPerson</code><br><small style="color:var(--muted)">types/contract.ts</small><br><code>contract.ts</code><br><small style="color:var(--muted)">types/contract.ts</small><br>+7 more</td>
+  <td>Module file in data/mockData.ts.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>clients</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td><code>ClientSelector.tsx</code><br><small style="color:var(--muted)">components/ClientSelector.tsx</small><br><code>ClientSelectorModal.tsx</code><br><small style="color:var(--muted)">components/ClientSelectorModal.tsx</small></td>
+  <td><code>ContractForm.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small></td>
+  <td>clients node in data/mockData.ts.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>contracts</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>contractNumber.ts</code><br><small style="color:var(--muted)">lib/contractNumber.ts</small></td>
+  <td>contracts node in data/mockData.ts.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>ncrs</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ncrs node in data/mockData.ts.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>inspectorPerformance</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>inspectorPerformance node in data/mockData.ts.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>getNextJalaaliYearStart()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractForm.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small></td>
+  <td>getNextJalaaliYearStart() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>contractNumber.ts</code><br><small style="color:var(--muted)">lib/contractNumber.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>contracts</code><br><small style="color:var(--muted)">data/mockData.ts</small><br><code>mockData.ts</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td>No direct outbound edge</td>
+  <td>Module file in lib/contractNumber.ts.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>generateInternalContractNo()</code><br><small style="color:var(--muted)">lib/contractNumber.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>generateInternalContractNo() node in lib/contractNumber.ts.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>contract.ts</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>mockData.ts</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><code>ContractForm.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small></td>
+  <td>Module file in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>ClientType</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ClientType node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>ContractStatus</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ContractStatus node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>ContractType</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ContractType node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>SourceType</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>SourceType node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>AttachmentCategory</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>AttachmentCategory node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>AdjustmentMode</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>AdjustmentMode node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>GuaranteeType</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>GuaranteeType node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>ServiceDescription</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ServiceDescription node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>ContactPerson</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td><code>mockData.ts</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td>No direct outbound edge</td>
+  <td>ContactPerson node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>25</td>
+  <td><code>Client</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td><code>mockData.ts</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td>No direct outbound edge</td>
+  <td>Client node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>26</td>
+  <td><code>TariffLine</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td><code>mockData.ts</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><code>ContractForm.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small></td>
+  <td>TariffLine node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>27</td>
+  <td><code>Adjustment</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractForm.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small></td>
+  <td>Adjustment node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>28</td>
+  <td><code>ContractModification</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractForm.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small></td>
+  <td>ContractModification node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>29</td>
+  <td><code>Guarantee</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractForm.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small></td>
+  <td>Guarantee node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>30</td>
+  <td><code>ContractAttachment</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractForm.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small></td>
+  <td>ContractAttachment node in types/contract.ts.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>types/contract.ts</code></td><td>23 nodes</td></tr>
+<tr><td><code>data/mockData.ts</code></td><td>5 nodes</td></tr>
+<tr><td><code>components/ClientSelector.tsx</code></td><td>3 nodes</td></tr>
+<tr><td><code>components/ClientSelectorModal.tsx</code></td><td>3 nodes</td></tr>
+<tr><td><code>lib/contractNumber.ts</code></td><td>2 nodes</td></tr>
+<tr><td><code>lib/contractCalculations.ts</code></td><td>1 nodes</td></tr>
+<tr><td><code>types/index.ts</code></td><td>1 nodes</td></tr>
+<tr><td><code>contracts/components/ContractForm.tsx</code></td><td>1 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x31, imports x18, imports x7, re exports x1. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 5. Community 2 ====== -->
+<h2 id="community-2">5. Community 2</h2>
+<p>Community 2 groups implementation around contractcalculationsts, views, contracts, components, mostly in lib/contractCalculations.ts, contracts/components/ContractDetails.tsx, lib/formatters.ts. This section covers 34 nodes and 84 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Community 2 (34 nodes, 84 edges)
+    subgraph community_2_lib_contractCalculations_ts_3f9cc759["lib/contractCalculations.ts"]
+        lib_contractcalculations_calculatedaysleft_deb16936("calculateDaysLeft()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_getdaysuntilstart_912096f2("getDaysUntilStart()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_calculatedaysprogress_7a897cfe("calculateDaysProgress()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_calculateprogressfromta_67f8ef40("calculateProgressFromTariffs()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_getcontractfinancialsta_cc28e535("getContractFinancialStatus()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_getneedsreviewtype_6c7f835e("getNeedsReviewType()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_isexpiringsoon_0a8a608a("isExpiringSoon()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_getadjustmentreminder_eedb24c3("getAdjustmentReminder()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_calculateperformedworkv_addda6e3("calculatePerformedWorkValue()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_calculateuninvoicedwork_9cda6fcd("calculateUninvoicedWork()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_calculatetotalinvoicedf_e9b8e4b0("calculateTotalInvoicedFromTariffs()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_ad795135("contractCalculations.ts")
+    end
+    subgraph community_2_contracts_components_ContractDetails_e98bfedd["contracts/components/ContractDetails.tsx"]
+        components_contractdetails_contractdetails_e51fd7b3("ContractDetails()<br/><small>contracts/components/ContractDetails.tsx</small>")
+        components_contractdetails_7aa89b96("ContractDetails.tsx")
+    end
+    components_contractlist_aab6bebb("ContractList.tsx")
+    hooks_usecontracts_afcabfd0("useContracts.ts")
+    data_mockdata_contracttariffs_6255c2c6("contractTariffs<br/><small>data/mockData.ts</small>")
+    types_contract_contract_38b93746("Contract<br/><small>types/contract.ts</small>")
+    lib_contractcalculations_calculatedaysleft_deb16936 -->|calls| components_contractdetails_contractdetails_e51fd7b3
+    lib_contractcalculations_calculatedaysleft_deb16936 -->|calls| lib_contractcalculations_getcontractfinancialsta_cc28e535
+    lib_contractcalculations_calculatedaysleft_deb16936 -->|calls| lib_contractcalculations_getneedsreviewtype_6c7f835e
+    lib_contractcalculations_calculatedaysleft_deb16936 -->|calls| lib_contractcalculations_isexpiringsoon_0a8a608a
+    lib_contractcalculations_getdaysuntilstart_912096f2 -->|calls| components_contractdetails_contractdetails_e51fd7b3
+    lib_contractcalculations_getdaysuntilstart_912096f2 -->|calls| lib_contractcalculations_getadjustmentreminder_eedb24c3
+    lib_contractcalculations_getdaysuntilstart_912096f2 -->|calls| lib_contractcalculations_getcontractfinancialsta_cc28e535
+    lib_contractcalculations_getdaysuntilstart_912096f2 -->|calls| lib_contractcalculations_isexpiringsoon_0a8a608a
+    lib_contractcalculations_calculateperformedworkv_addda6e3 -->|calls| lib_contractcalculations_calculateuninvoicedwork_9cda6fcd
+    lib_contractcalculations_calculatetotalinvoicedf_e9b8e4b0 -->|calls| lib_contractcalculations_calculateuninvoicedwork_9cda6fcd
+    lib_contractcalculations_getcontractfinancialsta_cc28e535 -->|calls| components_contractdetails_contractdetails_e51fd7b3
+    lib_contractcalculations_getadjustmentreminder_eedb24c3 -->|calls| components_contractdetails_contractdetails_e51fd7b3
+    lib_contractcalculations_isexpiringsoon_0a8a608a -->|calls| components_contractdetails_contractdetails_e51fd7b3
+    data_mockdata_contracttariffs_6255c2c6 -->|imports| components_contractdetails_7aa89b96
+    data_mockdata_contracttariffs_6255c2c6 -->|imports| hooks_usecontracts_afcabfd0
+    data_mockdata_contracttariffs_6255c2c6 -->|imports| lib_contractcalculations_ad795135
+    lib_contractcalculations_ad795135 -->|imports| components_contractdetails_7aa89b96
+    lib_contractcalculations_ad795135 -->|imports| components_contractlist_aab6bebb
+    lib_contractcalculations_ad795135 -->|imports| hooks_usecontracts_afcabfd0
+    lib_contractcalculations_calculateprogressfromta_67f8ef40 -->|imports| components_contractdetails_7aa89b96
+    lib_contractcalculations_calculateprogressfromta_67f8ef40 -->|imports| components_contractlist_aab6bebb
+    lib_contractcalculations_calculateprogressfromta_67f8ef40 -->|imports| hooks_usecontracts_afcabfd0
+    lib_contractcalculations_calculatedaysprogress_7a897cfe -->|imports| components_contractdetails_7aa89b96
+    lib_contractcalculations_calculatedaysprogress_7a897cfe -->|imports| components_contractlist_aab6bebb
+    %% Omitted for readability: 16 nodes, 17 edges
+    class lib_contractcalculations_calculatedaysleft_deb16936 function;
+    class lib_contractcalculations_getdaysuntilstart_912096f2 function;
+    class lib_contractcalculations_calculatedaysprogress_7a897cfe function;
+    class lib_contractcalculations_calculateprogressfromta_67f8ef40 function;
+    class lib_contractcalculations_getcontractfinancialsta_cc28e535 function;
+    class lib_contractcalculations_getneedsreviewtype_6c7f835e function;
+    class lib_contractcalculations_isexpiringsoon_0a8a608a function;
+    class lib_contractcalculations_getadjustmentreminder_eedb24c3 function;
+    class lib_contractcalculations_calculateperformedworkv_addda6e3 function;
+    class lib_contractcalculations_calculateuninvoicedwork_9cda6fcd function;
+    class lib_contractcalculations_calculatetotalinvoicedf_e9b8e4b0 function;
+    class lib_contractcalculations_ad795135 module;
+    class components_contractdetails_contractdetails_e51fd7b3 ui;
+    class components_contractdetails_7aa89b96 ui;
+    class components_contractlist_aab6bebb ui;
+    class hooks_usecontracts_afcabfd0 ui;
+    class data_mockdata_contracttariffs_6255c2c6 function;
+    class types_contract_contract_38b93746 klass;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>contractTariffs</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>contractCalculations.ts</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>useContracts.ts</code><br><small style="color:var(--muted)">contracts/hooks/useContracts.ts</small></td>
+  <td>contractTariffs node in data/mockData.ts.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>contractCalculations.ts</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>contractTariffs</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractList.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small><br><code>useContracts.ts</code><br><small style="color:var(--muted)">contracts/hooks/useContracts.ts</small></td>
+  <td>Module file in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>getProgressColor()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small></td>
+  <td>getProgressColor() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>getProgressTextClass()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small></td>
+  <td>getProgressTextClass() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>getProgressTextColor()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small></td>
+  <td>getProgressTextColor() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>getProgressTone()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>getProgressTone() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>getProgressBgClass()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>getProgressBgClass() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>getDaysProgressColor()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractList.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small></td>
+  <td>getDaysProgressColor() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>TariffLike</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>TariffLike node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>ContractLike</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ContractLike node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>calculateProgressFromTariffs()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractList.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small><br><code>useContracts.ts</code><br><small style="color:var(--muted)">contracts/hooks/useContracts.ts</small></td>
+  <td>calculateProgressFromTariffs() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>calculateInvoiceProgress()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small></td>
+  <td>calculateInvoiceProgress() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>calculateDaysProgress()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractList.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small><br><code>useContracts.ts</code><br><small style="color:var(--muted)">contracts/hooks/useContracts.ts</small></td>
+  <td>calculateDaysProgress() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>calculateDaysLeft()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractDetails()</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractList.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small><br>+4 more</td>
+  <td>calculateDaysLeft() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>getDaysUntilStart()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractDetails()</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractList.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small><br>+4 more</td>
+  <td>getDaysUntilStart() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>isContractNotStarted()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>isContractNotStarted() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>calculateBudgetSpent()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>calculateBudgetSpent() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>calculatePerformedWorkValue()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>calculateUninvoicedWork()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td>calculatePerformedWorkValue() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>calculateTotalInvoicedFromTariffs()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>calculateUninvoicedWork()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td>calculateTotalInvoicedFromTariffs() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>calculateUninvoicedWork()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>calculatePerformedWorkValue()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br><code>calculateTotalInvoicedFromTariffs()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td>No direct outbound edge</td>
+  <td>calculateUninvoicedWork() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>getContractFinancialStatus()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>calculateDaysLeft()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br><code>getDaysUntilStart()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><code>ContractDetails()</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractList.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small><br>+1 more</td>
+  <td>getContractFinancialStatus() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>getAdjustmentReminder()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>getDaysUntilStart()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><code>ContractDetails()</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small></td>
+  <td>getAdjustmentReminder() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>isExpiringSoon()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>calculateDaysLeft()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br><code>getDaysUntilStart()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><code>ContractDetails()</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractList.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small><br>+1 more</td>
+  <td>isExpiringSoon() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>getNeedsReviewType()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>calculateDaysLeft()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td>No direct outbound edge</td>
+  <td>getNeedsReviewType() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>25</td>
+  <td><code>formatters.ts</code><br><small style="color:var(--muted)">lib/formatters.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractList.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small></td>
+  <td>Module file in lib/formatters.ts.</td>
+</tr>
+<tr>
+  <td>26</td>
+  <td><code>contractHealth()</code><br><small style="color:var(--muted)">lib/formatters.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>contractHealth() node in lib/formatters.ts.</td>
+</tr>
+<tr>
+  <td>27</td>
+  <td><code>Contract</code><br><small style="color:var(--muted)">types/contract.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small><br><code>ContractList.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small><br><code>useContracts.ts</code><br><small style="color:var(--muted)">contracts/hooks/useContracts.ts</small></td>
+  <td>Contract node in types/contract.ts.</td>
+</tr>
+<tr>
+  <td>28</td>
+  <td><code>ContractDetails.tsx</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>calculateDaysLeft()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br><code>calculateDaysProgress()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br><code>calculateInvoiceProgress()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br>+13 more</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in contracts/components/ContractDetails.tsx.</td>
+</tr>
+<tr>
+  <td>29</td>
+  <td><code>ContractDetailsProps</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ContractDetailsProps node in contracts/components/ContractDetails.tsx.</td>
+</tr>
+<tr>
+  <td>30</td>
+  <td><code>ContractDetails()</code><br><small style="color:var(--muted)">contracts/components/ContractDetails.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>calculateDaysLeft()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br><code>getAdjustmentReminder()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br><code>getContractFinancialStatus()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br>+2 more</td>
+  <td>No direct outbound edge</td>
+  <td>ContractDetails() node in contracts/components/ContractDetails.tsx.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>lib/contractCalculations.ts</code></td><td>23 nodes</td></tr>
+<tr><td><code>contracts/components/ContractDetails.tsx</code></td><td>3 nodes</td></tr>
+<tr><td><code>lib/formatters.ts</code></td><td>2 nodes</td></tr>
+<tr><td><code>contracts/components/ContractList.tsx</code></td><td>2 nodes</td></tr>
+<tr><td><code>data/mockData.ts</code></td><td>1 nodes</td></tr>
+<tr><td><code>types/contract.ts</code></td><td>1 nodes</td></tr>
+<tr><td><code>contracts/components/ContractForm.tsx</code></td><td>1 nodes</td></tr>
+<tr><td><code>contracts/hooks/useContracts.ts</code></td><td>1 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: imports x31, contains x26, calls x13, re exports x6. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 6. Community 4 ====== -->
+<h2 id="community-4">6. Community 4</h2>
+<p>Community 4 groups implementation around clientstsx, views, validatorsts, virtualclientlisttsx, mostly in views/Clients.tsx, lib/validators.ts, components/VirtualClientList.tsx. This section covers 27 nodes and 34 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Community 4 (27 nodes, 34 edges)
+    subgraph community_4_lib_validators_ts_60e591b0["lib/validators.ts"]
+        lib_validators_dd210b30("validators.ts")
+        lib_validators_validatemobile_e84875be("validateMobile()<br/><small>lib/validators.ts</small>")
+        lib_validators_validatenationalcode_f8cdacf9("validateNationalCode()<br/><small>lib/validators.ts</small>")
+        lib_validators_validatenationalid_7ec01781("validateNationalId()<br/><small>lib/validators.ts</small>")
+        lib_validators_formatprice_27ecdffa("formatPrice()<br/><small>lib/validators.ts</small>")
+        lib_validators_parseprice_327ed11e("parsePrice()<br/><small>lib/validators.ts</small>")
+    end
+    subgraph community_4_views_Clients_tsx_0cf9d969["views/Clients.tsx"]
+        views_clients_calculateperformedworkvalue_17c6cb12("calculatePerformedWorkValue()<br/><small>views/Clients.tsx</small>")
+        views_clients_calculateuninvoicedwork_76931cd3("calculateUninvoicedWork()<br/><small>views/Clients.tsx</small>")
+        views_clients_calculatetotalinvoicedfromtariffs_099a239c("calculateTotalInvoicedFromTariffs()<br/><small>views/Clients.tsx</small>")
+        views_clients_f7926e64("Clients.tsx")
+        views_clients_client_b1c5cf45("Client<br/><small>views/Clients.tsx</small>")
+        views_clients_contactperson_1a28644d("ContactPerson<br/><small>views/Clients.tsx</small>")
+    end
+    subgraph community_4_components_VirtualClientList_tsx_d8eb4848["components/VirtualClientList.tsx"]
+        components_virtualclientlist_cf292688("VirtualClientList.tsx")
+        components_virtualclientlist_virtualclientlist_8aa6b90e("VirtualClientList()<br/><small>components/VirtualClientList.tsx</small>")
+        components_virtualclientlist_virtualclientlistpr_df4eac5c("VirtualClientListProps<br/><small>components/VirtualClientList.tsx</small>")
+    end
+    subgraph community_4_lib_exportToExcel_ts_c34ff212["lib/exportToExcel.ts"]
+        lib_exporttoexcel_d4683e80("exportToExcel.ts")
+        lib_exporttoexcel_exporttoexcel_e2c0de7b("exportToExcel()<br/><small>lib/exportToExcel.ts</small>")
+    end
+    lib_formatters_formatdate_dcf2a26a("formatDate()<br/><small>lib/formatters.ts</small>")
+    views_clients_calculateperformedworkvalue_17c6cb12 -->|calls| views_clients_calculateuninvoicedwork_76931cd3
+    views_clients_calculatetotalinvoicedfromtariffs_099a239c -->|calls| views_clients_calculateuninvoicedwork_76931cd3
+    components_virtualclientlist_cf292688 -->|imports| views_clients_f7926e64
+    components_virtualclientlist_cf292688 -->|imports| views_clients_client_b1c5cf45
+    lib_exporttoexcel_d4683e80 -->|imports| views_clients_f7926e64
+    lib_exporttoexcel_exporttoexcel_e2c0de7b -->|imports| views_clients_f7926e64
+    lib_formatters_formatdate_dcf2a26a -->|imports| views_clients_f7926e64
+    lib_validators_dd210b30 -->|imports| views_clients_f7926e64
+    lib_validators_validatenationalcode_f8cdacf9 -->|imports| views_clients_f7926e64
+    lib_validators_validatenationalid_7ec01781 -->|imports| views_clients_f7926e64
+    lib_validators_validatemobile_e84875be -->|imports| views_clients_f7926e64
+    %% Omitted for readability: 9 nodes, 0 edges
+    class lib_validators_dd210b30 module;
+    class lib_validators_validatemobile_e84875be function;
+    class lib_validators_validatenationalcode_f8cdacf9 function;
+    class lib_validators_validatenationalid_7ec01781 function;
+    class lib_validators_formatprice_27ecdffa function;
+    class lib_validators_parseprice_327ed11e function;
+    class views_clients_calculateperformedworkvalue_17c6cb12 ui;
+    class views_clients_calculateuninvoicedwork_76931cd3 ui;
+    class views_clients_calculatetotalinvoicedfromtariffs_099a239c ui;
+    class views_clients_f7926e64 entry;
+    class views_clients_client_b1c5cf45 entry;
+    class views_clients_contactperson_1a28644d ui;
+    class components_virtualclientlist_cf292688 entry;
+    class components_virtualclientlist_virtualclientlist_8aa6b90e entry;
+    class components_virtualclientlist_virtualclientlistpr_df4eac5c entry;
+    class lib_exporttoexcel_d4683e80 module;
+    class lib_exporttoexcel_exporttoexcel_e2c0de7b function;
+    class lib_formatters_formatdate_dcf2a26a function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>VirtualClientList.tsx</code><br><small style="color:var(--muted)">components/VirtualClientList.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Client</code><br><small style="color:var(--muted)">views/Clients.tsx</small><br><code>Clients.tsx</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>Module file in components/VirtualClientList.tsx.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>VirtualClientListProps</code><br><small style="color:var(--muted)">components/VirtualClientList.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>VirtualClientListProps node in components/VirtualClientList.tsx.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>VirtualClientList()</code><br><small style="color:var(--muted)">components/VirtualClientList.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>VirtualClientList() node in components/VirtualClientList.tsx.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>exportToExcel.ts</code><br><small style="color:var(--muted)">lib/exportToExcel.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Clients.tsx</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>Module file in lib/exportToExcel.ts.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>exportToExcel()</code><br><small style="color:var(--muted)">lib/exportToExcel.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Clients.tsx</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>Exports documentation data to a target format.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>formatDate()</code><br><small style="color:var(--muted)">lib/formatters.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Clients.tsx</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>formatDate() node in lib/formatters.ts.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>validators.ts</code><br><small style="color:var(--muted)">lib/validators.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Clients.tsx</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>Module file in lib/validators.ts.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>validateNationalCode()</code><br><small style="color:var(--muted)">lib/validators.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Clients.tsx</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>validateNationalCode() node in lib/validators.ts.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>validateNationalId()</code><br><small style="color:var(--muted)">lib/validators.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Clients.tsx</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>validateNationalId() node in lib/validators.ts.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>validateMobile()</code><br><small style="color:var(--muted)">lib/validators.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Clients.tsx</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>validateMobile() node in lib/validators.ts.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>formatPrice()</code><br><small style="color:var(--muted)">lib/validators.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>formatPrice() node in lib/validators.ts.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>parsePrice()</code><br><small style="color:var(--muted)">lib/validators.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>parsePrice() node in lib/validators.ts.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>Clients.tsx</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td><code>exportToExcel()</code><br><small style="color:var(--muted)">lib/exportToExcel.ts</small><br><code>exportToExcel.ts</code><br><small style="color:var(--muted)">lib/exportToExcel.ts</small><br><code>formatDate()</code><br><small style="color:var(--muted)">lib/formatters.ts</small><br>+5 more</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>calculateProgressFromTariffs()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>calculateProgressFromTariffs() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>getProgressTone()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>getProgressTone() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>getProgressBgClass()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>getProgressBgClass() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>getProgressTextClass()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>getProgressTextClass() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>calculateDaysLeft()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>calculateDaysLeft() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>calculateBudgetSpent()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>calculateBudgetSpent() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>calculateInvoiceProgress()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>calculateInvoiceProgress() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>calculatePerformedWorkValue()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>calculateUninvoicedWork()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>calculatePerformedWorkValue() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>calculateTotalInvoicedFromTariffs()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>calculateUninvoicedWork()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>calculateTotalInvoicedFromTariffs() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>calculateUninvoicedWork()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>calculatePerformedWorkValue()</code><br><small style="color:var(--muted)">views/Clients.tsx</small><br><code>calculateTotalInvoicedFromTariffs()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td>No direct outbound edge</td>
+  <td>calculateUninvoicedWork() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>parseNumberInput()</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>parseNumberInput() node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>25</td>
+  <td><code>ContactPerson</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ContactPerson node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>26</td>
+  <td><code>Client</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-cmd">Entry</span></td>
+  <td><code>VirtualClientList.tsx</code><br><small style="color:var(--muted)">components/VirtualClientList.tsx</small></td>
+  <td>No direct outbound edge</td>
+  <td>Client node in views/Clients.tsx.</td>
+</tr>
+<tr>
+  <td>27</td>
+  <td><code>Contract</code><br><small style="color:var(--muted)">views/Clients.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Contract node in views/Clients.tsx.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>views/Clients.tsx</code></td><td>15 nodes</td></tr>
+<tr><td><code>lib/validators.ts</code></td><td>6 nodes</td></tr>
+<tr><td><code>components/VirtualClientList.tsx</code></td><td>3 nodes</td></tr>
+<tr><td><code>lib/exportToExcel.ts</code></td><td>2 nodes</td></tr>
+<tr><td><code>lib/formatters.ts</code></td><td>1 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x22, imports x6, imports x3, calls x2. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 7. Community 5 ====== -->
+<h2 id="community-5">7. Community 5</h2>
+<p>Community 5 groups implementation around components, tariffeditortsx, contractattachmentseditortsx, contractcalculationsts, mostly in components/TariffEditor.tsx, components/ContractAttachmentsEditor.tsx, lib/contractCalculations.ts. This section covers 21 nodes and 26 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Community 5 (21 nodes, 26 edges)
+    subgraph community_5_components_ContractAttachmentsEditor_c3f54d7e["components/ContractAttachmentsEditor.tsx"]
+        components_contractattachmentseditor_5b2572bb("ContractAttachmentsEditor.tsx")
+        components_contractattachmentseditor_contractatt_a5a7c2ed("ContractAttachmentsEditor()<br/><small>components/ContractAttachmentsEditor.tsx</small>")
+        components_contractattachmentseditor_attachment_6b655084("ATTACHMENT_CATEGORIES<br/><small>components/ContractAttachmentsEditor.tsx</small>")
+        components_contractattachmentseditor_contractatt_39387950("ContractAttachment<br/><small>components/ContractAttachmentsEditor.tsx</small>")
+        components_contractattachmentseditor_contractatt_0e1b958a("ContractAttachmentsEditorProps<br/><small>components/ContractAttachmentsEditor.tsx</small>")
+    end
+    subgraph community_5_lib_contractCalculations_ts_894c032f["lib/contractCalculations.ts"]
+        lib_contractcalculations_getinvoicedpercentage_479991c1("getInvoicedPercentage()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_generatecontractno_237e33ad("generateContractNo()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_formatnumberinput_89677548("formatNumberInput()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_getcurrentjalaaliyear_ced42f93("getCurrentJalaaliYear()<br/><small>lib/contractCalculations.ts</small>")
+        lib_contractcalculations_parsenumberinput_465c3869("parseNumberInput()<br/><small>lib/contractCalculations.ts</small>")
+    end
+    subgraph community_5_components_TariffEditor_tsx_641d04e2["components/TariffEditor.tsx"]
+        components_tariffeditor_b2d68433("TariffEditor.tsx")
+        components_tariffeditor_tariffeditor_e551f75b("TariffEditor()<br/><small>components/TariffEditor.tsx</small>")
+        components_tariffeditor_currencies_7825dbc9("CURRENCIES<br/><small>components/TariffEditor.tsx</small>")
+    end
+    subgraph community_5_views_Contracts_tsx_8eba1289["views/Contracts.tsx"]
+        views_contracts_contracts_045d6199("Contracts()<br/><small>views/Contracts.tsx</small>")
+        views_contracts_e8c52463("Contracts.tsx")
+    end
+    components_contractform_contractform_c1e2c4ae("ContractForm()<br/><small>contracts/components/ContractForm.tsx</small>")
+    components_contractlist_contractlist_3dda5dcd("ContractList()<br/><small>contracts/components/ContractList.tsx</small>")
+    hooks_usecontracts_usecontracts_7a3b0c9a("useContracts()<br/><small>contracts/hooks/useContracts.ts</small>")
+    lib_contractcalculations_formatnumberinput_89677548 -->|calls| components_contractform_contractform_c1e2c4ae
+    lib_contractcalculations_getcurrentjalaaliyear_ced42f93 -->|calls| lib_contractcalculations_generatecontractno_237e33ad
+    lib_contractcalculations_generatecontractno_237e33ad -->|calls| components_contractform_contractform_c1e2c4ae
+    lib_contractcalculations_getinvoicedpercentage_479991c1 -->|calls| views_contracts_contracts_045d6199
+    views_contracts_contracts_045d6199 -->|calls| hooks_usecontracts_usecontracts_7a3b0c9a
+    components_contractattachmentseditor_5b2572bb -->|imports| views_contracts_e8c52463
+    components_contractattachmentseditor_contractatt_a5a7c2ed -->|imports| views_contracts_e8c52463
+    components_tariffeditor_b2d68433 -->|imports| lib_contractcalculations_formatnumberinput_89677548
+    components_tariffeditor_b2d68433 -->|imports| lib_contractcalculations_parsenumberinput_465c3869
+    components_tariffeditor_b2d68433 -->|imports| views_contracts_e8c52463
+    components_tariffeditor_tariffeditor_e551f75b -->|imports| views_contracts_e8c52463
+    lib_contractcalculations_generatecontractno_237e33ad -->|imports| views_contracts_e8c52463
+    lib_contractcalculations_getinvoicedpercentage_479991c1 -->|imports| views_contracts_e8c52463
+    views_contracts_e8c52463 -->|imports| components_contractform_contractform_c1e2c4ae
+    views_contracts_e8c52463 -->|imports| components_contractlist_contractlist_3dda5dcd
+    views_contracts_e8c52463 -->|imports| hooks_usecontracts_usecontracts_7a3b0c9a
+    %% Omitted for readability: 3 nodes, 0 edges
+    class components_contractattachmentseditor_5b2572bb ui;
+    class components_contractattachmentseditor_contractatt_a5a7c2ed ui;
+    class components_contractattachmentseditor_attachment_6b655084 ui;
+    class components_contractattachmentseditor_contractatt_39387950 ui;
+    class components_contractattachmentseditor_contractatt_0e1b958a ui;
+    class lib_contractcalculations_getinvoicedpercentage_479991c1 function;
+    class lib_contractcalculations_generatecontractno_237e33ad function;
+    class lib_contractcalculations_formatnumberinput_89677548 function;
+    class lib_contractcalculations_getcurrentjalaaliyear_ced42f93 function;
+    class lib_contractcalculations_parsenumberinput_465c3869 function;
+    class components_tariffeditor_b2d68433 ui;
+    class components_tariffeditor_tariffeditor_e551f75b ui;
+    class components_tariffeditor_currencies_7825dbc9 ui;
+    class views_contracts_contracts_045d6199 ui;
+    class views_contracts_e8c52463 ui;
+    class components_contractform_contractform_c1e2c4ae ui;
+    class components_contractlist_contractlist_3dda5dcd ui;
+    class hooks_usecontracts_usecontracts_7a3b0c9a ui;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>ContractAttachmentsEditor.tsx</code><br><small style="color:var(--muted)">components/ContractAttachmentsEditor.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Contracts.tsx</code><br><small style="color:var(--muted)">views/Contracts.tsx</small></td>
+  <td>Module file in components/ContractAttachmentsEditor.tsx.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>ContractAttachment</code><br><small style="color:var(--muted)">components/ContractAttachmentsEditor.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ContractAttachment node in components/ContractAttachmentsEditor.tsx.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>ATTACHMENT_CATEGORIES</code><br><small style="color:var(--muted)">components/ContractAttachmentsEditor.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ATTACHMENT_CATEGORIES node in components/ContractAttachmentsEditor.tsx.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>ContractAttachmentsEditorProps</code><br><small style="color:var(--muted)">components/ContractAttachmentsEditor.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ContractAttachmentsEditorProps node in components/ContractAttachmentsEditor.tsx.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>ContractAttachmentsEditor()</code><br><small style="color:var(--muted)">components/ContractAttachmentsEditor.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Contracts.tsx</code><br><small style="color:var(--muted)">views/Contracts.tsx</small></td>
+  <td>ContractAttachmentsEditor() node in components/ContractAttachmentsEditor.tsx.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>TariffEditor.tsx</code><br><small style="color:var(--muted)">components/TariffEditor.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Contracts.tsx</code><br><small style="color:var(--muted)">views/Contracts.tsx</small><br><code>formatNumberInput()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br><code>parseNumberInput()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td>Module file in components/TariffEditor.tsx.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>TariffLine</code><br><small style="color:var(--muted)">components/TariffEditor.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>TariffLine node in components/TariffEditor.tsx.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>TariffEditorProps</code><br><small style="color:var(--muted)">components/TariffEditor.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>TariffEditorProps node in components/TariffEditor.tsx.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>CURRENCIES</code><br><small style="color:var(--muted)">components/TariffEditor.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>CURRENCIES node in components/TariffEditor.tsx.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>UNITS</code><br><small style="color:var(--muted)">components/TariffEditor.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>UNITS node in components/TariffEditor.tsx.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>TariffEditor()</code><br><small style="color:var(--muted)">components/TariffEditor.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Contracts.tsx</code><br><small style="color:var(--muted)">views/Contracts.tsx</small></td>
+  <td>TariffEditor() node in components/TariffEditor.tsx.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>formatNumberInput()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>TariffEditor.tsx</code><br><small style="color:var(--muted)">components/TariffEditor.tsx</small></td>
+  <td><code>ContractForm()</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small></td>
+  <td>formatNumberInput() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>parseNumberInput()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>TariffEditor.tsx</code><br><small style="color:var(--muted)">components/TariffEditor.tsx</small></td>
+  <td>No direct outbound edge</td>
+  <td>parseNumberInput() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>getCurrentJalaaliYear()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>generateContractNo()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td>getCurrentJalaaliYear() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>generateContractNo()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>getCurrentJalaaliYear()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><code>ContractForm()</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small><br><code>Contracts.tsx</code><br><small style="color:var(--muted)">views/Contracts.tsx</small></td>
+  <td>generateContractNo() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>getInvoicedPercentage()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Contracts()</code><br><small style="color:var(--muted)">views/Contracts.tsx</small><br><code>Contracts.tsx</code><br><small style="color:var(--muted)">views/Contracts.tsx</small></td>
+  <td>getInvoicedPercentage() node in lib/contractCalculations.ts.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>Contracts.tsx</code><br><small style="color:var(--muted)">views/Contracts.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>ContractAttachmentsEditor()</code><br><small style="color:var(--muted)">components/ContractAttachmentsEditor.tsx</small><br><code>ContractAttachmentsEditor.tsx</code><br><small style="color:var(--muted)">components/ContractAttachmentsEditor.tsx</small><br><code>generateContractNo()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br>+3 more</td>
+  <td><code>ContractForm()</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small><br><code>ContractList()</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small><br><code>useContracts()</code><br><small style="color:var(--muted)">contracts/hooks/useContracts.ts</small></td>
+  <td>Module file in views/Contracts.tsx.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>Contracts()</code><br><small style="color:var(--muted)">views/Contracts.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>getInvoicedPercentage()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td><code>useContracts()</code><br><small style="color:var(--muted)">contracts/hooks/useContracts.ts</small></td>
+  <td>Contracts() node in views/Contracts.tsx.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>ContractForm()</code><br><small style="color:var(--muted)">contracts/components/ContractForm.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Contracts.tsx</code><br><small style="color:var(--muted)">views/Contracts.tsx</small><br><code>formatNumberInput()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small><br><code>generateContractNo()</code><br><small style="color:var(--muted)">lib/contractCalculations.ts</small></td>
+  <td>No direct outbound edge</td>
+  <td>ContractForm() node in contracts/components/ContractForm.tsx.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>ContractList()</code><br><small style="color:var(--muted)">contracts/components/ContractList.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Contracts.tsx</code><br><small style="color:var(--muted)">views/Contracts.tsx</small></td>
+  <td>No direct outbound edge</td>
+  <td>ContractList() node in contracts/components/ContractList.tsx.</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>useContracts()</code><br><small style="color:var(--muted)">contracts/hooks/useContracts.ts</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Contracts()</code><br><small style="color:var(--muted)">views/Contracts.tsx</small><br><code>Contracts.tsx</code><br><small style="color:var(--muted)">views/Contracts.tsx</small></td>
+  <td>No direct outbound edge</td>
+  <td>useContracts() node in contracts/hooks/useContracts.ts.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>components/TariffEditor.tsx</code></td><td>6 nodes</td></tr>
+<tr><td><code>components/ContractAttachmentsEditor.tsx</code></td><td>5 nodes</td></tr>
+<tr><td><code>lib/contractCalculations.ts</code></td><td>5 nodes</td></tr>
+<tr><td><code>views/Contracts.tsx</code></td><td>2 nodes</td></tr>
+<tr><td><code>contracts/components/ContractForm.tsx</code></td><td>1 nodes</td></tr>
+<tr><td><code>contracts/components/ContractList.tsx</code></td><td>1 nodes</td></tr>
+<tr><td><code>contracts/hooks/useContracts.ts</code></td><td>1 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x10, imports x9, calls x5, imports x2. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 8. Community 6 ====== -->
+<h2 id="community-6">8. Community 6</h2>
+<p>Community 6 groups implementation around views, data, mockdatats, design, mostly in data/mockData.ts, lib/formatters.ts, views/Billing.tsx. This section covers 20 nodes and 40 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Community 6 (20 nodes, 40 edges)
+    subgraph community_6_data_mockData_ts_50cf6fc8["data/mockData.ts"]
+        data_mockdata_inspectors_ab98e842("inspectors<br/><small>data/mockData.ts</small>")
+        data_mockdata_inspections_e5a86cbd("inspections<br/><small>data/mockData.ts</small>")
+        data_mockdata_invoices_917b6315("invoices<br/><small>data/mockData.ts</small>")
+        data_mockdata_inspectionsbydiscipline_7a4d557a("inspectionsByDiscipline<br/><small>data/mockData.ts</small>")
+        data_mockdata_inspectionsbymonth_8700c0db("inspectionsByMonth<br/><small>data/mockData.ts</small>")
+    end
+    subgraph community_6_views_Billing_tsx_c70fb27b["views/Billing.tsx"]
+        views_billing_billing_84526b06("Billing()<br/><small>views/Billing.tsx</small>")
+        views_billing_8cd7ca9f("Billing.tsx")
+    end
+    subgraph community_6_views_Dashboard_tsx_99a6a4ab["views/Dashboard.tsx"]
+        views_dashboard_dashboard_4bbacbd0("Dashboard()<br/><small>views/Dashboard.tsx</small>")
+        views_dashboard_2e357311("Dashboard.tsx")
+    end
+    components_badge_badge_aad385d6("Badge()<br/><small>design-system/components/Badge.tsx</small>")
+    components_button_button_5fed8106("Button()<br/><small>design-system/components/Button.tsx</small>")
+    components_card_card_9a38d05a("Card()<br/><small>design-system/components/Card.tsx</small>")
+    components_cardheader_cardheader_29348ce5("CardHeader()<br/><small>design-system/components/CardHeader.tsx</small>")
+    components_statuspill_statuspill_ea0731cd("StatusPill()<br/><small>design-system/components/StatusPill.tsx</small>")
+    lib_formatters_formatcurrency_38821dcf("formatCurrency()<br/><small>lib/formatters.ts</small>")
+    views_inspections_bc99e081("Inspections.tsx")
+    views_inspectors_da5628d4("Inspectors.tsx")
+    views_reports_cffdf52e("Reports.tsx")
+    lib_formatters_formatcurrency_38821dcf -->|calls| views_billing_billing_84526b06
+    lib_formatters_formatcurrency_38821dcf -->|calls| views_dashboard_dashboard_4bbacbd0
+    data_mockdata_inspectors_ab98e842 -->|imports| views_inspectors_da5628d4
+    data_mockdata_inspectors_ab98e842 -->|imports| views_reports_cffdf52e
+    data_mockdata_inspections_e5a86cbd -->|imports| views_dashboard_2e357311
+    data_mockdata_inspections_e5a86cbd -->|imports| views_inspections_bc99e081
+    data_mockdata_invoices_917b6315 -->|imports| views_billing_8cd7ca9f
+    data_mockdata_invoices_917b6315 -->|imports| views_dashboard_2e357311
+    data_mockdata_inspectionsbydiscipline_7a4d557a -->|imports| views_dashboard_2e357311
+    data_mockdata_inspectionsbydiscipline_7a4d557a -->|imports| views_reports_cffdf52e
+    data_mockdata_inspectionsbymonth_8700c0db -->|imports| views_dashboard_2e357311
+    data_mockdata_inspectionsbymonth_8700c0db -->|imports| views_reports_cffdf52e
+    components_badge_badge_aad385d6 -->|imports| views_billing_8cd7ca9f
+    components_badge_badge_aad385d6 -->|imports| views_inspections_bc99e081
+    components_badge_badge_aad385d6 -->|imports| views_inspectors_da5628d4
+    components_badge_badge_aad385d6 -->|imports| views_reports_cffdf52e
+    components_button_button_5fed8106 -->|imports| views_billing_8cd7ca9f
+    components_button_button_5fed8106 -->|imports| views_dashboard_2e357311
+    components_button_button_5fed8106 -->|imports| views_inspections_bc99e081
+    components_button_button_5fed8106 -->|imports| views_inspectors_da5628d4
+    components_button_button_5fed8106 -->|imports| views_reports_cffdf52e
+    components_card_card_9a38d05a -->|imports| views_billing_8cd7ca9f
+    components_card_card_9a38d05a -->|imports| views_dashboard_2e357311
+    components_card_card_9a38d05a -->|imports| views_inspections_bc99e081
+    %% Omitted for readability: 2 nodes, 12 edges
+    class data_mockdata_inspectors_ab98e842 function;
+    class data_mockdata_inspections_e5a86cbd function;
+    class data_mockdata_invoices_917b6315 function;
+    class data_mockdata_inspectionsbydiscipline_7a4d557a function;
+    class data_mockdata_inspectionsbymonth_8700c0db function;
+    class views_billing_billing_84526b06 ui;
+    class views_billing_8cd7ca9f ui;
+    class views_dashboard_dashboard_4bbacbd0 ui;
+    class views_dashboard_2e357311 ui;
+    class components_badge_badge_aad385d6 ui;
+    class components_button_button_5fed8106 ui;
+    class components_card_card_9a38d05a ui;
+    class components_cardheader_cardheader_29348ce5 ui;
+    class components_statuspill_statuspill_ea0731cd ui;
+    class lib_formatters_formatcurrency_38821dcf function;
+    class views_inspections_bc99e081 test;
+    class views_inspectors_da5628d4 test;
+    class views_reports_cffdf52e ui;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>inspectors</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Inspectors.tsx</code><br><small style="color:var(--muted)">views/Inspectors.tsx</small><br><code>Reports.tsx</code><br><small style="color:var(--muted)">views/Reports.tsx</small></td>
+  <td>inspectors node in data/mockData.ts.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>inspections</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Dashboard.tsx</code><br><small style="color:var(--muted)">views/Dashboard.tsx</small><br><code>Inspections.tsx</code><br><small style="color:var(--muted)">views/Inspections.tsx</small></td>
+  <td>inspections node in data/mockData.ts.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>invoices</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Billing.tsx</code><br><small style="color:var(--muted)">views/Billing.tsx</small><br><code>Dashboard.tsx</code><br><small style="color:var(--muted)">views/Dashboard.tsx</small></td>
+  <td>invoices node in data/mockData.ts.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>inspectionsByDiscipline</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Dashboard.tsx</code><br><small style="color:var(--muted)">views/Dashboard.tsx</small><br><code>Reports.tsx</code><br><small style="color:var(--muted)">views/Reports.tsx</small></td>
+  <td>inspectionsByDiscipline node in data/mockData.ts.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>inspectionsByMonth</code><br><small style="color:var(--muted)">data/mockData.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Dashboard.tsx</code><br><small style="color:var(--muted)">views/Dashboard.tsx</small><br><code>Reports.tsx</code><br><small style="color:var(--muted)">views/Reports.tsx</small></td>
+  <td>inspectionsByMonth node in data/mockData.ts.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>Badge()</code><br><small style="color:var(--muted)">design-system/components/Badge.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Billing.tsx</code><br><small style="color:var(--muted)">views/Billing.tsx</small><br><code>Inspections.tsx</code><br><small style="color:var(--muted)">views/Inspections.tsx</small><br><code>Inspectors.tsx</code><br><small style="color:var(--muted)">views/Inspectors.tsx</small><br>+1 more</td>
+  <td>Badge() node in design-system/components/Badge.tsx.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>Button()</code><br><small style="color:var(--muted)">design-system/components/Button.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Billing.tsx</code><br><small style="color:var(--muted)">views/Billing.tsx</small><br><code>Dashboard.tsx</code><br><small style="color:var(--muted)">views/Dashboard.tsx</small><br><code>Inspections.tsx</code><br><small style="color:var(--muted)">views/Inspections.tsx</small><br>+2 more</td>
+  <td>Button() node in design-system/components/Button.tsx.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>Card()</code><br><small style="color:var(--muted)">design-system/components/Card.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Billing.tsx</code><br><small style="color:var(--muted)">views/Billing.tsx</small><br><code>Dashboard.tsx</code><br><small style="color:var(--muted)">views/Dashboard.tsx</small><br><code>Inspections.tsx</code><br><small style="color:var(--muted)">views/Inspections.tsx</small><br>+2 more</td>
+  <td>Card() node in design-system/components/Card.tsx.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>CardHeader()</code><br><small style="color:var(--muted)">design-system/components/CardHeader.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Billing.tsx</code><br><small style="color:var(--muted)">views/Billing.tsx</small><br><code>Dashboard.tsx</code><br><small style="color:var(--muted)">views/Dashboard.tsx</small><br><code>Reports.tsx</code><br><small style="color:var(--muted)">views/Reports.tsx</small></td>
+  <td>CardHeader() node in design-system/components/CardHeader.tsx.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>StatusPill()</code><br><small style="color:var(--muted)">design-system/components/StatusPill.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Billing.tsx</code><br><small style="color:var(--muted)">views/Billing.tsx</small><br><code>Dashboard.tsx</code><br><small style="color:var(--muted)">views/Dashboard.tsx</small><br><code>Inspections.tsx</code><br><small style="color:var(--muted)">views/Inspections.tsx</small><br>+2 more</td>
+  <td>StatusPill() node in design-system/components/StatusPill.tsx.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>formatCurrency()</code><br><small style="color:var(--muted)">lib/formatters.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Billing()</code><br><small style="color:var(--muted)">views/Billing.tsx</small><br><code>Billing.tsx</code><br><small style="color:var(--muted)">views/Billing.tsx</small><br><code>Dashboard()</code><br><small style="color:var(--muted)">views/Dashboard.tsx</small><br>+1 more</td>
+  <td>formatCurrency() node in lib/formatters.ts.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>formatDateShort()</code><br><small style="color:var(--muted)">lib/formatters.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>Inspections.tsx</code><br><small style="color:var(--muted)">views/Inspections.tsx</small></td>
+  <td>formatDateShort() node in lib/formatters.ts.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>Billing.tsx</code><br><small style="color:var(--muted)">views/Billing.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Badge()</code><br><small style="color:var(--muted)">design-system/components/Badge.tsx</small><br><code>Button()</code><br><small style="color:var(--muted)">design-system/components/Button.tsx</small><br><code>Card()</code><br><small style="color:var(--muted)">design-system/components/Card.tsx</small><br>+4 more</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in views/Billing.tsx.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>Billing()</code><br><small style="color:var(--muted)">views/Billing.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>formatCurrency()</code><br><small style="color:var(--muted)">lib/formatters.ts</small></td>
+  <td>No direct outbound edge</td>
+  <td>Billing() node in views/Billing.tsx.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>Dashboard.tsx</code><br><small style="color:var(--muted)">views/Dashboard.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Button()</code><br><small style="color:var(--muted)">design-system/components/Button.tsx</small><br><code>Card()</code><br><small style="color:var(--muted)">design-system/components/Card.tsx</small><br><code>CardHeader()</code><br><small style="color:var(--muted)">design-system/components/CardHeader.tsx</small><br>+6 more</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in views/Dashboard.tsx.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>Dashboard()</code><br><small style="color:var(--muted)">views/Dashboard.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>formatCurrency()</code><br><small style="color:var(--muted)">lib/formatters.ts</small></td>
+  <td>No direct outbound edge</td>
+  <td>Dashboard() node in views/Dashboard.tsx.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>Inspections.tsx</code><br><small style="color:var(--muted)">views/Inspections.tsx</small></td>
+  <td><span class="tag tag-func">Test</span></td>
+  <td><code>Badge()</code><br><small style="color:var(--muted)">design-system/components/Badge.tsx</small><br><code>Button()</code><br><small style="color:var(--muted)">design-system/components/Button.tsx</small><br><code>Card()</code><br><small style="color:var(--muted)">design-system/components/Card.tsx</small><br>+3 more</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in views/Inspections.tsx.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>Inspections()</code><br><small style="color:var(--muted)">views/Inspections.tsx</small></td>
+  <td><span class="tag tag-func">Test</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Inspections() node in views/Inspections.tsx.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>Inspectors.tsx</code><br><small style="color:var(--muted)">views/Inspectors.tsx</small></td>
+  <td><span class="tag tag-func">Test</span></td>
+  <td><code>Badge()</code><br><small style="color:var(--muted)">design-system/components/Badge.tsx</small><br><code>Button()</code><br><small style="color:var(--muted)">design-system/components/Button.tsx</small><br><code>Card()</code><br><small style="color:var(--muted)">design-system/components/Card.tsx</small><br>+2 more</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in views/Inspectors.tsx.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>Reports.tsx</code><br><small style="color:var(--muted)">views/Reports.tsx</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td><code>Badge()</code><br><small style="color:var(--muted)">design-system/components/Badge.tsx</small><br><code>Button()</code><br><small style="color:var(--muted)">design-system/components/Button.tsx</small><br><code>Card()</code><br><small style="color:var(--muted)">design-system/components/Card.tsx</small><br>+5 more</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in views/Reports.tsx.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>data/mockData.ts</code></td><td>5 nodes</td></tr>
+<tr><td><code>lib/formatters.ts</code></td><td>2 nodes</td></tr>
+<tr><td><code>views/Billing.tsx</code></td><td>2 nodes</td></tr>
+<tr><td><code>views/Dashboard.tsx</code></td><td>2 nodes</td></tr>
+<tr><td><code>views/Inspections.tsx</code></td><td>2 nodes</td></tr>
+<tr><td><code>design-system/components/Badge.tsx</code></td><td>1 nodes</td></tr>
+<tr><td><code>design-system/components/Button.tsx</code></td><td>1 nodes</td></tr>
+<tr><td><code>design-system/components/Card.tsx</code></td><td>1 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: imports x35, contains x3, calls x2. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 9. Community 7 ====== -->
+<h2 id="community-7">9. Community 7</h2>
+<p>Community 7 groups implementation around contractconstantsts, constants, contract, statuses, mostly in constants/contractConstants.ts. This section covers 8 nodes and 7 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Community 7 (8 nodes, 7 edges)
+    constants_contractconstants_cbd0b8ce("contractConstants.ts")
+    constants_contractconstants_contract_statuses_51336d02("CONTRACT_STATUSES<br/><small>constants/contractConstants.ts</small>")
+    constants_contractconstants_contract_types_678c01cc("CONTRACT_TYPES<br/><small>constants/contractConstants.ts</small>")
+    constants_contractconstants_contractstatustype_5e352a48("ContractStatusType<br/><small>constants/contractConstants.ts</small>")
+    constants_contractconstants_contracttype_9d483024("ContractType<br/><small>constants/contractConstants.ts</small>")
+    constants_contractconstants_getprogresscolor_5b94e579("getProgressColor()<br/><small>constants/contractConstants.ts</small>")
+    constants_contractconstants_getstatusconfig_5623b275("getStatusConfig()<br/><small>constants/contractConstants.ts</small>")
+    constants_contractconstants_gettypeconfig_fe6d8453("getTypeConfig()<br/><small>constants/contractConstants.ts</small>")
+    constants_contractconstants_cbd0b8ce -->|contains| constants_contractconstants_contract_statuses_51336d02
+    constants_contractconstants_cbd0b8ce -->|contains| constants_contractconstants_contract_types_678c01cc
+    constants_contractconstants_cbd0b8ce -->|contains| constants_contractconstants_contractstatustype_5e352a48
+    constants_contractconstants_cbd0b8ce -->|contains| constants_contractconstants_contracttype_9d483024
+    constants_contractconstants_cbd0b8ce -->|contains| constants_contractconstants_getprogresscolor_5b94e579
+    constants_contractconstants_cbd0b8ce -->|contains| constants_contractconstants_getstatusconfig_5623b275
+    constants_contractconstants_cbd0b8ce -->|contains| constants_contractconstants_gettypeconfig_fe6d8453
+    class constants_contractconstants_cbd0b8ce module;
+    class constants_contractconstants_contract_statuses_51336d02 klass;
+    class constants_contractconstants_contract_types_678c01cc klass;
+    class constants_contractconstants_contractstatustype_5e352a48 klass;
+    class constants_contractconstants_contracttype_9d483024 klass;
+    class constants_contractconstants_getprogresscolor_5b94e579 function;
+    class constants_contractconstants_getstatusconfig_5623b275 function;
+    class constants_contractconstants_gettypeconfig_fe6d8453 function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>contractConstants.ts</code><br><small style="color:var(--muted)">constants/contractConstants.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in constants/contractConstants.ts.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>CONTRACT_STATUSES</code><br><small style="color:var(--muted)">constants/contractConstants.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>CONTRACT_STATUSES node in constants/contractConstants.ts.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>ContractStatusType</code><br><small style="color:var(--muted)">constants/contractConstants.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ContractStatusType node in constants/contractConstants.ts.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>getStatusConfig()</code><br><small style="color:var(--muted)">constants/contractConstants.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Reads, resolves, or persists project configuration.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>getProgressColor()</code><br><small style="color:var(--muted)">constants/contractConstants.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>getProgressColor() node in constants/contractConstants.ts.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>CONTRACT_TYPES</code><br><small style="color:var(--muted)">constants/contractConstants.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>CONTRACT_TYPES node in constants/contractConstants.ts.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>ContractType</code><br><small style="color:var(--muted)">constants/contractConstants.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>ContractType node in constants/contractConstants.ts.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>getTypeConfig()</code><br><small style="color:var(--muted)">constants/contractConstants.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Reads, resolves, or persists project configuration.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>constants/contractConstants.ts</code></td><td>8 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x7. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 10. Community 8 ====== -->
+<h2 id="community-8">10. Community 8</h2>
+<p>Community 8 groups implementation around storagets, usepersistedstatets, storage, hooks, mostly in lib/storage.ts, hooks/usePersistedState.ts. This section covers 8 nodes and 9 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Community 8 (8 nodes, 9 edges)
+    subgraph community_8_lib_storage_ts_34947c45["lib/storage.ts"]
+        lib_storage_0c3f0555("storage.ts")
+        lib_storage_loadfromstorage_967b859d("loadFromStorage()<br/><small>lib/storage.ts</small>")
+        lib_storage_savetostorage_aeb8e891("saveToStorage()<br/><small>lib/storage.ts</small>")
+        lib_storage_storage_keys_8656e2c1("STORAGE_KEYS<br/><small>lib/storage.ts</small>")
+        lib_storage_removefromstorage_d3aebf94("removeFromStorage()<br/><small>lib/storage.ts</small>")
+        lib_storage_resetalldata_954c95ad("resetAllData()<br/><small>lib/storage.ts</small>")
+        lib_storage_storage_6ad99ba1("storage<br/><small>lib/storage.ts</small>")
+    end
+    hooks_usepersistedstate_84432162("usePersistedState.ts")
+    hooks_usepersistedstate_84432162 -->|imports| lib_storage_0c3f0555
+    hooks_usepersistedstate_84432162 -->|imports| lib_storage_loadfromstorage_967b859d
+    hooks_usepersistedstate_84432162 -->|imports| lib_storage_savetostorage_aeb8e891
+    class lib_storage_0c3f0555 module;
+    class lib_storage_loadfromstorage_967b859d function;
+    class lib_storage_savetostorage_aeb8e891 function;
+    class lib_storage_storage_keys_8656e2c1 klass;
+    class lib_storage_removefromstorage_d3aebf94 function;
+    class lib_storage_resetalldata_954c95ad function;
+    class lib_storage_storage_6ad99ba1 function;
+    class hooks_usepersistedstate_84432162 ui;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>usePersistedState.ts</code><br><small style="color:var(--muted)">hooks/usePersistedState.ts</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>loadFromStorage()</code><br><small style="color:var(--muted)">lib/storage.ts</small><br><code>saveToStorage()</code><br><small style="color:var(--muted)">lib/storage.ts</small><br><code>storage.ts</code><br><small style="color:var(--muted)">lib/storage.ts</small></td>
+  <td>Module file in hooks/usePersistedState.ts.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>storage.ts</code><br><small style="color:var(--muted)">lib/storage.ts</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>usePersistedState.ts</code><br><small style="color:var(--muted)">hooks/usePersistedState.ts</small></td>
+  <td>No direct outbound edge</td>
+  <td>Module file in lib/storage.ts.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>STORAGE_KEYS</code><br><small style="color:var(--muted)">lib/storage.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Supports retrieval-augmented Q&amp;A or streaming chat.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>loadFromStorage()</code><br><small style="color:var(--muted)">lib/storage.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>usePersistedState.ts</code><br><small style="color:var(--muted)">hooks/usePersistedState.ts</small></td>
+  <td>No direct outbound edge</td>
+  <td>Supports retrieval-augmented Q&amp;A or streaming chat.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>saveToStorage()</code><br><small style="color:var(--muted)">lib/storage.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>usePersistedState.ts</code><br><small style="color:var(--muted)">hooks/usePersistedState.ts</small></td>
+  <td>No direct outbound edge</td>
+  <td>Supports retrieval-augmented Q&amp;A or streaming chat.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>removeFromStorage()</code><br><small style="color:var(--muted)">lib/storage.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Supports retrieval-augmented Q&amp;A or streaming chat.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>storage</code><br><small style="color:var(--muted)">lib/storage.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Supports retrieval-augmented Q&amp;A or streaming chat.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>resetAllData()</code><br><small style="color:var(--muted)">lib/storage.ts</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>resetAllData() node in lib/storage.ts.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>lib/storage.ts</code></td><td>7 nodes</td></tr>
+<tr><td><code>hooks/usePersistedState.ts</code></td><td>1 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x6, imports x2, imports x1. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 11. Community 9 ====== -->
+<h2 id="community-9">11. Community 9</h2>
+<p>Community 9 groups implementation around debouncets, usedebounce, mostly in lib/Debounce.ts. This section covers 2 nodes and 1 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Community 9 (2 nodes, 1 edges)
+    lib_debounce_e940b5f5("Debounce.ts")
+    lib_debounce_usedebounce_1e99cd15("useDebounce()<br/><small>lib/Debounce.ts</small>")
+    lib_debounce_e940b5f5 -->|contains| lib_debounce_usedebounce_1e99cd15
+    class lib_debounce_e940b5f5 klass;
+    class lib_debounce_usedebounce_1e99cd15 ui;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>Debounce.ts</code><br><small style="color:var(--muted)">lib/Debounce.ts</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Module file in lib/Debounce.ts.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>useDebounce()</code><br><small style="color:var(--muted)">lib/Debounce.ts</small></td>
+  <td><span class="tag tag-hook">UI</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>useDebounce() node in lib/Debounce.ts.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>lib/Debounce.ts</code></td><td>2 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x1. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<h2 id="stats">Project Statistics</h2>
+
+<div class="grid">
+  <div class="card">
+    <h4>Graph</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><td>Nodes</td><td>232</td></tr>
+      <tr><td>Edges</td><td>558</td></tr>
+      <tr><td>Hyperedges</td><td>0</td></tr>
+      <tr><td>Communities</td><td>10</td></tr>
+      <tr><td>Documented Sections</td><td>10</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Edge Confidence</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><td>EXTRACTED</td><td>558</td></tr>
+      <tr><td>INFERRED</td><td>0</td></tr>
+      <tr><td>AMBIGUOUS</td><td>0</td></tr>
+    </table>
+  </div>
+</div>
+
+<div style="text-align:center; padding:40px 0; color: var(--muted); font-size:0.9rem;">
+  <p>src — Architecture Documentation</p>
+  <p>Generated: 2026-06-23 17:11 UTC · graphify callflow-html</p>
+</div>
+
+</div><!-- .container -->
+
+<script>
+(function () {
+  const mermaidConfig = {
+    startOnLoad: false,
+    theme: 'dark',
+    securityLevel: 'loose',
+    flowchart: { htmlLabels: true, useMaxWidth: true },
+    themeVariables: {
+      primaryColor: '#1e293b',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#38bdf8',
+      secondaryColor: '#0f172a',
+      tertiaryColor: '#334155',
+      lineColor: '#64748b',
+      textColor: '#e2e8f0',
+    }
+  };
+
+  mermaid.initialize(mermaidConfig);
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function enhanceMermaidDiagrams() {
+    document.querySelectorAll('.mermaid').forEach((container) => {
+      if (container.dataset.zoomReady === 'true') return;
+      const svg = container.querySelector('svg');
+      if (!svg) return;
+
+      container.dataset.zoomReady = 'true';
+      container.classList.add('is-enhanced');
+
+      const viewport = document.createElement('div');
+      viewport.className = 'mermaid-viewport';
+      svg.parentNode.insertBefore(viewport, svg);
+      viewport.appendChild(svg);
+
+      const toolbar = document.createElement('div');
+      toolbar.className = 'mermaid-toolbar';
+      toolbar.innerHTML = [
+        '<button type="button" data-action="zoom-out" title="Zoom out">-</button>',
+        '<span class="zoom-level" data-role="level">100%</span>',
+        '<button type="button" data-action="zoom-in" title="Zoom in">+</button>',
+        '<button type="button" data-action="fit" title="Fit width">Fit</button>',
+        '<button type="button" data-action="reset" title="Reset view">Reset</button>'
+      ].join('');
+      container.insertBefore(toolbar, viewport);
+
+      const state = { scale: 1, x: 0, y: 0, dragging: false, startX: 0, startY: 0, originX: 0, originY: 0 };
+      const level = toolbar.querySelector('[data-role="level"]');
+
+      function applyTransform() {
+        svg.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+        level.textContent = `${Math.round(state.scale * 100)}%`;
+      }
+
+      function zoomBy(delta) {
+        state.scale = clamp(state.scale + delta, 0.25, 3);
+        applyTransform();
+      }
+
+      function reset() {
+        state.scale = 1;
+        state.x = 0;
+        state.y = 0;
+        applyTransform();
+      }
+
+      function fitWidth() {
+        const rawWidth = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width
+          ? svg.viewBox.baseVal.width
+          : svg.getBoundingClientRect().width / state.scale;
+        if (!rawWidth) {
+          reset();
+          return;
+        }
+        state.scale = clamp((viewport.clientWidth - 48) / rawWidth, 0.25, 1.4);
+        state.x = 0;
+        state.y = 0;
+        applyTransform();
+      }
+
+      toolbar.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-action]');
+        if (!button) return;
+        const action = button.dataset.action;
+        if (action === 'zoom-in') zoomBy(0.15);
+        if (action === 'zoom-out') zoomBy(-0.15);
+        if (action === 'fit') fitWidth();
+        if (action === 'reset') reset();
+      });
+
+      viewport.addEventListener('wheel', (event) => {
+        if (!event.ctrlKey && !event.metaKey) return;
+        event.preventDefault();
+        zoomBy(event.deltaY < 0 ? 0.1 : -0.1);
+      }, { passive: false });
+
+      viewport.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        state.dragging = true;
+        state.startX = event.clientX;
+        state.startY = event.clientY;
+        state.originX = state.x;
+        state.originY = state.y;
+        viewport.classList.add('is-dragging');
+        viewport.setPointerCapture(event.pointerId);
+      });
+
+      viewport.addEventListener('pointermove', (event) => {
+        if (!state.dragging) return;
+        state.x = state.originX + event.clientX - state.startX;
+        state.y = state.originY + event.clientY - state.startY;
+        applyTransform();
+      });
+
+      function endDrag(event) {
+        if (!state.dragging) return;
+        state.dragging = false;
+        viewport.classList.remove('is-dragging');
+        if (viewport.hasPointerCapture(event.pointerId)) {
+          viewport.releasePointerCapture(event.pointerId);
+        }
+      }
+
+      viewport.addEventListener('pointerup', endDrag);
+      viewport.addEventListener('pointercancel', endDrag);
+      applyTransform();
+    });
+  }
+
+  function renderMermaid() {
+    const result = mermaid.run
+      ? mermaid.run({ querySelector: '.mermaid' })
+      : Promise.resolve();
+    Promise.resolve(result)
+      .then(enhanceMermaidDiagrams)
+      .catch((error) => {
+        console.error('Mermaid render failed:', error);
+        enhanceMermaidDiagrams();
+      });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaid);
+  } else {
+    renderMermaid();
+  }
+})();
+</script>
+
+</body>
+</html>

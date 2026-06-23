@@ -1,8 +1,9 @@
+// src/components/JalaaliDatePicker.tsx
 import { useTheme } from '../contexts/ThemeContext';
 import DatePicker from 'react-multi-date-picker';
 import persian from 'react-date-object/calendars/persian';
-import persian_en from 'react-date-object/locales/persian_en'; // 🔑 تغییر از persian_fa به persian_en
-import * as jalaali from "jalaali-js";
+import persian_en from 'react-date-object/locales/persian_en';
+import * as jalaali from 'jalaali-js';
 
 interface JalaaliDatePickerProps {
   value: string;
@@ -32,7 +33,7 @@ export function JalaaliDatePicker({
       const [jy, jm, jd] = jDate.split('/').map(Number);
       if (!jy || !jm || !jd) return undefined;
       const g = jalaali.toGregorian(jy, jm, jd);
-      return new Date(g.gy, g.gm, g.gd);
+      return new Date(g.gy, g.gm - 1, g.gd);
     } catch {
       return undefined;
     }
@@ -46,12 +47,9 @@ export function JalaaliDatePicker({
 
   const handleSelect = (date: any) => {
     if (date && !Array.isArray(date)) {
-      // اگه date object از DatePicker اومد
       if (date instanceof Date) {
         onChange(dateToJalaali(date));
-      } 
-      // اگه date object از react-date-object اومد
-      else if (date.year && date.month && date.day) {
+      } else if (date.year && date.month && date.day) {
         const formatted = `${date.year}/${String(date.month.index || date.month).padStart(2, '0')}/${String(date.day).padStart(2, '0')}`;
         onChange(formatted);
       }
@@ -64,7 +62,7 @@ export function JalaaliDatePicker({
     <div className={`w-full ${className}`}>
       <DatePicker
         calendar={persian}
-        locale={persian_en} // 🔑 تغییر locale به انگلیسی
+        locale={persian_en}
         calendarPosition="bottom-right"
         value={jalaaliToDate(value)}
         onChange={handleSelect}
@@ -74,10 +72,10 @@ export function JalaaliDatePicker({
         disabled={disabled}
         format="YYYY/MM/DD"
         inputClass={`w-full rounded-lg py-2.5 px-3 text-sm text-left font-sans input-themed ${
-          isDark 
-            ? "border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500" 
+          isDark
+            ? "border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500"
             : "border-slate-300 bg-white text-slate-900 placeholder-slate-400"
-        } ${className}`}
+        }`}
         containerClassName="w-full"
         style={{ width: "100%" }}
       />

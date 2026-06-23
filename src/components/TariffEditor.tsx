@@ -1,39 +1,51 @@
-import { Button, Badge } from "./ui";
+// src/components/TariffEditor.tsx
+import { useState, useMemo } from 'react';
+import { Button, Badge } from '../design-system';
+import { useTheme } from '../contexts/ThemeContext';
+import { formatNumberInput, parseNumberInput } from '../lib/contractCalculations';
 
-interface TariffLine {
+// 🔑 Types
+export interface TariffLine {
   id: string;
+  contract_id?: string;
   description: string;
   unit: string;
-  quantity: number;
-  rate: number;
-  isLumpSum: boolean;
-  total: number;
+  rate: string | number;
+  currency?: string;
+  total?: number;
+  isLumpSum?: boolean;
+  total_quantity?: number;
+  consumed_quantity?: number;
+  invoiced?: number;
 }
 
-interface TariffEditorProps {
+export interface TariffEditorProps {
   tariffs: TariffLine[];
   onChange: (tariffs: TariffLine[]) => void;
   error?: string;
+  showTotals?: boolean;
 }
 
-const UNITS = ["LUMP_SUM", "HOUR", "DAY", "UNIT", "KM", "TON"];
+const CURRENCIES = ['IRR', 'USD', 'EUR'];
+const UNITS = ['MAN_DAY', 'DOCUMENT', 'VESSEL', 'LUMP_SUM'];
 
-export function TariffEditor({ tariffs, onChange, error }: TariffEditorProps) {
+export function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEditorProps) {
+  const { isDark } = useTheme();
+
   const addTariff = () => {
     const newTariff: TariffLine = {
       id: `t${Date.now()}`,
-      description: "",
-      unit: "UNIT",
-      quantity: 1,
-      rate: 0,
-      isLumpSum: false,
+      description: '',
+      unit: 'MAN_DAY',
+      rate: '',
+      currency: 'IRR',
       total: 0,
+      isLumpSum: false,
     };
     onChange([...tariffs, newTariff]);
   };
 
   const removeTariff = (id: string) => {
-    // حداقل یک تعرفه باید باقی بماند
     if (tariffs.length <= 1) return;
     onChange(tariffs.filter((t) => t.id !== id));
   };
@@ -42,35 +54,33 @@ export function TariffEditor({ tariffs, onChange, error }: TariffEditorProps) {
     const updated = tariffs.map((t) => {
       if (t.id !== id) return t;
       const newTariff = { ...t, [field]: value };
-
-      // اگر Lump Sum شد، unit را تغییر بده
-      if (field === "isLumpSum" && value === true) {
-        newTariff.unit = "LUMP_SUM";
-        newTariff.quantity = 1;
+      if (field === 'rate') {
+        newTariff.total = parseNumberInput(newTariff.rate as string);
       }
-
-      // محاسبه خودکار total
-      newTariff.total = newTariff.quantity * newTariff.rate;
-
+      if (field === 'isLumpSum' && value === true) {
+        newTariff.unit = 'LUMP_SUM';
+      }
       return newTariff;
     });
     onChange(updated);
   };
 
-  const totalAmount = tariffs.reduce((sum, t) => sum + t.total, 0);
-  const hasLumpSum = tariffs.some((t) => t.isLumpSum);
+  const totalsByCurrency = useMemo(() => {
+    const totals: Record<string, number> = {};
+    tariffs.forEach((t) => {
+      const curr = t.currency || 'IRR';
+      if (!totals[curr]) totals[curr] = 0;
+      totals[curr] += t.total || parseNumberInput(t.rate as string);
+    });
+    return totals;
+  }, [tariffs]);
 
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-slate-900">
-            Tariff Lines
-          </h3>
+          <h3 className="text-sm font-semibold text-primary">Tariff Lines</h3>
           <Badge tone="indigo">{tariffs.length}</Badge>
-          {!hasLumpSum && (
-            <Badge tone="rose">⚠️ At least one Lump Sum required</Badge>
-          )}
         </div>
         <Button
           type="button"
@@ -95,17 +105,13 @@ export function TariffEditor({ tariffs, onChange, error }: TariffEditorProps) {
             key={tariff.id}
             className={`rounded-lg border p-3 ${
               tariff.isLumpSum
-                ? "border-indigo-200 bg-indigo-50/30"
-                : "border-slate-200 bg-slate-50/50"
+                ? (isDark ? 'border-indigo-700 bg-indigo-900/20' : 'border-indigo-200 bg-indigo-50/30')
+                : (isDark ? 'border-slate-700 bg-muted/50' : 'border-slate-200 bg-muted/50')
             }`}
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-semibold text-slate-500">
-                #{index + 1}
-              </span>
-              {tariff.isLumpSum && (
-                <Badge tone="indigo">Lump Sum</Badge>
-              )}
+              <span className="text-xs font-semibold text-secondary">#{index + 1}</span>
+              {tariff.isLumpSum && <Badge tone="indigo">Lump Sum</Badge>}
               <div className="flex-1" />
               {tariffs.length > 1 && (
                 <button
@@ -120,105 +126,78 @@ export function TariffEditor({ tariffs, onChange, error }: TariffEditorProps) {
             </div>
 
             <div className="grid grid-cols-12 gap-2">
-              {/* Description */}
-              <div className="col-span-5">
+              <div className="col-span-6">
                 <input
                   type="text"
                   value={tariff.description}
-                  onChange={(e) =>
-                    updateTariff(tariff.id, "description", e.target.value)
-                  }
+                  onChange={(e) => updateTariff(tariff.id, 'description', e.target.value)}
                   placeholder="Description..."
-                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none"
+                  className="w-full rounded border px-2 py-1.5 text-xs input-themed"
                 />
               </div>
 
-              {/* Unit */}
               <div className="col-span-2">
                 <select
                   value={tariff.unit}
-                  onChange={(e) => updateTariff(tariff.id, "unit", e.target.value)}
-                  disabled={tariff.isLumpSum}
-                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500"
+                  onChange={(e) => updateTariff(tariff.id, 'unit', e.target.value)}
+                  className="w-full rounded border px-2 py-1.5 text-xs input-themed"
                 >
                   {UNITS.map((u) => (
                     <option key={u} value={u}>
-                      {u.replace("_", " ")}
+                      {u === 'MAN_DAY' ? 'Man Day' : u === 'DOCUMENT' ? 'Document' : u === 'VESSEL' ? 'Vessel' : 'Lump Sum'}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Quantity */}
-              <div className="col-span-2">
+              <div className="col-span-3">
                 <input
-                  type="number"
-                  value={tariff.quantity}
-                  onChange={(e) =>
-                    updateTariff(
-                      tariff.id,
-                      "quantity",
-                      Math.max(0, Number(e.target.value))
-                    )
-                  }
-                  disabled={tariff.isLumpSum}
-                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs font-mono focus:border-indigo-400 focus:outline-none disabled:bg-slate-100"
-                  placeholder="Qty"
-                />
-              </div>
-
-              {/* Rate */}
-              <div className="col-span-2">
-                <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={tariff.rate}
-                  onChange={(e) =>
-                    updateTariff(
-                      tariff.id,
-                      "rate",
-                      Math.max(0, Number(e.target.value))
-                    )
-                  }
-                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs font-mono focus:border-indigo-400 focus:outline-none"
+                  onChange={(e) => updateTariff(tariff.id, 'rate', formatNumberInput(e.target.value))}
+                  className="w-full rounded border px-2 py-1.5 text-xs font-mono text-right input-themed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   placeholder="Rate"
                 />
               </div>
 
-              {/* Total (Read-only) */}
               <div className="col-span-1">
-                <div className="w-full rounded border border-slate-200 bg-slate-100 px-2 py-1.5 text-xs font-mono text-slate-700 text-right">
-                  {tariff.total.toLocaleString()}
-                </div>
+                <select
+                  value={tariff.currency}
+                  onChange={(e) => updateTariff(tariff.id, 'currency', e.target.value)}
+                  className="w-full rounded border px-1 py-1.5 text-[10px] font-semibold input-themed"
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
               </div>
-            </div>
-
-            {/* Lump Sum Toggle */}
-            <div className="mt-2 flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={tariff.isLumpSum}
-                  onChange={(e) =>
-                    updateTariff(tariff.id, "isLumpSum", e.target.checked)
-                  }
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span>Mark as Lump Sum</span>
-              </label>
             </div>
           </div>
         ))}
       </div>
 
-      {/* جمع کل */}
-      <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <span className="text-sm font-semibold text-slate-700">
-          Total Tariff Amount:
-        </span>
-        <span className="text-lg font-bold text-emerald-600">
-          {totalAmount.toLocaleString()} USD
-        </span>
-      </div>
+      {showTotals && Object.keys(totalsByCurrency).length > 0 && (
+        <div className="mt-3 space-y-2">
+          <div className="text-xs font-semibold text-primary mb-2">Totals by Currency:</div>
+          {Object.entries(totalsByCurrency).map(([currency, total]) => (
+            <div
+              key={currency}
+              className={`flex items-center justify-between rounded-lg border p-3 ${
+                isDark ? 'border-slate-700 bg-muted' : 'border-slate-200 bg-muted'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Badge tone="indigo">{currency}</Badge>
+                <span className="text-sm font-semibold text-primary">Total:</span>
+              </div>
+              <span className="text-lg font-bold text-accent-emerald">
+                {total.toLocaleString('en-US')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

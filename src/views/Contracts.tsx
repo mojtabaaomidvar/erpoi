@@ -1,1147 +1,172 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-import { Button, Badge, Card, Avatar, Modal } from "../design-system";
-import {
-  contracts as initialContracts,
-  clients as initialClients,
-  contractTariffs,
-} from "../data/mockData";
-import { formatCurrency, contractHealth } from "../lib/formatters";
-import { exportToExcel } from "../lib/exportToExcel";
-import { JalaaliDatePicker } from "../components/JalaaliDatePicker";
-import * as jalaali from "jalaali-js";
+// src/views/Contracts.tsx
+// Orchestration Component - فقط ترکیب کامپوننت‌های کوچکتر
+// 📊 Refactor شده بر اساس تحلیل Graphify - Cohesion Community 0
+
+import { useState, useEffect, useMemo } from "react";
+import { Button, Badge, Modal } from "../design-system";
 import { useTheme } from "../contexts/ThemeContext";
-import { usePersistedState } from '../hooks/usePersistedState';
+import { clients as initialClients } from "../data/mockData";
+import { exportToExcel } from "../lib/exportToExcel";
+import { formatCurrency } from "../lib/formatters";
+import {
+  calculateProgressFromTariffs,
+  getProgressColor,
+  generateContractNo,
+  getInvoicedPercentage,
+} from "../lib/contractCalculations";
+import { ClientSelectorModal } from '../components/ClientSelectorModal';
+import { ContractAttachmentsEditor } from '../components/ContractAttachmentsEditor';
+import { JalaaliDatePicker } from '../components/JalaaliDatePicker';
+import { TariffEditor } from '../components/TariffEditor';
+import type { Contract, TariffLine } from "../types/contract";
 
-// ============ TYPES ============
-interface TariffLine {
-  id: string;
-  contract_id?: string;
-  description: string;
-  unit: string;
-  rate: string | number;
-  currency?: string;
-  total?: number;
-  isLumpSum?: boolean;
-  total_quantity?: number;
-  consumed_quantity?: number;
-  invoiced?: number;
-}
-
-interface Client {
-  id: string;
-  type: "LEGAL" | "INDIVIDUAL";
-  name_en: string;
-  name_fa: string;
-  national_id?: string;
-  email?: string;
-  phone?: string;
-  category: string;
-  contacts: number;
-  contracts: number;
-  logoColor: string;
-  emails?: string[];
-}
-
-interface Contract {
-  id: string;
-  contract_no: string;
-  external_contract_no?: string;
-  source_type?: "EMAIL" | "LETTER";
-  source_ref?: string;
-  source_file?: string;
-  source_file_object?: File | null;
-  source_letter_date?: string;
-  source_letter_image?: string;
-  source_letter_image_object?: File | null;
-  source_letter_image_preview?: string;
-  source_email_from?: string;
-  source_email_date?: string;
-  client_id: string;
-  client_name: string;
-  contract_title: string;
-  start_date: string;
-  end_date: string;
-  total_value: number;
-  invoiced: number;
-  currency: string;
-  status: "ACTIVE" | "COMPLETED";
-  type: "CONTRACT" | "WORK_ORDER";
-  tariffs: number;
-  contract_count?: number;
-  tariffLines?: TariffLine[];
-  department: string;
-  description?: string;
-  financial_terms?: ContractFinancialTerms;
-  service_description?: "TPI" | "MWS" | "TPER" | "OTHER" | "";
-}
-
-// ============ NEW INTERFACES FOR FINANCIAL TERMS ============
-interface Adjustment {
-  enabled: boolean;
-  mode: "FIXED" | "TBD";
-  percentage: number;
-  effective_date: string;
-}
-
-interface ContractModification {
-  percentage: number;
-}
-
-interface Guarantee {
-  has_guarantee: boolean;
-  percentage: number;
-  type: "CHECK" | "BANK_GUARANTEE" | "PROMISSORY_NOTE" | "CASH_BLOCK";
-}
-
-interface ContractAttachment {
-  id: string;
-  name: string;
-  file_object: File | null;
-  preview_url: string;
-  category: "CONTRACT" | "ADDENDUM" | "CORRESPONDENCE" | "TECHNICAL";
-  uploaded_at: string;
-}
-
-interface ContractFinancialTerms {
-  adjustment: Adjustment;
-  contract_modification: ContractModification;
-  guarantee: Guarantee;
-  good_performance_percentage: number;
-  insurance_deduction_percentage: number;
-  attachments: ContractAttachment[];
-}
+// 🔑 کامپوننت‌های استخراج‌شده
+import { useContracts } from "./contracts/hooks/useContracts";
+import { ContractList } from "./contracts/components/ContractList";
+import { ContractDetails } from "./contracts/components/ContractDetails";
+import { ContractForm } from "./contracts/components/ContractForm";
 
 const CURRENT_DEPARTMENT = "Unit A";
-const DEPT_CODE = "UNA";
-const CURRENCIES = ["IRR", "USD", "EUR"];
-const UNITS = ["MAN_DAY", "DOCUMENT", "VESSEL", "LUMP_SUM"];
 
-// ============ PROGRESS COLOR ============
-const getProgressColor = (progress: number): string => {
-  if (progress >= 100) return "bg-emerald-500";
-  if (progress >= 75) return "bg-emerald-400";
-  if (progress >= 50) return "bg-amber-500";
-  if (progress >= 25) return "bg-orange-500";
-  return "bg-rose-500";
-};
-
-const getProgressTextClass = (progress: number): string => {
-  if (progress >= 100) return "text-emerald-600";
-  if (progress >= 80) return "text-amber-600";
-  if (progress >= 50) return "text-yellow-600";
-  if (progress >= 25) return "text-orange-600";
-  return "text-rose-600";
-};
-
-const getProgressTextColor = (progress: number): string => {
-  if (progress >= 100) return "text-emerald-600";
-  if (progress >= 75) return "text-emerald-500";
-  if (progress >= 50) return "text-amber-600";
-  if (progress >= 25) return "text-orange-600";
-  return "text-rose-600";
-};
-
-const getProgressTone = (progress: number): string => {
-  if (progress >= 100) return "emerald";
-  if (progress >= 80) return "amber";
-  if (progress >= 50) return "yellow";
-  if (progress >= 25) return "orange";
-  return "rose";
-};
-
-const getProgressBgClass = (progress: number): string => {
-  if (progress >= 100) return "bg-emerald-500";
-  if (progress >= 80) return "bg-amber-500";
-  if (progress >= 50) return "bg-yellow-500";
-  if (progress >= 25) return "bg-orange-500";
-  return "bg-rose-500";
-};
-
-// ============ JALAALI HELPERS ============
-const getCurrentJalaaliYear = (): number => {
-  const now = new Date();
-  const j = jalaali.toJalaali(now.getFullYear(), now.getMonth() + 1, now.getDate());
-  return j.jy;
-};
-
-const generateContractNo = (
-  type: "CONTRACT" | "WORK_ORDER",
-  contracts: Contract[]
-): string => {
-  const year = getCurrentJalaaliYear();
-  const prefix = type === "CONTRACT" ? "CTR" : "WO";
-  const count = contracts.filter((c) => c.department === CURRENT_DEPARTMENT && c.type === type).length + 1;
-  return `${prefix}-${DEPT_CODE}-${year}-${String(count).padStart(4, "0")}`;
-};
-
-// ============ NUMBER FORMATTING ============
-const formatNumberInput = (value: string): string => {
-  const cleaned = value.replace(/[^\d.]/g, "");
-  const parts = cleaned.split(".");
-  if (parts.length > 2) {
-    return parts[0] + "." + parts.slice(1).join("");
-  }
-  const [intPart, decPart] = parts;
-  const formattedInt = intPart ? Number(intPart).toLocaleString("en-US") : "";
-  
-  if (decPart !== undefined) {
-    return formattedInt + "." + decPart;
-  }  
-  return formattedInt;
-};
-
-const parseNumberInput = (value: string): number => {
-  const num = value.replace(/,/g, "");
-  return Number(num) || 0;
-};
-
-// ============ PROGRESS CALCULATION ============
-const calculateProgressFromTariffs = (contract: Contract): number => {
-  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
-  if (tariffs.length === 0) return 0;
-  if (contract.total_value <= 0) return 0;
-  const totalPerformed = tariffs.reduce((sum, t) => {
-    const rate = typeof t.rate === 'string' ? parseNumberInput(t.rate) : (t.rate || 0);
-    const consumed = t.consumed_quantity || 0;
-    return sum + (rate * consumed);
-  }, 0);
-  return (totalPerformed / contract.total_value) * 100;
-};
-
-const calculateInvoiceProgress = (contract: Contract): number => {
-  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
-  if (tariffs.length === 0) return 0;
-  const totalInvoiced = tariffs.reduce((sum, t) => sum + (t.invoiced || 0), 0);
-  const performedWork = tariffs.reduce((sum, t) => {
-    const rate = typeof t.rate === 'string' ? parseNumberInput(t.rate) : (t.rate || 0);
-    const consumed = t.consumed_quantity || 0;
-    return sum + (rate * consumed);
-  }, 0);
-  if (performedWork <= 0) return 0;
-  return (totalInvoiced / performedWork) * 100;
-};
-
-const calculateDaysProgress = (contract: Contract): number => {
-  if (!contract.start_date || !contract.end_date) return 0;
-  const [startJy, startJm, startJd] = contract.start_date.split('/').map(Number);
-  const [endJy, endJm, endJd] = contract.end_date.split('/').map(Number);
-  const startG = jalaali.toGregorian(startJy, startJm, startJd);
-  const endG = jalaali.toGregorian(endJy, endJm, endJd);
-  const startDate = new Date(startG.gy, startG.gm - 1, startG.gd);
-  const endDate = new Date(endG.gy, endG.gm - 1, endG.gd);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const totalDays = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-  const daysPassed = (today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-  if (totalDays <= 0) return 0;
-  if (daysPassed <= 0) return 0;
-  if (daysPassed >= totalDays) return 100;
-  return (daysPassed / totalDays) * 100;
-};
-
-const getDaysProgressColor = (progress: number): string => {
-  if (progress >= 90) return "bg-rose-500";
-  if (progress >= 70) return "bg-amber-500";
-  if (progress >= 50) return "bg-yellow-500";
-  return "bg-emerald-500";
-};
-
-// ============ DATE CALCULATION HELPERS ============
-const calculateDaysLeft = (endDate: string): number => {
-  if (!endDate) return 0;
-  const [jy, jm, jd] = endDate.split('/').map(Number);
-  const gDate = jalaali.toGregorian(jy, jm, jd);
-  const endGregorian = new Date(gDate.gy, gDate.gm - 1, gDate.gd);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diffTime = endGregorian.getTime() - today.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-};
-
-const isContractNotStarted = (startDate: string): boolean => {
-  if (!startDate) return false;
-  const [jy, jm, jd] = startDate.split('/').map(Number);
-  const gDate = jalaali.toGregorian(jy, jm, jd);
-  const startGregorian = new Date(gDate.gy, gDate.gm - 1, gDate.gd);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return startGregorian.getTime() > today.getTime();
-};
-
-const getDaysUntilStart = (startDate: string): number => {
-  if (!startDate) return 0;
-  const [jy, jm, jd] = startDate.split('/').map(Number);
-  const gDate = jalaali.toGregorian(jy, jm, jd);
-  const startGregorian = new Date(gDate.gy, gDate.gm - 1, gDate.gd);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diffTime = startGregorian.getTime() - today.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-};
-
-// 🔑 محاسبه اولین روز سال شمسی بعد از تاریخ شروع قرارداد
-const getNextJalaaliYearStart = (startDate: string): string => {
-  if (!startDate) return "";
-  const [jy, jm, jd] = startDate.split('/').map(Number);
-  if (!jy) return "";
-  const nextYear = jy + 1;
-  return `${nextYear}/01/01`;
-};
-
-const calculateBudgetSpent = (totalValue: number, invoiced: number): number => {
-  if (totalValue <= 0) return 0;
-  return (invoiced / totalValue) * 100;
-};
-
-// ============ FINANCIAL STATUS HELPERS ============
-const getContractFinancialStatus = (contract: Contract): "completed" | "needs_review" | "active" | "not_started" => {
-  const daysLeft = calculateDaysLeft(contract.end_date);
-  const daysUntilStart = getDaysUntilStart(contract.start_date);
-  const notStarted = daysUntilStart > 0;
-  const isExpired = daysLeft < 0;
-  const isFullyInvoiced = contract.invoiced >= contract.total_value;
-  
-  if (contract.status === "COMPLETED") return "completed";
-  if (notStarted) return "not_started";
-  if (isExpired && isFullyInvoiced) return "completed";
-  if (isExpired && !isFullyInvoiced) return "needs_review";
-  return "active";
-};
-
-const getAdjustmentReminder = (contract: Contract): {
-  show: boolean;
-  daysUntil: number;
-  mode: "FIXED" | "TBD";
-  percentage: number;
-  effectiveDate: string;
-} => {
-  if (!contract.financial_terms?.adjustment?.enabled) {
-    return { show: false, daysUntil: 0, mode: "FIXED", percentage: 0, effectiveDate: "" };
-  }
-
-  const adjustment = contract.financial_terms.adjustment;
-  if (!adjustment.effective_date) {
-    return { show: false, daysUntil: 0, mode: adjustment.mode, percentage: adjustment.percentage, effectiveDate: "" };
-  }
-
-  const daysUntil = getDaysUntilStart(adjustment.effective_date);
-  
-  // نمایش یادآوری اگه:
-  // ۱. تاریخ اعمال در آینده هست (daysUntil > 0)
-  // ۲. کمتر از ۳۰ روز مونده (daysUntil <= 30)
-  const shouldShow = daysUntil > 0 && daysUntil <= 30;
-
-  return {
-    show: shouldShow,
-    daysUntil,
-    mode: adjustment.mode,
-    percentage: adjustment.percentage,
-    effectiveDate: adjustment.effective_date,
-  };
-};
-
-const isExpiringSoon = (contract: Contract): { expiring: boolean; daysLeft: number } => {
-  if (contract.status !== "ACTIVE") return { expiring: false, daysLeft: 0 };
-  const daysLeft = calculateDaysLeft(contract.end_date);
-  const daysUntilStart = getDaysUntilStart(contract.start_date);
-  if (daysUntilStart > 0 || daysLeft <= 0) return { expiring: false, daysLeft };
-  return { expiring: daysLeft <= 132, daysLeft };
-};
-
-const getNeedsReviewType = (contract: Contract): {
-  type: "value_review" | "invoice_review" | "time_review" | "none";
-  message: string;
-  details: string;
-} => {
-  const daysLeft = calculateDaysLeft(contract.end_date);
-  const isExpired = daysLeft < 0;
-  
-  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
-  const performedWork = tariffs.reduce((sum, t) => {
-    const rate = typeof t.rate === 'string' ? parseNumberInput(t.rate) : (t.rate || 0);
-    const consumed = t.consumed_quantity || 0;
-    return sum + (rate * consumed);
-  }, 0);
-  
-  const totalInvoiced = tariffs.reduce((sum, t) => sum + (t.invoiced || 0), 0);
-  const invoicePercentage = performedWork > 0 ? (totalInvoiced / performedWork) * 100 : 0;
-  
-  if (performedWork > contract.total_value && !isExpired) {
-    const overAmount = performedWork - contract.total_value;
-    return {
-      type: "value_review",
-      message: "Total Agreement Value Review",
-      details: `Performed work (${formatCurrency(performedWork, contract.currency)}) exceeds total contract value (${formatCurrency(contract.total_value, contract.currency)}) by ${formatCurrency(overAmount, contract.currency)}`
-    };
-  }
-  
-  if (invoicePercentage > 110) {
-    return {
-      type: "invoice_review",
-      message: "Invoice Review Required",
-      details: `Invoiced amount (${formatCurrency(totalInvoiced, contract.currency)}) is ${invoicePercentage.toFixed(1)}% of performed work (${formatCurrency(performedWork, contract.currency)}). This exceeds the 110% threshold.`
-    };
-  }
-  
-  if (isExpired && contract.invoiced <= contract.total_value && invoicePercentage <= 110) {
-    const daysOverdue = Math.abs(daysLeft);
-    return {
-      type: "time_review",
-      message: "Time Review Required",
-      details: `Contract expired ${daysOverdue} days ago. Please review and decide whether to extend or complete the contract.`
-    };
-  }
-  
-  return {
-    type: "none",
-    message: "",
-    details: ""
-  };
-};
-
-const getInvoicedPercentage = (contract: Contract): number => {
-  if (contract.total_value <= 0) return 0;
-  return (contract.invoiced / contract.total_value) * 100;
-};
-
-// ============ CLIENT SELECTOR MODAL ============
-interface ClientSelectorModalProps {
-  value: string;
-  onChange: (clientId: string) => void;
-  onAddNew?: () => void;
-  error?: string;
-}
-
-function ClientSelectorModal({ value, onChange, onAddNew, error }: ClientSelectorModalProps) {
-  const { isDark } = useTheme();
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState("");
-
-  const filteredClients = useMemo(() => {
-    if (!search) return initialClients;
-    const query = search.toLowerCase();
-    return initialClients.filter(
-      (c) =>
-        c.name_en.toLowerCase().includes(query) ||
-        c.name_fa.includes(query) ||
-        (c.national_id && c.national_id.includes(query))
-    );
-  }, [search]);
-
-  const selectedClient = initialClients.find((c) => c.id === value);
-
-  return (
-    <>
-      <div>
-        <label className="mb-1.5 block text-xs font-semibold text-primary">Client *</label>
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className={`w-full rounded-lg border px-3 py-2 text-sm text-left focus:outline-none focus:ring-2 focus:ring-indigo-100 input-themed ${
-            error ? `border-rose-300` : ``
-          }`}
-        >
-          {selectedClient ? (
-            <div className="flex items-center gap-2">
-              <span className="truncate text-primary">{selectedClient.name_en}</span>
-              <Badge tone="slate" className="shrink-0 text-[10px]">
-                {selectedClient.type === "LEGAL" ? "Legal" : "Individual"}
-              </Badge>
-            </div>
-          ) : (
-            <span className="text-muted">Select Client...</span>
-          )}
-        </button>
-        {error && (
-          <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {error}</p>
-        )}
-      </div>
-
-      {isOpen && (
-        <Modal isOpen={isOpen} onClose={() => { setIsOpen(false); setSearch(""); }} title="Select Client" size="md">
-          <div className="space-y-4">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">🔍</span>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name or ID..."
-                className="w-full rounded-lg py-2 pl-9 pr-3 text-sm input-themed"
-                autoFocus
-              />
-            </div>
-
-            <div className="max-h-80 overflow-y-auto space-y-2">
-              {filteredClients.length === 0 ? (
-                <div className="p-8 text-center text-sm text-secondary">
-                  <div className="text-4xl mb-2">🔍</div>
-                  No clients found
-                </div>
-              ) : (
-                filteredClients.map((client) => (
-                  <button
-                    key={client.id}
-                    type="button"
-                    onClick={() => {
-                      onChange(client.id);
-                      setIsOpen(false);
-                      setSearch("");
-                    }}
-                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
-                      value === client.id
-                        ? (isDark ? "border-indigo-500 bg-indigo-900/30" : "border-indigo-400 bg-indigo-50")
-                        : (isDark ? "border-slate-700 hover:border-indigo-500 hover:bg-slate-800" : "border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50")
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-primary truncate">{client.name_en}</div>
-                        <div className="text-xs text-secondary truncate" dir="rtl">{client.name_fa}</div>
-                      </div>
-                      <Badge
-                        tone={client.type === "LEGAL" ? "indigo" : "violet"}
-                        className="shrink-0 ml-2"
-                      >
-                        {client.type === "LEGAL" ? "Legal" : "Individual"}
-                      </Badge>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-
-            {onAddNew && (
-              <div className={`pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  onClick={() => {
-                    onAddNew();
-                    setIsOpen(false);
-                  }}
-                  className="w-full justify-center gap-2"
-                >
-                  <span>➕</span>
-                  <span>Create New Client</span>
-                </Button>
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
-    </>
-  );
-}
-
-// ============ TARIFF EDITOR ============
-interface TariffEditorProps {
-  tariffs: TariffLine[];
-  onChange: (tariffs: TariffLine[]) => void;
-  error?: string;
-  showTotals?: boolean;
-}
-
-function TariffEditor({ tariffs, onChange, error, showTotals = true }: TariffEditorProps) {
-  const { isDark } = useTheme();
-
-  const addTariff = () => {
-    const newTariff: TariffLine = {
-      id: `t${Date.now()}`,
-      description: "",
-      unit: "MAN_DAY",
-      rate: "",
-      currency: "IRR",
-      total: 0,
-      isLumpSum: false,
-    };
-    onChange([...tariffs, newTariff]);
-  };
-
-  const removeTariff = (id: string) => {
-    if (tariffs.length <= 1) return;
-    onChange(tariffs.filter((t) => t.id !== id));
-  };
-
-  const updateTariff = (id: string, field: keyof TariffLine, value: any) => {
-    const updated = tariffs.map((t) => {
-      if (t.id !== id) return t;
-      const newTariff = { ...t, [field]: value };
-      if (field === "rate") {
-        newTariff.total = parseNumberInput(newTariff.rate as string);
-      }
-      if (field === "isLumpSum" && value === true) {
-        newTariff.unit = "LUMP_SUM";
-      }
-      return newTariff;
-    });
-    onChange(updated);
-  };
-
-  const totalsByCurrency = useMemo(() => {
-    const totals: Record<string, number> = {};
-    tariffs.forEach((t) => {
-      if (!totals[t.currency || "IRR"]) totals[t.currency || "IRR"] = 0;
-      totals[t.currency || "IRR"] += t.total || parseNumberInput(t.rate as string);
-    });
-    return totals;
-  }, [tariffs]);
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-primary">Tariff Lines</h3>
-          <Badge tone="indigo">{tariffs.length}</Badge>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addTariff}
-          className="gap-1.5 text-xs"
-        >
-          ➕ Add Tariff
-        </Button>
-      </div>
-
-      {error && (
-        <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs font-medium text-rose-700">
-          ✕ {error}
-        </div>
-      )}
-
-      <div className="space-y-2">
-        {tariffs.map((tariff, index) => (
-          <div
-            key={tariff.id}
-            className={`rounded-lg border p-3 ${
-              tariff.isLumpSum
-                ? (isDark ? "border-indigo-700 bg-indigo-900/20" : "border-indigo-200 bg-indigo-50/30")
-                : (isDark ? "border-slate-700 bg-muted/50" : "border-slate-200 bg-muted/50")
-            }`}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-semibold text-secondary">#{index + 1}</span>
-              {tariff.isLumpSum && <Badge tone="indigo">Lump Sum</Badge>}
-              <div className="flex-1" />
-              {tariffs.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeTariff(tariff.id)}
-                  className="p-1 text-rose-600 hover:bg-rose-100 rounded transition-colors"
-                  title="Remove"
-                >
-                  🗑️
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-12 gap-2">
-              <div className="col-span-6">
-                <input
-                  type="text"
-                  value={tariff.description}
-                  onChange={(e) => updateTariff(tariff.id, "description", e.target.value)}
-                  placeholder="Description..."
-                  className="w-full rounded border px-2 py-1.5 text-xs input-themed"
-                />
-              </div>
-
-              <div className="col-span-2">
-                <select
-                  value={tariff.unit}
-                  onChange={(e) => updateTariff(tariff.id, "unit", e.target.value)}
-                  className="w-full rounded border px-2 py-1.5 text-xs input-themed"
-                >
-                  {UNITS.map((u) => (
-                    <option key={u} value={u}>
-                      {u === "MAN_DAY" ? "Man Day" : u === "DOCUMENT" ? "Document" : u === "VESSEL" ? "Vessel" : "Lump Sum"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="col-span-3">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={tariff.rate}
-                  onChange={(e) => updateTariff(tariff.id, "rate", formatNumberInput(e.target.value))}
-                  className="w-full rounded border px-2 py-1.5 text-xs font-mono text-right input-themed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  placeholder="Rate"
-                />
-              </div>
-
-              <div className="col-span-1">
-                <select
-                  value={tariff.currency}
-                  onChange={(e) => updateTariff(tariff.id, "currency", e.target.value)}
-                  className="w-full rounded border px-1 py-1.5 text-[10px] font-semibold input-themed"
-                >
-                  {CURRENCIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {showTotals && Object.keys(totalsByCurrency).length > 0 && (
-        <div className="mt-3 space-y-2">
-          <div className="text-xs font-semibold text-primary mb-2">Totals by Currency:</div>
-          {Object.entries(totalsByCurrency).map(([currency, total]) => (
-            <div key={currency} className={`flex items-center justify-between rounded-lg border p-3 ${
-              isDark ? "border-slate-700 bg-muted" : "border-slate-200 bg-muted"
-            }`}>
-              <div className="flex items-center gap-2">
-                <Badge tone="indigo">{currency}</Badge>
-                <span className="text-sm font-semibold text-primary">Total:</span>
-              </div>
-              <span className="text-lg font-bold text-accent-emerald">{total.toLocaleString("en-US")}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============ CONTRACT ATTACHMENTS EDITOR ============
-const ATTACHMENT_CATEGORIES = [
-  { value: "CONTRACT", label: "📄 Contract", color: "indigo" },
-  { value: "ADDENDUM", label: "📎 Addendum", color: "amber" },
-  { value: "CORRESPONDENCE", label: "📧 Correspondence", color: "sky" },
-  { value: "TECHNICAL", label: "🔧 Technical Docs", color: "emerald" },
-] as const;
-
-function ContractAttachmentsEditor({
-  attachments,
-  onChange,
-  isDark,
-}: {
-  attachments: ContractAttachment[];
-  onChange: (attachments: ContractAttachment[]) => void;
-  isDark: boolean;
-}) {
-  const [activeCategory, setActiveCategory] = useState<"CONTRACT" | "ADDENDUM" | "CORRESPONDENCE" | "TECHNICAL">("CONTRACT");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    const newAttachments: ContractAttachment[] = Array.from(files).map((file) => ({
-      id: `att${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      name: file.name,
-      file_object: file,
-      preview_url: URL.createObjectURL(file),
-      category: activeCategory,
-      uploaded_at: new Date().toISOString(),
-    }));
-
-    onChange([...attachments, ...newAttachments]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const removeAttachment = (id: string) => {
-    const att = attachments.find(a => a.id === id);
-    if (att?.preview_url) URL.revokeObjectURL(att.preview_url);
-    onChange(attachments.filter(a => a.id !== id));
-  };
-
-  const filteredAttachments = attachments.filter(a => a.category === activeCategory);
-  const counts = {
-    CONTRACT: attachments.filter(a => a.category === "CONTRACT").length,
-    ADDENDUM: attachments.filter(a => a.category === "ADDENDUM").length,
-    CORRESPONDENCE: attachments.filter(a => a.category === "CORRESPONDENCE").length,
-    TECHNICAL: attachments.filter(a => a.category === "TECHNICAL").length,
-  };
-
-  return (
-    <div className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/50"}`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-base">📁</span>
-          <h3 className={`text-sm font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-            Contract Attachments
-          </h3>
-          <Badge tone="indigo">{attachments.length} files</Badge>
-        </div>
-      </div>
-
-      <div className={`flex gap-1 rounded-lg border p-1 mb-3 text-xs ${
-        isDark ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white"
-      }`}>
-        {ATTACHMENT_CATEGORIES.map((cat) => (
-          <button
-            key={cat.value}
-            type="button"
-            onClick={() => setActiveCategory(cat.value as any)}
-            className={`flex-1 rounded px-2 py-1.5 font-medium transition-all whitespace-nowrap ${
-              activeCategory === cat.value
-                ? (isDark
-                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/30 border border-indigo-500"
-                    : "bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm")
-                : (isDark
-                    ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50")
-            }`}
-          >
-            {cat.label} ({counts[cat.value]})
-          </button>
-        ))}
-      </div>
-
-      <div className="mb-3">
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx"
-          onChange={handleFileSelect}
-          className="hidden"
-          id="attachment-upload"
-        />
-        <label
-          htmlFor="attachment-upload"
-          className={`flex items-center justify-center gap-2 w-full rounded-lg border-2 border-dashed px-4 py-3 text-sm cursor-pointer transition-colors ${
-            isDark
-              ? "border-slate-600 bg-slate-800/50 text-slate-300 hover:border-indigo-500 hover:bg-slate-800"
-              : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400 hover:bg-indigo-50/30"
-          }`}
-        >
-          <span>📎</span>
-          <span className="font-medium">
-            Upload to <span className="text-indigo-500">{ATTACHMENT_CATEGORIES.find(c => c.value === activeCategory)?.label}</span>
-          </span>
-        </label>
-      </div>
-
-      {filteredAttachments.length === 0 ? (
-        <div className={`text-center py-6 text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-          No files in this category yet
-        </div>
-      ) : (
-        <div className="space-y-1.5 max-h-60 overflow-y-auto">
-          {filteredAttachments.map((att) => (
-            <div
-              key={att.id}
-              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
-                isDark ? "border-slate-700 bg-slate-800/50" : "border-slate-200 bg-white"
-              }`}
-            >
-              <span className="text-base">
-                {att.name.toLowerCase().endsWith('.pdf') ? '📄' :
-                 att.name.toLowerCase().match(/\.(jpg|jpeg|png)$/) ? '🖼️' :
-                 att.name.toLowerCase().match(/\.(xls|xlsx)$/) ? '📊' : '📝'}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className={`font-medium truncate ${isDark ? "text-slate-200" : "text-slate-800"}`}>
-                  {att.name}
-                </div>
-                <div className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                  {att.file_object ? `${(att.file_object.size / 1024).toFixed(1)} KB` : ''}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => removeAttachment(att.id)}
-                className="p-1 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded transition-colors"
-                title="Remove"
-              >
-                🗑️
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============ SMART DATE HANDLERS ============
-const handleSmartStartDateChange = (
-  newStartDate: string,
-  currentEndDate: string,
-  setForm: (form: any) => void,
-  form: any
-) => {
-  const updatedForm = { ...form, start_date: newStartDate };
-  
-  // اگه تاریخ پایان قبلاً انتخاب شده و از تاریخ شروع جدید زودتره
-  if (newStartDate && currentEndDate && currentEndDate < newStartDate) {
-    updatedForm.end_date = newStartDate; // تاریخ پایان = تاریخ شروع
-  }
-  
-  setForm(updatedForm);
-};
-
-const handleSmartEndDateChange = (
-  newEndDate: string,
-  setForm: (form: any) => void,
-  form: any
-) => {
-  setForm({ ...form, end_date: newEndDate });
-};
-
-// ============ MAIN COMPONENT ============
 export function Contracts() {
   const { isDark } = useTheme();
-  const [contracts, setContracts] = usePersistedState<Contract[]>('ics_contracts', initialContracts);
-  const [clients, setClients] = usePersistedState<Client[]>('ics_clients', initialClients);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
-  const [typeFilter, setTypeFilter] = useState<"ALL" | "CONTRACT" | "WORK_ORDER">("ALL");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "NOT_STARTED" | "NEEDS_REVIEW" | "COMPLETED">("ALL");
-  const [sortBy, setSortBy] = useState<"date" | "value" | "status">("date");
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-  useEffect(() => {
-    setStatusFilter("ALL");
-  }, [typeFilter]);
+  // 🔑 استفاده از hook سفارشی برای state management
+  const {
+    contracts,
+    setContracts,
+    clients,
+    setClients,
+    searchQuery,
+    setSearchQuery,
+    selectedContract,
+    setSelectedContract,
+    typeFilter,
+    setTypeFilter,
+    statusFilter,
+    setStatusFilter,
+    sortBy,
+    setSortBy,
+    isDetailsOpen,
+    setIsDetailsOpen,
+    baseContracts,
+    filterCounts,
+    filteredContracts,
+  } = useContracts();
 
+  // 🔑 Local state برای مودال‌ها
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingContract, setEditingContract] = useState<Contract | null>(null);
+  const [userRole, setUserRole] = useState<"admin" | "user">("admin");
   
-  const [addForm, setAddForm] = useState({
-    contract_no: "",
-    external_contract_no: "",
-    source_type: "LETTER" as "EMAIL" | "LETTER",
-    source_ref: "",
-    source_file: "",
-    source_file_object: null as File | null,
-    source_letter_date: "",
-    source_letter_image: "",
-    source_letter_image_object: null as File | null,
-    source_letter_image_preview: "",
-    source_email_from: "",
-    source_email_date: new Date().toISOString().split("T")[0],
-    client_id: "",
-    contract_title: "",
-    start_date: "",
-    end_date: "",
-    total_value: 0,
-    currency: "IRR",
-    status: "ACTIVE" as "ACTIVE" | "COMPLETED",
-    type: "CONTRACT" as "CONTRACT" | "WORK_ORDER",
-    contract_count: 1,
-    description: "",
-	
-    tariffs: [
-      {
-        id: "1",
-        description: "",
-        unit: "MAN_DAY",
-        rate: "",
-        currency: "IRR",
-        total: 0,
-        isLumpSum: false,
-      },
-    ] as TariffLine[],
-	
-    adjustment: {
-	  enabled: false,
-	  mode: "FIXED",
-	  percentage: 0,
-	  effective_date: "",
-	} as Adjustment,
-	
-    contract_modification: {
-	  percentage: 0,
-	} as ContractModification,
-
-    guarantee: {
-      has_guarantee: false,
-      percentage: 0,
-      type: "BANK_GUARANTEE" as "CHECK" | "BANK_GUARANTEE" | "PROMISSORY_NOTE" | "CASH_BLOCK",
-    } as Guarantee,
-	
-    good_performance_percentage: 10,
-    insurance_deduction_percentage: 5,
-    attachments: [] as ContractAttachment[],
-	service_description: "" as "TPI" | "MWS" | "TPER" | "OTHER" | "",
-  });
-
-  const [editForm, setEditForm] = useState<any>({});
-  const [addErrors, setAddErrors] = useState<any>({});
+  // مودال قراردادهای قبلی مشتری
   const [isClientContractsOpen, setIsClientContractsOpen] = useState(false);
   const [clientContractsList, setClientContractsList] = useState<Contract[]>([]);
   const [selectedClientForView, setSelectedClientForView] = useState<any>(null);
   const [viewFilterType, setViewFilterType] = useState<"ALL" | "CONTRACT" | "WORK_ORDER">("ALL");
   const [viewFilterStatus, setViewFilterStatus] = useState<string>("ALL");
-  const [userRole, setUserRole] = useState<"admin" | "user">("admin");
+  
+  // مودال تایید تکمیل
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
   const [contractToComplete, setContractToComplete] = useState<Contract | null>(null);
   const [completeReason, setCompleteReason] = useState("");
 
+  // 🔑 بازیابی داده‌ها از localStorage وقتی از Clients برمی‌گردیم
   useEffect(() => {
     const returnData = localStorage.getItem("returnToContract");
     if (returnData && isAddModalOpen) {
       const data = JSON.parse(returnData);
-      setAddForm((prev) => ({
-        ...prev,
-        type: data.type || "WORK_ORDER",
-        source_type: data.sourceType || "LETTER",
-        source_ref: data.sourceRef || "",
-        source_letter_date: data.sourceLetterDate || "",
-        source_email_from: data.sourceEmailFrom || "",
-        source_email_date: data.sourceEmailDate || new Date().toISOString().split("T")[0],
-        source_file: data.sourceFile || "",
-        client_id: data.newClientId || "",
-      }));
+      // داده‌ها در ContractForm مدیریت می‌شن
       localStorage.removeItem("returnToContract");
     }
   }, [isAddModalOpen]);
 
-  // ============ 1. BASE CONTRACTS ============
-  const baseContracts = useMemo(() => {
-    return contracts.filter((contract) => {
-      const query = searchQuery.toLowerCase();
-      return (
-        !query ||
-        contract.contract_no.toLowerCase().includes(query) ||
-        (contract.external_contract_no && contract.external_contract_no.toLowerCase().includes(query)) ||
-        contract.client_name.toLowerCase().includes(query) ||
-        contract.contract_title.toLowerCase().includes(query)
-      );
-    });
-  }, [searchQuery, contracts]);
+  // 🔑 Handlers
+  const handleAddClick = () => {
+    setIsAddModalOpen(true);
+  };
 
-  // ============ 2. CROSS-FILTERED COUNTS ============
-  const filterCounts = useMemo(() => {
-    return {
-      type: {
-        ALL: baseContracts.filter(c => statusFilter === "ALL" || c.status === statusFilter).length,
-        CONTRACT: baseContracts.filter(c => c.type === "CONTRACT" && (statusFilter === "ALL" || c.status === statusFilter)).length,
-        WORK_ORDER: baseContracts.filter(c => c.type === "WORK_ORDER" && (statusFilter === "ALL" || c.status === statusFilter)).length,
+  const handleAddSave = (formData: any) => {
+    const client = clients.find((c) => c.id === formData.client_id);
+    const newContract: Contract = {
+      id: `ct${Date.now()}`,
+      contract_no: formData.contract_no,
+      external_contract_no: formData.external_contract_no,
+      source_type: formData.source_type,
+      source_ref: formData.source_ref,
+      source_file: formData.source_file,
+      source_file_object: formData.source_file_object,
+      source_letter_date: formData.source_letter_date,
+      source_letter_image: formData.source_letter_image,
+      source_letter_image_object: formData.source_letter_image_object,
+      source_letter_image_preview: formData.source_letter_image_preview,
+      source_email_from: formData.source_email_from,
+      source_email_date: formData.source_email_date,
+      client_id: formData.client_id,
+      client_name: client?.name_en || "N/A",
+      contract_title: formData.contract_title,
+      start_date: formData.start_date,
+      end_date: formData.end_date,
+      total_value: formData.total_value,
+      invoiced: 0,
+      currency: formData.currency,
+      status: formData.status,
+      type: formData.type,
+      tariffs: formData.tariffs.length,
+      contract_count: formData.contract_count,
+      tariffLines: formData.tariffs,
+      department: CURRENT_DEPARTMENT,
+      description: formData.description,
+      financial_terms: {
+        adjustment: formData.adjustment,
+        contract_modification: formData.contract_modification,
+        guarantee: formData.guarantee,
+        good_performance_percentage: formData.good_performance_percentage,
+        insurance_deduction_percentage: formData.insurance_deduction_percentage,
+        attachments: formData.attachments.map((att: any) => ({
+          ...att,
+          file_object: undefined,
+        })),
       },
-      status: {
-        ALL: baseContracts.filter(c => typeFilter === "ALL" || c.type === typeFilter).length,
-        ACTIVE: baseContracts.filter(c => c.status === "ACTIVE" && (typeFilter === "ALL" || c.type === typeFilter)).length,
-        COMPLETED: baseContracts.filter(c => c.status === "COMPLETED" && (typeFilter === "ALL" || c.type === typeFilter)).length,
-      },
-      total: baseContracts.length,
-      totalValue: baseContracts.reduce((sum, c) => sum + c.total_value, 0),
-      totalInvoiced: baseContracts.reduce((sum, c) => sum + c.invoiced, 0),
+      service_description: formData.service_description,
     };
-  }, [baseContracts, typeFilter, statusFilter]);
 
-  // ============ 3. FINAL FILTERED ============
-  const filteredContracts = useMemo(() => {
-    let result = baseContracts.filter((contract) => {
-      const matchesType = typeFilter === "ALL" || contract.type === typeFilter;
-      const financialStatus = getContractFinancialStatus(contract);
-      let matchesStatus = true;
-      if (statusFilter === "ACTIVE") matchesStatus = financialStatus === "active";
-      else if (statusFilter === "NOT_STARTED") matchesStatus = financialStatus === "not_started";
-      else if (statusFilter === "NEEDS_REVIEW") matchesStatus = financialStatus === "needs_review";
-      else if (statusFilter === "COMPLETED") matchesStatus = financialStatus === "completed";
-      
-      return matchesType && matchesStatus;
-    });
+    setContracts([newContract, ...contracts]);
+    setSelectedContract(newContract);
+    setIsDetailsOpen(true);
 
-    return result.sort((a, b) => {
-      const aExpiring = isExpiringSoon(a);
-      const bExpiring = isExpiringSoon(b);
-      if (aExpiring.expiring && !bExpiring.expiring) return -1;
-      if (!aExpiring.expiring && bExpiring.expiring) return 1;
-      if (aExpiring.expiring && bExpiring.expiring) {
-        return aExpiring.daysLeft - bExpiring.daysLeft;
-      }
-
-      if (sortBy === "date") return b.start_date.localeCompare(a.start_date);
-      if (sortBy === "value") return b.total_value - a.total_value;
-      if (sortBy === "status") {
-        const order: Record<string, number> = { ACTIVE: 1, COMPLETED: 2 };
-        return (order[a.status] || 99) - (order[b.status] || 99);
-      }
-      return 0;
-    });
-  }, [baseContracts, typeFilter, statusFilter, sortBy]);
-
-  const selectedTariffs = useMemo(() => {
-    if (!selectedContract) return [];
-    return contractTariffs.filter((t) => t.contract_id === selectedContract.id);
-  }, [selectedContract]);
-
-  const totalPerformedWork = useMemo(() => {
-    if (!selectedContract) return 0;
-    return selectedTariffs.reduce((sum, t) => {
-      const rate = typeof t.rate === 'string' ? Number(t.rate.replace(/,/g, '')) || 0 : (t.rate || 0);
-      const consumed = t.consumed_quantity || 0;
-      return sum + (rate * consumed);
-    }, 0);
-  }, [selectedContract, selectedTariffs]);
-
-  useEffect(() => {
-    if (isAddModalOpen) {
-      const newContractNo = generateContractNo(addForm.type, contracts);
-      setAddForm((prev) => ({
-        ...prev,
-        contract_no: newContractNo,
-        external_contract_no: "",
-        source_type: "LETTER",
-        source_ref: "",
-        source_file: "",
-        source_file_object: null,
-        source_letter_date: "",
-        source_letter_image: "",
-        source_letter_image_object: null,
-        source_letter_image_preview: "",
-        source_email_from: "",
-        source_email_date: new Date().toISOString().split("T")[0],
-        client_id: "",
-        contract_title: "",
-        start_date: "",
-        end_date: "",
-        total_value: 0,
-        currency: "IRR",
-        status: "ACTIVE",
-        contract_count: 1,
-        description: "",
-        tariffs: [
-          {
-            id: "1",
-            description: "",
-            unit: "MAN_DAY",
-            rate: "",
-            currency: "IRR",
-            total: 0,
-            isLumpSum: false,
-          },
-        ],
-        adjustment: {
-		  mode: "FIXED",
-		  percentage: 0,
-		  effective_date: "",
-		  needs_review: false,
-		  review_note: "",
-		} as Adjustment,
-		
-        contract_modification: {
-		  percentage: 0,
-		} as ContractModification,
-		
-        guarantee: {
-          has_guarantee: false,
-          percentage: 0,
-          type: "BANK_GUARANTEE",
-        },
-        good_performance_percentage: 10,
-        insurance_deduction_percentage: 16.67,
-        attachments: [],
-		service_description: "",
-      }));
-      setAddErrors({});
+    // اضافه کردن ایمیل به لیست ایمیل‌های مشتری
+    if (formData.source_type === "EMAIL" && formData.source_email_from && formData.client_id) {
+      setClients((prevClients: any[]) =>
+        prevClients.map((client: any) => {
+          if (client.id === formData.client_id) {
+            const existingEmails = client.emails || [];
+            if (!existingEmails.includes(formData.source_email_from)) {
+              return { ...client, emails: [...existingEmails, formData.source_email_from] };
+            }
+          }
+          return client;
+        })
+      );
     }
-  }, [addForm.type]);
+  };
 
-  const getExistingContractsForClient = (clientId: string) => {
-    return contracts.filter((c) => c.client_id === clientId && c.department === CURRENT_DEPARTMENT);
+  const handleEditClick = () => {
+    if (!selectedContract) return;
+    setEditingContract(selectedContract);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSave = (formData: any) => {
+    if (!editingContract) return;
+    const updatedContracts = contracts.map((c) =>
+      c.id === editingContract.id ? { ...c, ...formData } : c
+    );
+    setContracts(updatedContracts);
+    setSelectedContract({ ...editingContract, ...formData });
+    setIsEditModalOpen(false);
+    setEditingContract(null);
   };
 
   const handleExportToExcel = () => {
@@ -1158,185 +183,6 @@ export function Contracts() {
     const filterName = typeFilter === "ALL" ? "All" : typeFilter === "CONTRACT" ? "Contracts" : "WorkOrders";
     const today = new Date().toISOString().split("T")[0];
     exportToExcel(dataToExport, `${filterName}_Contracts_${today}`, "Contracts");
-  };
-
-  const handleAddClick = () => {
-    const newType: "CONTRACT" | "WORK_ORDER" = typeFilter === "WORK_ORDER" ? "WORK_ORDER" : "CONTRACT";
-    const contractNo = generateContractNo(newType, contracts);
-    setAddForm({
-      contract_no: contractNo,
-      external_contract_no: "",
-      source_type: "LETTER",
-      source_ref: "",
-      source_file: "",
-      source_file_object: null,
-      source_letter_date: "",
-      source_letter_image: "",
-      source_letter_image_object: null,
-      source_letter_image_preview: "",
-      source_email_from: "",
-      source_email_date: new Date().toISOString().split("T")[0],
-      client_id: "",
-      contract_title: "",
-      start_date: "",
-      end_date: "",
-      total_value: 0,
-      currency: "IRR",
-      status: "ACTIVE",
-      type: newType,
-      contract_count: 1,
-      description: "",
-      tariffs: [
-        {
-          id: "1",
-          description: "",
-          unit: "MAN_DAY",
-          rate: "",
-          currency: "IRR",
-          total: 0,
-          isLumpSum: false,
-        },
-      ],
-      adjustment: {
-        enabled: false,
-        percentage: 0,
-        effective_date: "",
-        needs_review: false,
-        review_note: "",
-      },
-      
-	  contract_modification: {
-		  percentage: 0,
-		} as ContractModification,
-	  
-      guarantee: {
-        has_guarantee: false,
-        percentage: 0,
-        type: "BANK_GUARANTEE",
-      },
-      good_performance_percentage: 10,
-      insurance_deduction_percentage: 16.67,
-      attachments: [],
-    });
-    setAddErrors({});
-    setIsAddModalOpen(true);
-  };
-
-  const validateAddForm = () => {
-    const errors: any = {};
-    if (addForm.type === "WORK_ORDER") {
-      if (addForm.source_type === "LETTER") {
-        if (!addForm.source_ref.trim()) errors.source_ref = "Letter number is required";
-        if (!addForm.source_letter_date) errors.source_letter_date = "Letter date is required";
-        if (!addForm.source_letter_image) errors.source_letter_image = "Letter image is required";
-      } else if (addForm.source_type === "EMAIL") {
-        if (!addForm.source_email_from.trim()) errors.source_email_from = "Email address is required";
-      }
-      if (!addForm.client_id) errors.client_id = "Client selection is required";
-      if (!addForm.contract_title.trim()) errors.contract_title = "Work order title is required";
-      if (!addForm.tariffs || addForm.tariffs.length === 0) {
-        errors.tariffs = "At least one tariff line is required";
-      } else {
-        const emptyTariff = addForm.tariffs.find((t) => !t.description.trim() || !t.rate || parseNumberInput(t.rate as string) <= 0);
-        if (emptyTariff) errors.tariffs = "All tariff lines must have description and rate";
-      }
-    } else {
-      if (!addForm.contract_title.trim()) errors.contract_title = "Contract title is required";
-      if (!addForm.client_id) errors.client_id = "Client selection is required";
-      if (!addForm.start_date) errors.start_date = "Start date is required";
-      if (!addForm.end_date) errors.end_date = "End date is required";
-      if (addForm.start_date && addForm.end_date && addForm.end_date < addForm.start_date) {
-        errors.end_date = "End date cannot be before start date";
-      }
-      if (addForm.total_value <= 0) errors.total_value = "Amount must be greater than zero";
-      if (!addForm.contract_count || addForm.contract_count <= 0) errors.contract_count = "Contract count is required";
-    }
-
-    setAddErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSaveAdd = () => {
-    if (!validateAddForm()) return;
-    const client = clients.find((c) => c.id === addForm.client_id);
-    const newContract: Contract = {
-      id: `ct${Date.now()}`,
-      contract_no: addForm.contract_no,
-      external_contract_no: addForm.external_contract_no,
-      source_type: addForm.source_type,
-      source_ref: addForm.source_ref,
-      source_file: addForm.source_file,
-      source_file_object: addForm.source_file_object,
-      source_letter_date: addForm.source_letter_date,
-      source_letter_image: addForm.source_letter_image,
-      source_letter_image_object: addForm.source_letter_image_object,
-      source_letter_image_preview: addForm.source_letter_image_preview,
-      source_email_from: addForm.source_email_from,
-      source_email_date: addForm.source_email_date,
-      client_id: addForm.client_id,
-      client_name: client?.name_en || "N/A",
-      contract_title: addForm.contract_title,
-      start_date: addForm.start_date,
-      end_date: addForm.end_date,
-      total_value: addForm.total_value,
-      invoiced: 0,
-      currency: addForm.currency,
-      status: addForm.status,
-      type: addForm.type,
-      tariffs: addForm.tariffs.length,
-      contract_count: addForm.contract_count,
-      tariffLines: addForm.tariffs,
-      department: CURRENT_DEPARTMENT,
-      description: addForm.description,
-      financial_terms: {
-		  adjustment: addForm.adjustment,
-		  contract_modification: addForm.contract_modification,
-		  guarantee: addForm.guarantee,
-		  good_performance_percentage: addForm.good_performance_percentage,
-		  insurance_deduction_percentage: addForm.insurance_deduction_percentage,
-		  attachments: addForm.attachments.map(att => ({
-			...att,
-			file_object: undefined,
-		  })),
-		},
-	  service_description: addForm.service_description,
-    };
-    setContracts([newContract, ...contracts]);
-    setSelectedContract(newContract);
-    setIsDetailsOpen(true);
-    if (addForm.source_type === "EMAIL" && addForm.source_email_from && addForm.client_id) {
-      setClients(prevClients =>
-        prevClients.map(client => {
-          if (client.id === addForm.client_id) {
-            const existingEmails = client.emails || [];
-            if (!existingEmails.includes(addForm.source_email_from)) {
-              return {
-                ...client,
-                emails: [...existingEmails, addForm.source_email_from]
-              };
-            }
-          }
-          return client;
-        })
-      );
-    }
-    setIsAddModalOpen(false);
-  };
-
-  const handleEditClick = () => {
-    if (!selectedContract) return;
-    setEditForm({ ...selectedContract });
-    setIsEditModalOpen(true);
-  };
-
-  const handleSaveEdit = () => {
-    if (!selectedContract) return;
-    const updatedContracts = contracts.map((c) =>
-      c.id === selectedContract.id ? { ...c, ...editForm } : c
-    );
-    setContracts(updatedContracts);
-    setSelectedContract({ ...selectedContract, ...editForm });
-    setIsEditModalOpen(false);
   };
 
   const handleRequestComplete = (contract: Contract) => {
@@ -1359,42 +205,24 @@ export function Contracts() {
     setCompleteReason("");
   };
 
-  const handleTypeChange = (type: "CONTRACT" | "WORK_ORDER") => {
-    setAddForm({ ...addForm, type });
-  };
-
-  const handleViewClientContracts = () => {
-    if (!addForm.client_id) return;
-    let existingContracts = contracts.filter(
-      (c) => c.client_id === addForm.client_id && c.department === CURRENT_DEPARTMENT
-    );
-    if (addForm.type === "WORK_ORDER") {
-      existingContracts = existingContracts.filter((c) => c.type === "WORK_ORDER");
-      setViewFilterType("WORK_ORDER");
-    } else {
-      setViewFilterType("ALL");
-    }
-    const client = clients.find((c) => c.id === addForm.client_id);
-    setClientContractsList(existingContracts);
-    setSelectedClientForView(client);
-    setViewFilterStatus("ALL");
-    setIsClientContractsOpen(true);
-  };
-
   const handleNavigateToClients = () => {
     localStorage.setItem(
       "returnToContract",
-      JSON.stringify({
-        type: addForm.type,
-        sourceType: addForm.source_type,
-        sourceRef: addForm.source_ref,
-        sourceLetterDate: addForm.source_letter_date,
-        sourceEmailFrom: addForm.source_email_from,
-        sourceEmailDate: addForm.source_email_date,
-        sourceFile: addForm.source_file,
-      })
+      JSON.stringify({ returnTo: "contracts" })
     );
     window.dispatchEvent(new CustomEvent("navigateToClients", { detail: { returnTo: "contracts" } }));
+  };
+
+  const handleViewClientContracts = (clientId: string) => {
+    const existingContracts = contracts.filter(
+      (c) => c.client_id === clientId && c.department === CURRENT_DEPARTMENT
+    );
+    const client = clients.find((c) => c.id === clientId);
+    setClientContractsList(existingContracts);
+    setSelectedClientForView(client);
+    setViewFilterStatus("ALL");
+    setViewFilterType("ALL");
+    setIsClientContractsOpen(true);
   };
 
   const filteredClientContracts = useMemo(() => {
@@ -1416,1723 +244,73 @@ export function Contracts() {
   }, [clientContractsList]);
 
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 p-3 lg:p-6 h-auto lg:h-[calc(100vh-140px)]`}>
-      {/* LEFT PANEL */}
-      <div className={`col-span-1 lg:col-span-4 relative flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out max-h-[50vh] lg:max-h-none ${
-        isDark ? `bg-slate-900 border-slate-700` : `bg-white border-slate-200/70`
-      }`}>
-        <div className={`relative z-10 border-b px-4 py-4 space-y-3 ${
-          isDark ? `border-slate-700 bg-slate-800/50` : `border-slate-100 bg-slate-50/50`
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">🔍</span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by Contract No, ..."
-                className="w-full rounded-lg py-2 pl-9 pr-8 text-sm input-themed"
-              />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary">✕</button>
-              )}
-            </div>
-            <div className="relative">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as "date" | "value" | "status")}
-                className="appearance-none text-xs rounded-md pl-2 pr-6 py-2 font-medium cursor-pointer input-themed"
-              >
-                <option value="date">Latest First</option>
-                <option value="value">Highest Value</option>
-                <option value="status">By Status</option>
-              </select>
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none text-[10px]">▼</span>
-            </div>
-          </div>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 p-3 lg:p-6 h-auto lg:h-[calc(100vh-140px)]">
+      {/* LEFT PANEL - ContractList */}
+      <ContractList
+        contracts={contracts}
+        filteredContracts={filteredContracts}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        typeFilter={typeFilter}
+        setTypeFilter={setTypeFilter}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        selectedContract={selectedContract}
+        setSelectedContract={(contract) => {
+          setSelectedContract(contract);
+          setIsDetailsOpen(true);
+        }}
+        onAddClick={handleAddClick}
+        onExport={handleExportToExcel}
+      />
 
-          <div className={`flex gap-1 rounded-lg border p-0.5 text-xs ${
-            isDark ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white"
-          }`}>
-            {(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => {
-              const count = t === "ALL" ? contracts.length : t === "CONTRACT" ? contracts.filter(c => c.type === "CONTRACT").length : contracts.filter(c => c.type === "WORK_ORDER").length;
-              return (
-                <button
-                  key={t}
-                  onClick={() => setTypeFilter(t)}
-                  className={`flex-1 rounded px-1 py-1.5 font-medium transition-all whitespace-nowrap ${
-                    typeFilter === t
-                      ? (isDark 
-                          ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/30 border border-indigo-500" 
-                          : "bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm")
-                      : (isDark 
-                          ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800" 
-                          : "text-slate-500 hover:text-slate-700 hover:bg-slate-50")
-                  }`}
-                >
-                  {t === "ALL" ? `All (${count})` : t === "CONTRACT" ? `📄 (${count})` : `📦(${count})`}
-                </button>
-              );
-            })}
-          </div>
+      {/* RIGHT PANEL - ContractDetails */}
+	  <div className={`col-span-1 lg:col-span-8 flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out ${
+		  isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200/70'
+		}`}>
+		  <ContractDetails
+			contract={selectedContract}
+			onClose={() => {
+			  setSelectedContract(null);
+			  setIsDetailsOpen(false);
+			}}
+			onEdit={handleEditClick}
+			onRequestComplete={handleRequestComplete}
+			userRole={userRole}
+		  />
+	  </div>
 
-          <div className={`flex gap-1 rounded-lg border p-1 text-xs ${
-            isDark ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white"
-          }`}>
-            {(["ALL", "ACTIVE", "NOT_STARTED", "NEEDS_REVIEW", "COMPLETED"] as const).map((t) => {
-              const baseFiltered = typeFilter === "ALL" ? contracts : contracts.filter(c => c.type === typeFilter);
-              let count = 0;
-              if (t === "ALL") count = baseFiltered.length;
-              else if (t === "ACTIVE") count = baseFiltered.filter(c => getContractFinancialStatus(c) === "active").length;
-              else if (t === "NOT_STARTED") count = baseFiltered.filter(c => getContractFinancialStatus(c) === "not_started").length;
-              else if (t === "NEEDS_REVIEW") count = baseFiltered.filter(c => getContractFinancialStatus(c) === "needs_review").length;
-              else if (t === "COMPLETED") count = baseFiltered.filter(c => getContractFinancialStatus(c) === "completed").length;
-              
-              return (
-                <button
-                  key={t}
-                  onClick={() => setStatusFilter(t)}
-                  className={`flex-1 rounded px-1 py-1.5 font-medium transition-all whitespace-nowrap ${
-                    statusFilter === t
-                      ? (isDark 
-                          ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/30 border border-emerald-500" 
-                          : "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm")
-                      : (isDark 
-                          ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700" 
-                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50")
-                  }`}
-                >
-                  {t === "ALL" ? `All (${count})` : 
-                   t === "ACTIVE" ? `🟢 (${count})` : 
-                   t === "NOT_STARTED" ? `⏳ (${count})` : 
-                   t === "NEEDS_REVIEW" ? `⚠️ (${count})` : 
-                   `✓ (${count})`}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      {/* 🔑 ADD CONTRACT MODAL */}
+      <ContractForm
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSave={handleAddSave}
+        mode="add"
+        typeFilter={typeFilter}
+        contracts={contracts}
+        generateContractNo={(type, contracts) => generateContractNo(type, contracts, CURRENT_DEPARTMENT)}
+        onNavigateToClients={handleNavigateToClients}
+      />
 
-        <div className="flex-1 overflow-y-auto pb-24">
-          {filteredContracts.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className="text-4xl mb-2">📄</div>
-              <p className="text-sm text-secondary">No contracts found</p>
-            </div>
-          ) : (
-            filteredContracts.map((contract) => {
-              const progress = calculateProgressFromTariffs(contract);
-              return (
-                <div
-                  key={contract.id}
-                  onClick={() => { setSelectedContract(contract); setIsDetailsOpen(true); }}
-                  className={`flex flex-col gap-2 px-4 py-3 border-b border-theme cursor-pointer transition-colors ${
-                    selectedContract?.id === contract.id
-                      ? (isDark ? "bg-indigo-900/30 border-l-4 border-l-indigo-400" : "bg-indigo-50 border-l-4 border-l-indigo-500")
-                      : (isDark ? "hover:bg-muted" : "hover:bg-muted")
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge tone={contract.type === "CONTRACT" ? "indigo" : "amber"}>
-                          {contract.type === "CONTRACT" ? "📄 Contract" : "📦 Work Order"}
-                        </Badge>
-                        <span className="font-mono text-xs text-secondary">{contract.contract_no}</span>
-                      </div>
-                      <div className="text-sm font-medium text-primary truncate">{contract.contract_title}</div>
-                      <div className="text-xs text-secondary truncate">{contract.client_name}</div>
-                    </div>
-                    {(() => {
-                      const financialStatus = getContractFinancialStatus(contract);
-                      const expiringInfo = isExpiringSoon(contract);
-                      
-                      if (contract.status === "COMPLETED") {
-                        return <Badge tone="slate">✓ Completed</Badge>;
-                      }
-                      
-                      if (expiringInfo.expiring) {
-                        return (
-                          <Badge tone="danger" className="gap-1 animate-pulse">
-                            <span>⚠️</span>
-                            <span>Expiring Soon</span>
-                          </Badge>
-                        );
-                      }
-                      
-                      if (financialStatus === "not_started") {
-                        const daysUntilStart = getDaysUntilStart(contract.start_date);
-                        return (
-                          <Badge tone="amber" className="gap-1">
-                            <span>⏳</span>
-                            <span>Not Started</span>
-                          </Badge>
-                        );
-                      }
-                      
-                      if (financialStatus === "needs_review") {
-                        return (
-                          <Badge tone="amber" className="gap-1">
-                            <span>⚠️</span>
-                            <span>Needs Review</span>
-                          </Badge>
-                        );
-                      }
-                      
-                      return <Badge tone="emerald">🟢 Active</Badge>;
-                    })()}
-                  </div>
-                  
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-secondary">{contract.start_date} → {contract.end_date}</span>
-                    <span className="font-semibold text-primary">{formatCurrency(contract.total_value, contract.currency)}</span>
-                  </div>
+      {/* 🔑 EDIT CONTRACT MODAL */}
+      <ContractForm
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingContract(null);
+        }}
+        onSave={handleEditSave}
+        initialData={editingContract || undefined}
+        mode="edit"
+        typeFilter={typeFilter}
+        contracts={contracts}
+        generateContractNo={(type, contracts) => generateContractNo(type, contracts, CURRENT_DEPARTMENT)}
+        onNavigateToClients={handleNavigateToClients}
+      />
 
-                  {(() => {
-                    const financialStatus = getContractFinancialStatus(contract);
-					
-					  // 🔑 اگه قرارداد Completed هست
-					  if (contract.status === "COMPLETED" || financialStatus === "completed") {
-						return (
-						  <div className="mt-1">
-							<div className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-100"}`}>
-							  <div
-								className={`h-full rounded-full transition-all duration-500 ${
-								  isDark ? "bg-slate-500" : "bg-slate-400"
-								}`}
-								style={{ width: "100%" }}
-							  />
-							</div>
-							<div className="flex items-center justify-between mt-1 text-[10px]">
-							  <span className={isDark ? "text-slate-400" : "text-slate-500"}>
-								Time Progress
-							  </span>
-							  <span className={`font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-								✓ Completed
-							  </span>
-							</div>
-						  </div>
-						);
-					  }
-					
-                    if (financialStatus === "not_started") {
-                      const daysUntilStart = getDaysUntilStart(contract.start_date);
-                      return (
-                        <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${
-                          isDark ? "border-amber-700 bg-amber-900/20 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-700"
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            <span>⏳</span>
-                            <span className="font-medium">Starts in {daysUntilStart} days</span>
-                          </div>
-                          <div className="text-[10px] mt-1 opacity-75">No work performed yet</div>
-                        </div>
-                      );
-                    }
-                    
-                    const daysProgress = calculateDaysProgress(contract);
-                    const daysLeft = calculateDaysLeft(contract.end_date);
-                    const isExpired = daysLeft < 0;
-                    
-                    return (
-                      <div className="mt-1">
-                        <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-100"}`}>
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${getDaysProgressColor(daysProgress)}`}
-                            style={{ width: `${Math.min(daysProgress, 100)}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between mt-1 text-[10px]">
-                          <span className={isDark ? "text-slate-400" : "text-slate-500"}>
-                            Time Progress
-                          </span>
-                          <span className={`font-semibold ${
-                            isExpired 
-                              ? (isDark ? "text-rose-400" : "text-rose-600")
-                              : daysLeft <= 30 
-                                ? (isDark ? "text-amber-400" : "text-amber-600")
-                                : (isDark ? "text-emerald-400" : "text-emerald-600")
-                          }`}>
-                            {isExpired 
-                              ? `${Math.abs(daysLeft)} days overdue` 
-                              : daysLeft === 0 
-                                ? "Expires today" 
-                                : `${daysLeft} days left`}
-                            <span className={`ml-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                              ({daysProgress.toFixed(0)}%)
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        <div className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t pointer-events-none z-10 ${
-          isDark 
-            ? "from-slate-900 via-slate-900/95 to-slate-900/0" 
-            : "from-white via-white/95 to-white/0"
-        }`} />
-        <div className="absolute bottom-5 left-0 right-0 px-4 z-20 flex gap-2">
-          <Button
-            variant="primary"
-            size="md"
-            onClick={handleAddClick}
-            className={`w-full justify-center gap-2 transition-all duration-300 hover:-translate-y-0.5 ${
-              isDark 
-                ? "border border-indigo-400/30 shadow-[0_8px_24px_rgba(99,102,241,0.4)] hover:shadow-[0_12px_32px_rgba(99,102,241,0.6)]" 
-                : "shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30"
-            }`}
-          >
-            <span>➕</span> 
-            {typeFilter === "ALL" ? "Add New Agreement" : 
-             typeFilter === "CONTRACT" ? "Add New Contract" : 
-             "Add New Work Order"}
-          </Button>
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={handleExportToExcel}
-            className={`transition-all duration-300 hover:-translate-y-0.5 ${
-              isDark 
-                ? "border border-slate-700 shadow-[0_8px_24px_rgba(0,0,0,0.3)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.5)]" 
-                : "shadow-lg shadow-slate-300/50 hover:shadow-xl hover:shadow-slate-400/50"
-            }`}
-            title="Export to Excel"
-          >
-            📥
-          </Button>
-        </div>
-      </div>
-
-      {/* RIGHT PANEL */}
-      <div className={`col-span-1 lg:col-span-8 flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out ${
-        isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200/70"
-      }`}>
-        {selectedContract ? (
-          <>
-            <div className={`border-b border-theme px-6 py-4 ${
-              isDark
-                ? "bg-gradient-to-r from-slate-800 to-card"
-                : "bg-gradient-to-r from-slate-50 to-white"
-            }`}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-secondary">Contract Details</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedContract(null)}
-                  className={`transition-colors ${
-                    isDark ? "text-muted hover:text-rose-400 hover:bg-rose-900/30" : "text-muted hover:text-rose-600 hover:bg-rose-50"
-                  }`}
-                >✕ Close Panel</Button>
-              </div>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-lg font-bold">📄</div>
-                  <div>
-                    <h3 className="text-xl font-bold text-primary truncate min-w-0 max-w-[450px]" title={selectedContract.contract_title}>{selectedContract.contract_title}</h3>
-                    <p className="text-sm text-secondary font-mono">{selectedContract.contract_no} • {selectedContract.client_name}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <Badge tone={selectedContract.type === "CONTRACT" ? "indigo" : "amber"}>
-                        {selectedContract.type === "CONTRACT" ? "📄 Contract" : "📦 Work Order"}
-                      </Badge>
-                      {(() => {
-                        const financialStatus = getContractFinancialStatus(selectedContract);
-                        const expiringInfo = isExpiringSoon(selectedContract);
-                        
-                        if (selectedContract.status === "COMPLETED") {
-                          return <Badge tone="slate">✓ Completed</Badge>;
-                        }
-                        
-                        if (financialStatus === "needs_review") {
-                          return (
-                            <div className="flex items-center gap-2">
-                              <Badge tone="amber" className="gap-1">
-                                <span>⚠️</span>
-                                <span>Needs Financial Review</span>
-                              </Badge>
-                              {userRole === "admin" && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleRequestComplete(selectedContract)}
-                                  className={`gap-1 text-xs ${
-                                    isDark ? "border-amber-600 text-amber-300 hover:bg-amber-900/30" : "border-amber-300 text-amber-700 hover:bg-amber-50"
-                                  }`}
-                                >
-                                  <span>✓</span>
-                                  <span>Mark as Completed</span>
-                                </Button>
-                              )}
-                            </div>
-                          );
-                        }
-                        
-                        return (
-                          <div className="flex items-center gap-2">
-                            <Badge tone="emerald">🟢 Active</Badge>
-                            {expiringInfo.expiring && (
-                              <Badge tone="danger" className="gap-1 animate-pulse">
-                                <span>⚠️</span>
-                                <span>Expiring in {expiringInfo.daysLeft} days</span>
-                              </Badge>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-                <Button 
-				  variant="outline" 
-				  size="md" 
-				  onClick={handleEditClick} 
-				  disabled={selectedContract?.status === "COMPLETED" || getContractFinancialStatus(selectedContract) === "completed"}
-				  className={`gap-2 shadow-sm ${
-					(selectedContract?.status === "COMPLETED" || getContractFinancialStatus(selectedContract) === "completed")
-					  ? "opacity-50 cursor-not-allowed"
-					  : ""
-				  }`}
-				  title={
-					(selectedContract?.status === "COMPLETED" || getContractFinancialStatus(selectedContract) === "completed")
-					  ? "Completed contracts cannot be edited"
-					  : "Edit contract"
-				  }
-				>
-				  <span>✏️</span> Edit
-				</Button>
-              </div>
-            </div>
-			
-			{/* 🔑 یادآوری تعدیل قرارداد (۳۰ روز قبل از تاریخ اعمال) */}
-			{(() => {
-			  const reminder = getAdjustmentReminder(selectedContract);
-			  if (!reminder.show) return null;
-
-			  return (
-				<div className={`rounded-lg border-2 p-4 ${
-				  reminder.mode === "TBD"
-					? (isDark ? "border-amber-600 bg-amber-950/40" : "border-amber-400 bg-amber-50")
-					: (isDark ? "border-indigo-600 bg-indigo-950/40" : "border-indigo-400 bg-indigo-50")
-				}`}>
-				  <div className="flex items-start gap-3">
-					<div className="text-2xl">
-					  {reminder.mode === "TBD" ? "⏳" : "📊"}
-					</div>
-					<div className="flex-1">
-					  <h4 className={`text-sm font-bold mb-1 ${
-						reminder.mode === "TBD"
-						  ? (isDark ? "text-amber-200" : "text-amber-900")
-						  : (isDark ? "text-indigo-200" : "text-indigo-900")
-					  }`}>
-						Price Adjustment Reminder
-					  </h4>
-					  <p className={`text-xs mb-2 ${
-						reminder.mode === "TBD"
-						  ? (isDark ? "text-amber-300" : "text-amber-800")
-						  : (isDark ? "text-indigo-300" : "text-indigo-800")
-					  }`}>
-						{reminder.mode === "TBD" 
-						  ? `Adjustment percentage needs to be determined. Effective date: ${reminder.effectiveDate}`
-						  : `Adjustment will be applied. Effective date: ${reminder.effectiveDate}`
-						}
-					  </p>
-					  <div className="flex items-center gap-4 text-xs">
-						<div>
-						  <span className={isDark ? "text-slate-400" : "text-slate-600"}>Days until effective: </span>
-						  <span className={`font-bold ${
-							reminder.daysUntil <= 7
-							  ? "text-rose-500"
-							  : reminder.daysUntil <= 15
-								? "text-amber-500"
-								: "text-emerald-500"
-						  }`}>
-							{reminder.daysUntil} days
-						  </span>
-						</div>
-						{reminder.mode === "FIXED" && reminder.percentage > 0 && (
-						  <div>
-							<span className={isDark ? "text-slate-400" : "text-slate-600"}>Percentage: </span>
-							<span className="font-bold text-indigo-500">{reminder.percentage}%</span>
-						  </div>
-						)}
-					  </div>
-					</div>
-				  </div>
-				</div>
-			  );
-			})()}
-
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-6">
-                <div className={`rounded-lg border border-theme p-4 bg-muted/30`}>
-                  <h3 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">📋 Contract Information</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 text-sm">
-                    <div>
-                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Internal Contract No.</div>
-                      <div className="font-mono text-xs text-primary">{selectedContract.contract_no}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">External Contract No.</div>
-                      <div className="font-mono text-xs text-primary">{selectedContract.external_contract_no || "—"}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Currency</div>
-                      <div className="text-xs text-primary">{selectedContract.currency}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Start Date</div>
-                      <div className="text-xs text-primary">{selectedContract.start_date}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">End Date</div>
-                      <div className="text-xs text-primary">{selectedContract.end_date}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Total Value</div>
-                      <div className="text-xs font-semibold text-accent-emerald">{formatCurrency(selectedContract.total_value, selectedContract.currency)}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Total Performed Works</div>
-                      <div className="text-xs font-semibold text-accent-emerald">{formatCurrency(totalPerformedWork, selectedContract.currency)}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Invoiced</div>
-                      <div className="text-xs font-semibold text-accent-indigo">
-                        {formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase text-secondary font-semibold mb-1">Not Invoiced</div>
-                      {(() => {
-                        const totalInvoiced = selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0);
-                        const notInvoiced = Math.max(0, totalPerformedWork - totalInvoiced);
-                        return <div className="text-xs font-semibold text-accent-rose">{formatCurrency(notInvoiced, selectedContract.currency)}</div>;
-                      })()}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
-                  <Card className={`rounded-lg border p-4 ${isDark ? "border-slate-500 bg-slate-800/30" : "border-slate-200"}`}>
-                    <div className="text-xs text-secondary">Total Performed Work (%)</div>
-                    {(() => {
-                      const workProgress = calculateProgressFromTariffs(selectedContract);
-                      return (
-                        <>
-                          <div className={`text-lg font-bold ${getProgressTextClass(workProgress)}`}>
-                            {workProgress.toFixed(2)}%
-                          </div>
-                          <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}>
-                            <div
-                              className={`h-full rounded-full ${getProgressColor(workProgress)}`}
-                              style={{ width: `${Math.min(workProgress, 100)}%` }}
-                            />
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </Card>
-
-                  <Card className={`rounded-lg border p-4 ${isDark ? "border-slate-500 bg-slate-800/30" : "border-slate-200"}`}>
-                    <div className="text-xs text-secondary">Total Invoiced (%)</div>
-                    {(() => {
-                      const spent = calculateInvoiceProgress(selectedContract);
-                      return (
-                        <>
-                          <div className={`text-lg font-bold ${getProgressTextColor(spent)}`}>
-                            {spent.toFixed(1)}%
-                            {spent > 100 && <span className="text-xs ml-1">(Over)</span>}
-                          </div>
-                          <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}>
-                            <div
-                              className={`h-full rounded-full ${getProgressColor(spent)}`}
-                              style={{ width: `${Math.min(spent, 100)}%` }}
-                            />
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </Card>
-
-                  <Card className={`rounded-lg border p-4 ${isDark ? "border-slate-500 bg-slate-800/30" : "border-slate-200"}`}>
-                    {(() => {
-                      const daysUntilStart = getDaysUntilStart(selectedContract.start_date);
-                      const notStarted = daysUntilStart > 0;
-                      const daysLeft = calculateDaysLeft(selectedContract.end_date);
-                      const isExpired = daysLeft < 0;
-                      const isFullyInvoiced = selectedContract.invoiced >= selectedContract.total_value;
-                      const needsFinancialReview = isExpired && !isFullyInvoiced;
-
-                      if (notStarted) {
-                        return (
-                          <>
-                            <div className="text-xs text-secondary">Status</div>
-                            <div className="text-lg font-bold text-amber-600">⏳ Not Started</div>
-                            <div className="text-[10px] text-amber-500 mt-0.5">Starts in {daysUntilStart} days</div>
-                          </>
-                        );
-                      }
-
-                      if (selectedContract.status === "COMPLETED") {
-                        return (
-                          <>
-                            <div className="text-xs text-secondary">Status</div>
-                            <div className="text-lg font-bold text-slate-600">✓ Completed</div>
-                          </>
-                        );
-                      }
-
-                      if (needsFinancialReview) {
-                        return (
-                          <>
-                            <div className="text-xs text-secondary mb-2">Financial Status</div>
-                            <div className="text-lg font-bold text-amber-600 mb-2">⚠️ Needs Review</div>
-                            <button
-                              onClick={() => userRole === "admin" && handleRequestComplete(selectedContract)}
-                              disabled={userRole !== "admin"}
-                              className={`w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-                                userRole === "admin"
-                                  ? "bg-amber-500 text-white hover:bg-amber-600 shadow-sm cursor-pointer"
-                                  : (isDark ? "bg-slate-700 text-slate-400 cursor-not-allowed opacity-60" : "bg-slate-100 text-slate-400 cursor-not-allowed opacity-60")
-                              }`}
-                              title={userRole !== "admin" ? "Only managers can approve completion" : "Click to mark as completed"}
-                            >
-                              {userRole === "admin" ? (
-                                <span className="flex items-center justify-center gap-1.5">
-                                  <span>✓</span>
-                                  <span>Mark as Completed</span>
-                                </span>
-                              ) : (
-                                <span className="flex items-center justify-center gap-1.5">
-                                  <span>🔒</span>
-                                  <span>Manager Approval Required</span>
-                                </span>
-                              )}
-                            </button>
-                          </>
-                        );
-                      }
-
-                      if (daysLeft < 0) {
-                        return (
-                          <>
-                            <div className="text-xs text-secondary">Status</div>
-                            <div className="text-lg font-bold text-rose-600">{Math.abs(daysLeft)} days overdue</div>
-                          </>
-                        );
-                      } else if (daysLeft === 0) {
-                        return (
-                          <>
-                            <div className="text-xs text-secondary">Time Remaining</div>
-                            <div className="text-lg font-bold text-amber-600">Today (Expires)</div>
-                          </>
-                        );
-                      } else {
-                        return (
-                          <>
-                            <div className="text-xs text-secondary">Time Remaining</div>
-                            <div className="text-lg font-bold text-emerald-600">{daysLeft} days remaining</div>
-                          </>
-                        );
-                      }
-                    })()}
-                  </Card>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-semibold text-primary mb-3">Tariff Lines & Consumption ({selectedTariffs.length})</h3>
-                  {selectedTariffs.length === 0 ? (
-                    <div className="text-center py-8 text-muted text-sm">No tariff lines defined for this contract</div>
-                  ) : (
-                    <div className={`overflow-x-auto rounded-lg border border-theme`}>
-                      <table className="w-full text-left text-xs">
-                        <thead className={`bg-muted text-[9px] uppercase tracking-wide text-secondary`}>
-                          <tr>
-                            <th className="px-3 py-2 font-medium">Description</th>
-                            <th className="px-3 py-2 font-medium">Unit</th>
-                            <th className="px-3 py-2 font-medium text-right">Rate</th>
-                            <th className="px-3 py-2 font-medium text-center">Performed Work</th>
-                            <th className="px-3 py-2 font-medium text-right">Total Value of Performed Works</th>
-                            <th className="px-3 py-2 font-medium text-right">Total Invoiced</th>
-                          </tr>
-                        </thead>
-                        <tbody className={isDark ? "divide-y divide-slate-700" : "divide-y divide-slate-100"}>
-                          {selectedTariffs.map((tariff) => {
-                            const value = tariff.consumed_quantity * tariff.rate;
-                            const invoiced = (tariff as any).invoiced || 0;
-                            return (
-                              <tr key={tariff.id} className={isDark ? "hover:bg-muted/60" : "hover:bg-muted/60"}>
-                                <td className={`px-3 py-2 font-medium text-primary`}>{tariff.description}</td>
-                                <td className="px-3 py-2 text-[9px]"> <Badge tone="indigo">{tariff.unit.replace("_", " ")}</Badge> </td>
-                                <td className="px-3 py-2 text-right font-mono">{formatCurrency(tariff.rate, selectedContract.currency)}</td>
-                                <td className="px-3 py-2 text-center font-mono">{tariff.consumed_quantity}</td>
-                                <td className="px-3 py-2 text-right font-mono font-semibold text-accent-emerald">{formatCurrency(value, selectedContract.currency)}</td>
-                                <td className="px-3 py-2 text-right font-mono font-semibold text-accent-indigo">{formatCurrency(invoiced)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot className={isDark ? "bg-muted border-t-2 border-slate-600" : "bg-slate-100 border-t-2 border-slate-300"}>
-                          <tr>
-                            <td colSpan={3} className={`px-3 py-2.5 text-sm font-bold text-left uppercase tracking-wider text-primary`}>💰 Total</td>
-                            <td className="px-3 py-2.5 text-center font-mono font-bold text-primary"></td>
-                            <td className="px-3 py-2.5 text-right font-mono font-bold text-accent-emerald">
-                              {formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t.consumed_quantity || 0) * (t.rate || 0)), 0))}
-                            </td>
-                            <td className="px-3 py-2.5 text-right font-mono font-bold text-accent-indigo">
-                              {formatCurrency(selectedTariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className={`flex-1 flex items-center justify-center relative overflow-hidden min-h-[600px] ${
-            isDark
-              ? "bg-gradient-to-br from-slate-800 via-card to-indigo-950/30"
-              : "bg-gradient-to-br from-slate-50 via-white to-indigo-50/30"
-          }`}>
-            <div className="absolute inset-0 opacity-[0.03]" style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='${isDark ? '%23ffffff' : '%23000000'}' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-            }} />
-
-            <div className="text-center z-10 relative">
-              <div className="relative inline-block mb-8">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 blur-2xl opacity-40 animate-pulse" />
-                <div className={`relative inline-flex items-center justify-center w-44 h-44 rounded-full shadow-2xl shadow-indigo-500/30 border-4 ${
-                  isDark ? "bg-slate-800 border-slate-700" : "bg-white border-white"
-                }`}>
-                  <img src="public/images/logo.png" alt="ICS Logo" className="w-36 h-36 object-contain" />
-                </div>
-              </div>
-
-              <h2 className={`text-xl sm:text-2xl lg:text-3xl font-bold mb-3 ${isDark ? "text-slate-200" : "text-slate-700"}`}>
-                OFFSHORE & ENERGY DEPARTMENT INSPECTION PLATFORM
-              </h2>
-              <p className={`text-base max-w-md mx-auto leading-relaxed ${isDark ? "text-secondary" : "text-slate-500"}`}>
-                Select a contract from the list to view details, tariffs, and progress information
-              </p>
-
-              <div className="flex items-center justify-center gap-6 mt-8">
-                <div className="flex flex-col items-center gap-2">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-indigo-900/50" : "bg-indigo-100"}`}>📄</div>
-                  <span className={`text-xs font-medium ${isDark ? "text-secondary" : "text-slate-500"}`}>Contracts</span>
-                </div>
-                <div className="flex flex-col items-center gap-2">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-emerald-900/50" : "bg-emerald-100"}`}>📊</div>
-                  <span className={`text-xs font-medium ${isDark ? "text-secondary" : "text-slate-500"}`}>Tariffs</span>
-                </div>
-                <div className="flex flex-col items-center gap-2">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-amber-900/50" : "bg-amber-100"}`}>📈</div>
-                  <span className={`text-xs font-medium ${isDark ? "text-secondary" : "text-slate-500"}`}>Progress</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ADD CONTRACT MODAL */}
-      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Agreement" size="lg">
-        <div className="space-y-3">
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-primary">
-              Type *
-              {typeFilter !== "ALL" && (
-                <span className={`ml-2 text-[10px] font-normal ${isDark ? "text-amber-400" : "text-amber-600"}`}>
-                  🔒 Locked to {typeFilter === "CONTRACT" ? "Contract" : "Work Order"}
-                </span>
-              )}
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => typeFilter === "ALL" && handleTypeChange("CONTRACT")}
-                disabled={typeFilter !== "ALL"}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  addForm.type === "CONTRACT"
-                    ? "bg-indigo-600 text-white shadow-md"
-                    : (isDark ? "bg-muted text-secondary hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200")
-                } ${typeFilter !== "ALL" && addForm.type !== "CONTRACT" ? "opacity-40 cursor-not-allowed" : ""}`}
-              >
-                📄 Contract
-              </button>
-              <button
-                type="button"
-                onClick={() => typeFilter === "ALL" && handleTypeChange("WORK_ORDER")}
-                disabled={typeFilter !== "ALL"}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  addForm.type === "WORK_ORDER"
-                    ? "bg-amber-600 text-white shadow-md"
-                    : (isDark ? "bg-muted text-secondary hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200")
-                } ${typeFilter !== "ALL" && addForm.type !== "WORK_ORDER" ? "opacity-40 cursor-not-allowed" : ""}`}
-              >
-                📦 Work Order
-              </button>
-            </div>
-          </div>
-
-          {addForm.type === "CONTRACT" ? (
-            <>
-			<div className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/50"} space-y-1`}>
-			  <div className="grid grid-cols-3 gap-4">
-			  {/* 🔑  انتخاب مشتری */}
-				<div>
-				  <ClientSelectorModal
-					value={addForm.client_id}
-					onChange={(clientId) => setAddForm({ ...addForm, client_id: clientId })}
-					onAddNew={handleNavigateToClients}
-					error={addErrors.client_id}
-				  />
-				</div>
-				
-				{/* 🔑 عنوان قرارداد */}
-				<div>
-				  <label className="mb-1.5 block text-xs font-semibold text-primary">Contract Title *</label>
-				  <input
-					value={addForm.contract_title}
-					onChange={(e) => setAddForm({ ...addForm, contract_title: e.target.value })}
-					className={`w-full rounded-lg px-3 py-2 text-sm input-themed ${
-					  addErrors.contract_title ? "border-rose-300" : ""
-					}`}
-					placeholder="e.g., South Pars Phase 22 — Inspection Services"
-				  />
-				  {addErrors.contract_title && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.contract_title}</p>}
-				</div>
-				
-				{/* 🔑 شرح خدمات - Dropdown */}
-				<div>
-				  <label className="mb-1.5 block text-xs font-semibold text-primary">Service Description *</label>
-				  <select
-					value={addForm.service_description}
-					onChange={(e) => setAddForm({ ...addForm, service_description: e.target.value as any })}
-					className={`w-full rounded-lg px-3 py-2 text-sm input-themed ${
-					  !addForm.service_description ? "text-muted" : ""
-					}`}
-				  >
-					<option value="">Select service type...</option>
-					<option value="TPI">🔍 TPI - Third Party Inspection</option>
-					<option value="MWS">🔧 MWS - Marine Warranty Survey</option>
-					<option value="TPER">📊 TPER - Technical Performance Evaluation Report</option>
-					<option value="OTHER">📋 Other</option>
-				  </select>
-				</div>
-			  </div>
-			</div>
-			
-			{/* 🔑مبلغ+ ارز+ تاریخ شروع + پایان */}
-			<div className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/50"}`}>
-			  <div className="grid grid-cols-4 gap-4">
-				  <div>
-					<label className="mb-1.5 block text-xs font-semibold text-primary">Start Date *</label>
-					<JalaaliDatePicker
-					  value={addForm.start_date}
-					  onChange={(date) => {
-						// 🔑 اگه Adjustment فعاله و effective_date خالیه، پیش‌فرض ست کن
-						let effectiveDate = addForm.adjustment.effective_date;
-						if (addForm.adjustment.enabled && !effectiveDate && date) {
-						  effectiveDate = getNextJalaaliYearStart(date);
-						}
-						
-						setAddForm({ 
-						  ...addForm, 
-						  start_date: date,
-						  adjustment: {
-							...addForm.adjustment,
-							effective_date: effectiveDate
-						  }
-						});
-					  }}
-					  placeholder="Select start date"
-					/>
-					{addErrors.start_date && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.start_date}</p>}
-				  </div>
-				  <div>
-					<label className="mb-1.5 block text-xs font-semibold text-primary">End Date *</label>
-					<JalaaliDatePicker
-					  value={addForm.end_date}
-					  onChange={(date) => handleSmartEndDateChange(date, setAddForm, addForm)}
-					  minDate={addForm.start_date}
-					  placeholder={addForm.start_date ? "Select end date" : "Select start date first"}
-					  disabled={!addForm.start_date}
-					/>
-					{addErrors.end_date && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.end_date}</p>}
-					{addForm.start_date && !addForm.end_date && (
-					  <p className={`mt-1 text-[10px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-						Must be on or after {addForm.start_date}
-					  </p>
-					)}
-				  </div>
-				  <div>
-					<label className="mb-1.5 block text-xs font-semibold text-primary">Total Value *</label>
-					<input
-					  type="text"
-					  inputMode="numeric"
-					  value={addForm.total_value ? formatNumberInput(String(addForm.total_value)) : ""}
-					  onChange={(e) => setAddForm({ ...addForm, total_value: parseNumberInput(e.target.value) })}
-					  className={`w-full rounded-lg px-3 py-2 text-sm font-mono text-right input-themed ${
-						addErrors.total_value ? "border-rose-300" : ""
-					  }`}
-					  placeholder="0"
-					/>
-					{addErrors.total_value && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.total_value}</p>}
-				  </div>
-				  <div>
-					<label className="mb-1.5 block text-xs font-semibold text-primary">Currency</label>
-					<select
-					  value={addForm.currency}
-					  onChange={(e) => setAddForm({ ...addForm, currency: e.target.value })}
-					  className="w-full rounded-lg px-3 py-2 text-sm input-themed"
-					>
-					  <option value="IRR">IRR</option>
-					  <option value="USD">USD</option>
-					  <option value="EUR">EUR</option>
-					</select>
-				  </div> 
-			  </div>
-			</div>
-			
-			  {/* 🔑 شماره قرارداد داخلی + خارجی */}
-			<div className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/50"}`}>
-			  <div className="grid grid-cols-2 gap-4">
-				<div>
-				  <label className="mb-1.5 block text-xs font-semibold text-primary">Internal Contract No. (ICS)</label>
-				  <div className={`w-full rounded-lg border border-theme bg-card py-2.5 px-3 text-sm font-mono font-semibold text-primary`}>
-					{addForm.contract_no}
-				  </div>
-				  <p className="text-[10px] text-secondary mt-1">Auto-generated, Unique per ICS Department</p>
-				</div>
-				<div>
-				  <label className="mb-1.5 block text-xs font-semibold text-primary">External Contract No (Optional)</label>
-				  <input
-					value={addForm.external_contract_no}
-					onChange={(e) => setAddForm({ ...addForm, external_contract_no: e.target.value })}
-					className={`w-full rounded-lg border border-theme bg-card py-2.5 px-3 text-sm font-mono font-semibold text-primary`}
-					placeholder="Client's Contract No."
-				  />
-				</div>
-			  </div>
-			</div>
-
-              {/* 🔑 بخش شرایط مالی و حقوقی */}
-			  
-             <div className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/50"}`}>
-				<h3 className={`text-sm font-bold mb-4 flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-					💼 Financial & Legal Terms
-                </h3>
-
-                <div className="space-y-2">
-                  {/* ۱. تعدیل قرارداد */}
-				  <div className="grid grid-cols-2 gap-3">
-					<div className={`rounded-lg border p-4 ${
-					  addForm.adjustment.enabled
-						? (isDark ? "border-indigo-700 bg-indigo-950/30" : "border-indigo-200 bg-indigo-50/30")
-						: (isDark ? "border-slate-700 bg-slate-800/20" : "border-slate-200 bg-slate-50/20")
-					}`}>
-					  <div className="flex items-center justify-between mb-3">
-						<div className="flex items-center gap-2">
-						  <span className="text-base">📊</span>
-						  <h4 className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-							Price Adjustment
-						  </h4>
-						</div>
-						<button
-						  type="button"
-						  onClick={() => {
-							const newEnabled = !addForm.adjustment.enabled;
-							// 🔑 اگه فعال شد و تاریخ effective خالیه، پیش‌فرض ست کن
-							const effectiveDate = newEnabled && !addForm.adjustment.effective_date && addForm.start_date
-							  ? getNextJalaaliYearStart(addForm.start_date)
-							  : addForm.adjustment.effective_date;
-							
-							setAddForm({
-							  ...addForm,
-							  adjustment: { 
-								...addForm.adjustment, 
-								enabled: newEnabled,
-								effective_date: effectiveDate
-							  }
-							});
-						  }}
-						  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-							addForm.adjustment.enabled ? "bg-indigo-600" : (isDark ? "bg-slate-700" : "bg-slate-300")
-						  }`}
-						>
-						  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-							addForm.adjustment.enabled ? "translate-x-6" : "translate-x-1"
-						  }`} />
-						</button>
-					  </div>
-
-					  {addForm.adjustment.enabled && (
-						<div className="space-y-3">
-						  {/* انتخاب حالت: FIXED یا TBD */}
-						  <div className={`rounded-lg border p-3 ${
-							isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/30"
-						  }`}>
-							<label className={`mb-2 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-							  Adjustment Mode
-							</label>
-							<div className="flex gap-2">
-							  <button
-								type="button"
-								onClick={() => setAddForm({
-								  ...addForm,
-								  adjustment: { ...addForm.adjustment, mode: "FIXED" }
-								})}
-								className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-								  addForm.adjustment.mode === "FIXED"
-									? "bg-indigo-600 text-white shadow-md"
-									: (isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-slate-200 text-slate-600 hover:bg-slate-300")
-								}`}
-							  >
-								✅ Fixed
-							  </button>
-							  <button
-								type="button"
-								onClick={() => setAddForm({
-								  ...addForm,
-								  adjustment: { ...addForm.adjustment, mode: "TBD", percentage: 0 }
-								})}
-								className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-								  addForm.adjustment.mode === "TBD"
-									? "bg-amber-600 text-white shadow-md"
-									: (isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-slate-200 text-slate-600 hover:bg-slate-300")
-								}`}
-							  >
-								⏳ TBD
-							  </button>
-							</div>
-						  </div>
-
-						  <div className="grid grid-cols-2 gap-3">
-							{/* فیلد درصد - فقط وقتی FIXED هست فعاله */}
-							<div>
-							  <label className={`mb-1 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-								Percentage (%)
-							  </label>
-							  <input
-								  type="text"
-								  inputMode="decimal"
-								  value={addForm.adjustment.percentage ? formatNumberInput(String(addForm.adjustment.percentage)) : ""}
-								  onChange={(e) => setAddForm({
-									...addForm,
-									adjustment: { ...addForm.adjustment, percentage: parseNumberInput(e.target.value) }
-								  })}
-								  className="w-full rounded-lg border px-3 py-2 text-sm font-mono text-right input-themed"
-								  placeholder="0.00"
-								/>
-							</div>
-
-							{/* فیلد تاریخ - همیشه فعاله */}
-							<div>
-							  <label className={`mb-1 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-								Effective Date
-							  </label>
-							  <JalaaliDatePicker
-								value={addForm.adjustment.effective_date}
-								onChange={(date) => setAddForm({
-								  ...addForm,
-								  adjustment: { ...addForm.adjustment, effective_date: date }
-								})}
-								placeholder="Select date"
-							  />
-							</div>
-						  </div>
-
-						</div>
-					  )}
-					</div>
-
-
-					{/* 🔑 ۲. Contract Modification  */}
-					<div className={`rounded-lg border p-4 ${
-					  addForm.contract_modification.percentage > 0
-						? (isDark ? "border-indigo-700 bg-indigo-950/30" : "border-indigo-200 bg-indigo-50/30")
-						: (isDark ? "border-slate-700 bg-slate-800/20" : "border-slate-200 bg-slate-50/20")
-					}`}>
-					  <div className="flex items-center gap-2 mb-3">
-						<span className="text-base">🔄</span>
-						<h4 className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-						  Contract Modification
-						</h4>
-					  </div>
-
-					  <div className="relative">
-						<input
-						  type="text"
-						  inputMode="decimal"
-						  value={addForm.contract_modification?.percentage ? formatNumberInput(String(addForm.contract_modification.percentage)) : ""}
-						  onChange={(e) => {
-							const raw = e.target.value.replace(/[^0-9.]/g, "");
-							const parts = raw.split(".");
-							const clean = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
-							setAddForm({
-							  ...addForm,
-							  contract_modification: { percentage: Number(clean) || 0 }
-							});
-						  }}
-						  onBlur={(e) => {
-							// موقع از دست دادن فوکوس، فرمت کن
-							const val = addForm.contract_modification?.percentage || 0;
-							if (val > 0) {
-							  setAddForm({
-								...addForm,
-								contract_modification: { percentage: val }
-							  });
-							}
-						  }}
-						  className="w-full rounded-lg border px-3 py-2 pr-8 text-sm font-mono text-right input-themed"
-						  placeholder="0"
-						/>
-						<span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>%</span>
-					  </div>
-					   
-					  {/* 🔑 نمایش خروجی - بدون NaN */}
-						  {addForm.contract_modification.percentage > 0 && (
-							<div className={`mt-3 rounded-lg border p-3 ${
-							  isDark ? "border-indigo-700 bg-indigo-950/30" : "border-indigo-200 bg-indigo-50/50"
-							}`}>
-							  <div className="flex items-center gap-2 mb-2">
-								<span className="text-sm">📊</span>
-								<h5 className={`text-xs font-bold ${isDark ? "text-indigo-200" : "text-indigo-900"}`}>
-								  Applied to both:
-								</h5>
-							  </div>
-							  <div className="grid grid-cols-2 gap-2 text-xs">
-								{/* 💰 Ceiling - فقط اگه total_value > 0 */}
-								<div className={`flex justify-between p-2 rounded ${isDark ? "bg-slate-800/50" : "bg-white/70"}`}>
-								  <span className={isDark ? "text-slate-300" : "text-slate-600"}>💰 Ceiling:</span>
-								  <span className="font-bold font-mono text-indigo-500">
-									{addForm.total_value > 0 
-									  ? `+${formatCurrency((addForm.total_value * addForm.contract_modification.percentage) / 100, addForm.currency)}`
-									  : "—"
-									}
-								  </span>
-								</div>
-								
-								{/* 📅 Duration - فقط اگه تاریخ‌ها پر باشن */}
-								<div className={`flex justify-between p-2 rounded ${isDark ? "bg-slate-800/50" : "bg-white/70"}`}>
-								  <span className={isDark ? "text-slate-300" : "text-slate-600"}>📅 Duration:</span>
-								  <span className="font-bold font-mono text-indigo-500">
-									{addForm.start_date && addForm.end_date ? (() => {
-									  try {
-										const [startJy, startJm, startJd] = addForm.start_date.split('/').map(Number);
-										const [endJy, endJm, endJd] = addForm.end_date.split('/').map(Number);
-										
-										if (!startJy || !endJy) return "—";
-										
-										const startG = jalaali.toGregorian(startJy, startJm, startJd);
-										const endG = jalaali.toGregorian(endJy, endJm, endJd);
-										const startDate = new Date(startG.gy, startG.gm - 1, startG.gd);
-										const endDate = new Date(endG.gy, endG.gm - 1, endG.gd);
-										const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-										
-										if (totalDays <= 0 || isNaN(totalDays)) return "—";
-										
-										const modifiedDays = Math.round((totalDays * addForm.contract_modification.percentage) / 100);
-										return `+${Math.abs(modifiedDays)} days`;
-									  } catch {
-										return "—";
-									  }
-									})() : "—"}
-								  </span>
-								</div>
-							  </div>
-							</div>
-						  )}
-  
-					</div>
-                    </div>
-                  </div>
-
-                  {/* ۳. ضمانت‌نامه */}
-                  <div className={`rounded-lg border p-4 ${
-                    addForm.guarantee.has_guarantee
-                      ? (isDark ? "border-emerald-700 bg-emerald-950/30" : "border-emerald-200 bg-emerald-50/30")
-                      : (isDark ? "border-slate-700 bg-slate-800/20" : "border-slate-200 bg-slate-50/20")
-                  }`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">🏦</span>
-                        <h4 className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-                          Performance Guarantee
-                        </h4>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setAddForm({
-                          ...addForm,
-                          guarantee: { ...addForm.guarantee, has_guarantee: !addForm.guarantee.has_guarantee }
-                        })}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          addForm.guarantee.has_guarantee ? "bg-emerald-600" : (isDark ? "bg-slate-700" : "bg-slate-300")
-                        }`}
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          addForm.guarantee.has_guarantee ? "translate-x-6" : "translate-x-1"
-                        }`} />
-                      </button>
-                    </div>
-
-                    {addForm.guarantee.has_guarantee && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className={`mb-1 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                            Percentage (%)
-                          </label>
-                          <input
-							  type="text"
-							  inputMode="decimal"
-							  value={addForm.guarantee.percentage ? formatNumberInput(String(addForm.guarantee.percentage)) : ""}
-							  onChange={(e) => setAddForm({
-								...addForm,
-								guarantee: { ...addForm.guarantee, percentage: parseNumberInput(e.target.value) }
-							  })}
-							  className="w-full rounded-lg border px-3 py-2 text-sm font-mono text-right input-themed"
-							  placeholder="0.00"
-							/>
-                          {addForm.total_value > 0 && addForm.guarantee.percentage > 0 && (
-                            <p className={`text-[10px] mt-1 font-semibold ${isDark ? "text-emerald-400" : "text-emerald-700"}`}>
-                              ≈ {formatCurrency((addForm.total_value * addForm.guarantee.percentage) / 100, addForm.currency)}
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <label className={`mb-1 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                            Guarantee Type
-                          </label>
-                          <select
-                            value={addForm.guarantee.type}
-                            onChange={(e) => setAddForm({
-                              ...addForm,
-                              guarantee: { ...addForm.guarantee, type: e.target.value as any }
-                            })}
-                            className="w-full rounded-lg border px-3 py-2 text-sm input-themed"
-                          >
-                            <option value="BANK_GUARANTEE">🏦 Bank Guarantee</option>
-                            <option value="CHECK">📝 Check</option>
-                            <option value="PROMISSORY_NOTE">📄 Promissory Note</option>
-                            <option value="CASH_BLOCK">💰 Cash Block</option>
-                          </select>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ۴. حسن انجام کار و بیمه */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/20" : "border-slate-200 bg-slate-50/20"}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-base">✅</span>
-                        <h4 className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>Good Performance</h4>
-                      </div>
-                      <div className="relative">
-                        <input
-						  type="text"
-						  inputMode="decimal"
-						  value={addForm.good_performance_percentage ? formatNumberInput(String(addForm.good_performance_percentage)) : ""}
-						  onChange={(e) => setAddForm({ ...addForm, good_performance_percentage: parseNumberInput(e.target.value) })}
-						  className="w-full rounded-lg border px-3 py-2 pr-8 text-sm font-mono text-right input-themed"
-						  placeholder="10.00"
-						/>
-                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>%</span>
-                      </div>
-                      <p className={`text-[10px] mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>From each invoice</p>
-                    </div>
-
-                    <div className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/20" : "border-slate-200 bg-slate-50/20"}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-base">🏥</span>
-                        <h4 className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>Insurance Deduction</h4>
-                      </div>
-                      <div className="relative">
-                        <input
-						  type="text"
-						  inputMode="decimal"
-						  value={addForm.insurance_deduction_percentage ? formatNumberInput(String(addForm.insurance_deduction_percentage)) : ""}
-						  onChange={(e) => setAddForm({ ...addForm, insurance_deduction_percentage: parseNumberInput(e.target.value) })}
-						  className="w-full rounded-lg border px-3 py-2 pr-8 text-sm font-mono text-right input-themed"
-						  placeholder="16.67"
-						/>
-                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>%</span>
-                      </div>
-                      <p className={`text-[10px] mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>From each invoice</p>
-                    </div>
-                  </div>
-                </div>
-              
-
-              {/* 🔑 بخش ضمایم قرارداد */}
-              <ContractAttachmentsEditor
-                attachments={addForm.attachments}
-                onChange={(attachments) => setAddForm({ ...addForm, attachments })}
-                isDark={isDark}
-              />
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-primary">Description</label>
-                <textarea
-                  value={addForm.description}
-                  onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
-                  rows={3}
-                  className="w-full rounded-lg px-3 py-2 text-sm input-themed"
-                  placeholder="Optional description..."
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              {/* WORK_ORDER form - unchanged */}
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-primary">Source Type *</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAddForm({ ...addForm, source_type: "LETTER" })}
-                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                      addForm.source_type === "LETTER"
-                        ? "bg-emerald-600 text-white shadow-md"
-                        : (isDark ? "bg-muted text-secondary hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200")
-                    }`}
-                  >
-                    📄 Letter
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAddForm({ ...addForm, source_type: "EMAIL" })}
-                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                      addForm.source_type === "EMAIL"
-                        ? "bg-blue-600 text-white shadow-md"
-                        : (isDark ? "bg-muted text-secondary hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200")
-                    }`}
-                  >
-                    📧 Email
-                  </button>
-                </div>
-              </div>
-
-              {addForm.source_type === "LETTER" ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-primary">Letter Number *</label>
-                      <input
-                        value={addForm.source_ref}
-                        onChange={(e) => setAddForm({ ...addForm, source_ref: e.target.value })}
-                        className="w-full rounded-lg bg-card px-3 py-2.5 text-sm font-mono input-themed"
-                        placeholder="e.g., 1404/1234"
-                      />
-                      {addErrors.source_ref && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.source_ref}</p>}
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-primary">Letter Date *</label>
-                      <JalaaliDatePicker
-                        value={addForm.source_letter_date || ""}
-                        onChange={(date) => setAddForm({ ...addForm, source_letter_date: date })}
-                        placeholder="Select letter date"
-                      />
-                      {addErrors.source_letter_date && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.source_letter_date}</p>}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-primary">
-                      Letter Image * <span className="text-rose-500">(Required)</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="file"
-                        id="letter-image-input"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const preview = URL.createObjectURL(file);
-                            setAddForm({
-                              ...addForm,
-                              source_letter_image: file.name,
-                              source_letter_image_object: file,
-                              source_letter_image_preview: preview,
-                            });
-                          }
-                        }}
-                        className="hidden"
-                      />
-                      <label
-                        htmlFor="letter-image-input"
-                        className={`flex items-center justify-between gap-2 w-full rounded-lg border-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${
-                          addForm.source_letter_image
-                            ? (isDark ? "border-emerald-600 bg-emerald-900/30 text-emerald-300 hover:bg-emerald-900/50" : "border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100")
-                            : (isDark ? "border-dashed border-slate-600 bg-muted text-secondary hover:border-indigo-500 hover:bg-slate-800" : "border-dashed border-slate-300 bg-muted text-slate-600 hover:border-indigo-400 hover:bg-indigo-50")
-                        }`}
-                      >
-                        {addForm.source_letter_image ? (
-                          <>
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span>🖼️</span>
-                              <span className="truncate font-medium">{addForm.source_letter_image}</span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {addForm.source_letter_image_preview && (
-                                <img src={addForm.source_letter_image_preview} alt="Preview" className="h-8 w-8 object-cover rounded border border-slate-200" />
-                              )}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setAddForm({
-                                    ...addForm,
-                                    source_letter_image: "",
-                                    source_letter_image_object: null,
-                                    source_letter_image_preview: "",
-                                  });
-                                  const input = document.getElementById('letter-image-input') as HTMLInputElement;
-                                  if (input) input.value = '';
-                                }}
-                                className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-100 rounded transition-colors"
-                                title="Remove image"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span>📎</span>
-                            <span>Click to attach letter image (JPG, PNG, PDF)</span>
-                          </div>
-                        )}
-                      </label>
-                    </div>
-                    {addErrors.source_letter_image && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.source_letter_image}</p>}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-primary">From Email Address *</label>
-                      <input
-                        type="email"
-                        value={addForm.source_email_from || ""}
-                        onChange={(e) => setAddForm({ ...addForm, source_email_from: e.target.value })}
-                        className={`w-full rounded-lg bg-card px-3 py-2.5 text-sm font-mono input-themed ${
-                          addErrors.source_email_from ? "border-rose-300" : ""
-                        }`}
-                        placeholder="sender@example.com"
-                      />
-                      {addErrors.source_email_from && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.source_email_from}</p>}
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-primary">Email Date</label>
-                      <input
-                        type="date"
-                        value={addForm.source_email_date || ""}
-                        onChange={(e) => setAddForm({ ...addForm, source_email_date: e.target.value })}
-                        className="w-full rounded-lg bg-card px-3 py-2.5 text-sm input-themed"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-primary">Attach Email File</label>
-                    <div className="relative">
-                      <input
-                        type="file"
-                        id="email-file-input"
-                        accept=".msg,.eml"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            setAddForm({
-                              ...addForm,
-                              source_file: file.name,
-                              source_file_object: file
-                            });
-                          }
-                        }}
-                        className="hidden"
-                      />
-                      <label
-                        htmlFor="email-file-input"
-                        className={`flex items-center justify-between gap-2 w-full rounded-lg border-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${
-                          addForm.source_file
-                            ? (isDark ? "border-emerald-600 bg-emerald-900/30 text-emerald-300 hover:bg-emerald-900/50" : "border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100")
-                            : (isDark ? "border-dashed border-slate-600 bg-muted text-secondary hover:border-indigo-500 hover:bg-slate-800" : "border-dashed border-slate-300 bg-muted text-slate-600 hover:border-indigo-400 hover:bg-indigo-50")
-                        }`}
-                      >
-                        {addForm.source_file ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if (addForm.source_file_object) {
-                                  const url = URL.createObjectURL(addForm.source_file_object);
-                                  window.open(url, '_blank');
-                                }
-                              }}
-                              className="flex items-center gap-2 flex-1 text-left hover:underline min-w-0"
-                              title="Click to open email"
-                            >
-                              <span>📧</span>
-                              <span className="truncate font-medium">{addForm.source_file}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setAddForm({ ...addForm, source_file: "", source_file_object: null });
-                                const input = document.getElementById('email-file-input') as HTMLInputElement;
-                                if (input) input.value = '';
-                              }}
-                              className="shrink-0 p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-100 rounded transition-colors"
-                              title="Remove file"
-                            >
-                              ✕
-                            </button>
-                          </>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span>📎</span>
-                            <span>Click to attach (.msg, .eml)</span>
-                          </div>
-                        )}
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <ClientSelectorModal
-                value={addForm.client_id}
-                onChange={(clientId) => setAddForm({ ...addForm, client_id: clientId })}
-                onAddNew={handleNavigateToClients}
-                error={addErrors.client_id}
-              />
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-primary">Work Order Title *</label>
-                <input
-                  value={addForm.contract_title}
-                  onChange={(e) => setAddForm({ ...addForm, contract_title: e.target.value })}
-                  className={`w-full rounded-lg px-3 py-2 text-sm input-themed ${
-                    addErrors.contract_title ? "border-rose-300" : ""
-                  }`}
-                  placeholder="Brief title of the work order"
-                />
-                {addErrors.contract_title && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.contract_title}</p>}
-              </div>
-
-              <TariffEditor
-                tariffs={addForm.tariffs}
-                onChange={(tariffs) => setAddForm({ ...addForm, tariffs })}
-                error={addErrors.tariffs}
-                showTotals={false}
-              />
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-primary">Description (Optional)</label>
-                <textarea
-                  value={addForm.description}
-                  onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
-                  rows={3}
-                  className="w-full rounded-lg px-3 py-2 text-sm input-themed"
-                  placeholder="Additional details..."
-                />
-              </div>
-            </>
-          )}
-
-          <div className={`flex justify-end gap-3 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}>
-            <Button variant="ghost" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveAdd}>💾 Save {addForm.type === "CONTRACT" ? "Contract" : "Work Order"}</Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* EDIT CONTRACT MODAL */}
-      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Contract" size="lg">
-        {selectedContract && (
-          <div className="space-y-4">
-            <div className={`rounded-lg border border-theme bg-muted p-4`}>
-              <div className="flex items-center gap-2 mb-3">
-                <span>🔒</span>
-                <h3 className="text-sm font-semibold text-secondary">Read-Only Information</h3>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-secondary">Internal Contract No</label>
-                  <div className={`w-full rounded-lg border border-theme bg-slate-100 py-2.5 px-3 text-sm font-mono ${isDark ? "text-slate-300" : "text-slate-600"}`}>{editForm.contract_no}</div>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-secondary">Type</label>
-                  <div className={`w-full rounded-lg border border-theme bg-slate-100 py-2.5 px-3 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>{editForm.type === "CONTRACT" ? "Contract" : "Work Order"}</div>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-secondary">Department</label>
-                  <div className={`w-full rounded-lg border border-theme bg-slate-100 py-2.5 px-3 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>{editForm.department}</div>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-secondary">Created Date</label>
-                  <div className={`w-full rounded-lg border border-theme bg-slate-100 py-2.5 px-3 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`} dir="rtl">{editForm.start_date}</div>
-                </div>
-              </div>
-            </div>
-
-            <div className={`rounded-lg border p-4 ${isDark ? "border-indigo-700 bg-indigo-950/30" : "border-indigo-200 bg-indigo-50/30"}`}>
-              <div className="flex items-center gap-2 mb-3">
-                <span>✏️</span>
-                <h3 className="text-sm font-semibold text-primary">Editable Information</h3>
-              </div>
-
-              <div className="space-y-4">
-                {editForm.type === "CONTRACT" ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-primary">External Contract No</label>
-                        <input
-                          value={editForm.external_contract_no || ""}
-                          onChange={(e) => setEditForm({ ...editForm, external_contract_no: e.target.value })}
-                          className="w-full rounded-lg bg-card px-3 py-2 text-sm font-mono input-themed"
-                          placeholder="Client's contract number"
-                        />
-                      </div>
-                      <div>
-                        <ClientSelectorModal
-                          value={editForm.client_id || ""}
-                          onChange={(clientId) => setEditForm({ ...editForm, client_id: clientId })}
-                          onAddNew={handleNavigateToClients}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-primary">Contract Title</label>
-                      <input
-                        value={editForm.contract_title || ""}
-                        onChange={(e) => setEditForm({ ...editForm, contract_title: e.target.value })}
-                        className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-primary">Start Date</label>
-                        <JalaaliDatePicker
-                          value={editForm.start_date || ""}
-                          onChange={(date) => setEditForm({ ...editForm, start_date: date })}
-                          placeholder="Select start date"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-primary">End Date</label>
-                        <JalaaliDatePicker
-                          value={editForm.end_date || ""}
-                          onChange={(date) => setEditForm({ ...editForm, end_date: date })}
-                          minDate={editForm.start_date}
-                          placeholder="Select end date"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-primary">Total Value</label>
-                        <input
-                          type="number"
-                          value={editForm.total_value || 0}
-                          onChange={(e) => setEditForm({ ...editForm, total_value: Number(e.target.value) })}
-                          className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-primary">Invoiced</label>
-                        <input
-                          type="number"
-                          value={editForm.invoiced || 0}
-                          onChange={(e) => setEditForm({ ...editForm, invoiced: Number(e.target.value) })}
-                          className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-primary">Description</label>
-                      <textarea
-                        value={editForm.description || ""}
-                        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                        rows={3}
-                        className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className={`rounded-lg border p-3 ${isDark ? "border-amber-700 bg-amber-900/30" : "border-amber-200 bg-amber-50/50"}`}>
-                      <p className={`text-xs ${isDark ? "text-amber-300" : "text-amber-800"}`}>
-                        Work Order - Source: {editForm.source_type === "LETTER" ? `Letter #${editForm.source_ref}` : `Email from ${editForm.source_email_from}`}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-primary">Work Order Title</label>
-                      <input
-                        value={editForm.contract_title || ""}
-                        onChange={(e) => setEditForm({ ...editForm, contract_title: e.target.value })}
-                        className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="mb-1.5 block text-xs font-semibold text-primary">Total Value</label>
-                        <input
-                          type="number"
-                          value={editForm.total_value || 0}
-                          onChange={(e) => setEditForm({ ...editForm, total_value: Number(e.target.value) })}
-                          className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-primary">Description</label>
-                      <textarea
-                        value={editForm.description || ""}
-                        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                        rows={3}
-                        className="w-full rounded-lg bg-card px-3 py-2 text-sm input-themed"
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className={`flex justify-end gap-3 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}>
-              <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
-              <Button onClick={handleSaveEdit}>💾 Save Changes</Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* MODAL نمایش قراردادهای قبلی مشتری */}
+      {/* 🔑 MODAL نمایش قراردادهای قبلی مشتری */}
       <Modal
         isOpen={isClientContractsOpen}
         onClose={() => {
@@ -3150,7 +328,7 @@ export function Contracts() {
             <div className={`rounded-lg border p-4 ${isDark ? "border-indigo-700 bg-indigo-950/50" : "border-indigo-200 bg-indigo-50/50"}`}>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-sm font-bold">
-                  {selectedClientForView.name_en.split(/\s+/).slice(0, 2).map(w => w[0]).join(" ").toUpperCase()}
+                  {selectedClientForView.name_en.split(/\s+/).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase()}
                 </div>
                 <div className="flex-1">
                   <h3 className="text-sm font-semibold text-primary">{selectedClientForView.name_en}</h3>
@@ -3159,38 +337,33 @@ export function Contracts() {
                     {clientContractsList.length} {clientContractsList.length === 1 ? "contract" : "contracts"} in {CURRENT_DEPARTMENT}
                   </p>
                 </div>
-                {viewFilterType === "WORK_ORDER" && (
-                  <Badge tone="amber">Work Orders Only</Badge>
-                )}
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex gap-1 filter-group p-0.5 text-xs">
+            <div className="flex gap-1 filter-group p-0.5 text-xs">
+              <button
+                onClick={() => setViewFilterStatus("ALL")}
+                className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${
+                  viewFilterStatus === "ALL"
+                    ? (isDark ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700")
+                    : (isDark ? "text-secondary hover:text-primary" : "text-secondary hover:text-slate-700")
+                }`}
+              >
+                All ({clientContractCounts.ALL || 0})
+              </button>
+              {availableStatuses.map((status) => (
                 <button
-                  onClick={() => setViewFilterStatus("ALL")}
+                  key={status}
+                  onClick={() => setViewFilterStatus(status)}
                   className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${
-                    viewFilterStatus === "ALL"
+                    viewFilterStatus === status
                       ? (isDark ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700")
                       : (isDark ? "text-secondary hover:text-primary" : "text-secondary hover:text-slate-700")
                   }`}
                 >
-                  All ({clientContractCounts.ALL || 0})
+                  {status === "ACTIVE" ? "🟢" : "⚫"} {status} ({clientContractCounts[status] || 0})
                 </button>
-                {availableStatuses.map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setViewFilterStatus(status)}
-                    className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${
-                      viewFilterStatus === status
-                        ? (isDark ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-50 text-indigo-700")
-                        : (isDark ? "text-secondary hover:text-primary" : "text-secondary hover:text-slate-700")
-                    }`}
-                  >
-                    {status === "ACTIVE" ? "🟢" : "⚫"} {status} ({clientContractCounts[status] || 0})
-                  </button>
-                ))}
-              </div>
+              ))}
             </div>
 
             {filteredClientContracts.length === 0 ? (
@@ -3216,34 +389,22 @@ export function Contracts() {
                               {contract.type === "CONTRACT" ? "Contract" : "Work Order"}
                             </Badge>
                             <span className="font-mono text-xs text-secondary">{contract.contract_no}</span>
-                            {contract.external_contract_no && (
-                              <span className="text-xs text-muted font-mono">({contract.external_contract_no})</span>
-                            )}
                           </div>
                           <h4 className="text-sm font-semibold text-primary">{contract.contract_title}</h4>
                         </div>
-                        <Badge tone={contract.status === "ACTIVE" ? "emerald" : "slate"}>
-                          {contract.status}
-                        </Badge>
+                        <Badge tone={contract.status === "ACTIVE" ? "emerald" : "slate"}>{contract.status}</Badge>
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-secondary">{contract.start_date} → {contract.end_date}</span>
                         <span className="font-semibold text-primary">{formatCurrency(contract.total_value, contract.currency)}</span>
                       </div>
                       <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-100"}`}>
-                        {(() => {
-                          const progress = calculateProgressFromTariffs(contract);
-                          return (
-                            <div
-                              className={`h-full rounded-full ${getProgressColor(progress)}`}
-                              style={{ width: `${Math.min(progress, 100)}%` }}
-                            />
-                          );
-                        })()}
+                        <div
+                          className={`h-full rounded-full ${getProgressColor(progress)}`}
+                          style={{ width: `${Math.min(progress, 100)}%` }}
+                        />
                       </div>
-                      <div className="text-[10px] text-secondary mt-1">
-                        {progress.toFixed(0)}% performed
-                      </div>
+                      <div className="text-[10px] text-secondary mt-1">{progress.toFixed(0)}% performed</div>
                     </div>
                   );
                 })}
@@ -3257,8 +418,6 @@ export function Contracts() {
                   setIsClientContractsOpen(false);
                   setClientContractsList([]);
                   setSelectedClientForView(null);
-                  setViewFilterType("ALL");
-                  setViewFilterStatus("ALL");
                 }}
               >
                 Close
@@ -3268,7 +427,7 @@ export function Contracts() {
         )}
       </Modal>
 
-      {/* MODAL تایید تکمیل قرارداد */}
+      {/* 🔑 MODAL تایید تکمیل قرارداد */}
       <Modal
         isOpen={confirmCompleteOpen}
         onClose={() => {

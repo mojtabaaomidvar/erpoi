@@ -1,15 +1,15 @@
-# Graph Report - src  (2026-06-21)
+# Graph Report - src  (2026-06-23)
 
 ## Corpus Check
 - cluster-only mode — file stats not available
 
 ## Summary
-- 187 nodes · 332 edges · 14 communities (12 shown, 2 thin omitted)
+- 232 nodes · 558 edges · 10 communities
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0a27fe2c`
+- Built from commit: `b2c8c09d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -22,94 +22,91 @@
 - [[_COMMUNITY_Community 5|Community 5]]
 - [[_COMMUNITY_Community 6|Community 6]]
 - [[_COMMUNITY_Community 7|Community 7]]
-- [[_COMMUNITY_Community 9|Community 9]]
-- [[_COMMUNITY_Community 10|Community 10]]
-- [[_COMMUNITY_Community 12|Community 12]]
+- [[_COMMUNITY_Community 8|Community 8]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `cn()` - 19 edges
-2. `useTheme()` - 14 edges
-3. `Badge()` - 9 edges
-4. `Button()` - 9 edges
-5. `Card()` - 9 edges
-6. `formatCurrency()` - 9 edges
-7. `StatusPill()` - 6 edges
-8. `Avatar()` - 5 edges
-9. `CardHeader()` - 5 edges
-10. `Contracts()` - 5 edges
+1. `useTheme()` - 25 edges
+2. `cn()` - 19 edges
+3. `formatCurrency()` - 16 edges
+4. `Button()` - 14 edges
+5. `Badge()` - 13 edges
+6. `calculateDaysLeft()` - 10 edges
+7. `getDaysUntilStart()` - 10 edges
+8. `Contract` - 10 edges
+9. `Card()` - 9 edges
+10. `ContractDetails()` - 9 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `AppContent()` --calls--> `useTheme()`  [EXTRACTED]
-  App.tsx → contexts/ThemeContext.tsx
-- `Sidebar()` --calls--> `cn()`  [EXTRACTED]
-  components/Sidebar.tsx → lib/cn.ts
 - `ClientSelectorModal()` --calls--> `useTheme()`  [EXTRACTED]
-  views/Contracts.tsx → contexts/ThemeContext.tsx
-- `Contracts()` --calls--> `useTheme()`  [EXTRACTED]
-  views/Contracts.tsx → contexts/ThemeContext.tsx
-- `JalaaliDatePicker()` --calls--> `useTheme()`  [EXTRACTED]
-  views/Contracts.tsx → contexts/ThemeContext.tsx
+  components/ClientSelectorModal.tsx → contexts/ThemeContext.tsx
+- `TariffEditor()` --calls--> `useTheme()`  [EXTRACTED]
+  components/TariffEditor.tsx → contexts/ThemeContext.tsx
+- `ContractDetails()` --calls--> `useTheme()`  [EXTRACTED]
+  views/contracts/components/ContractDetails.tsx → contexts/ThemeContext.tsx
+- `ContractForm()` --calls--> `useTheme()`  [EXTRACTED]
+  views/contracts/components/ContractForm.tsx → contexts/ThemeContext.tsx
+- `ContractList()` --calls--> `useTheme()`  [EXTRACTED]
+  views/contracts/components/ContractList.tsx → contexts/ThemeContext.tsx
 
 ## Import Cycles
 - None detected.
 
-## Communities (14 total, 2 thin omitted)
+## Communities (10 total, 0 thin omitted)
 
 ### Community 0 - "Community 0"
-Cohesion: 0.11
-Nodes (19): AppContent(), meta, Header(), HeaderProps, navItems, Sidebar(), SidebarProps, ViewKey (+11 more)
+Cohesion: 0.08
+Nodes (26): Avatar(), AvatarProps, BadgeProps, BadgeTone, ButtonProps, ButtonVariant, CardProps, CardHeaderProps (+18 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.10
-Nodes (20): ClientSelectorProps, Client, clients, ContactPerson, Contract, contracts, contractTariffs, Inspection (+12 more)
+Cohesion: 0.08
+Nodes (30): ClientSelectorProps, ClientSelectorModal(), ClientSelectorModalProps, clients, contracts, inspectorPerformance, ncrs, getNextJalaaliYearStart() (+22 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.08
-Nodes (14): calculateDaysLeft(), Client, ClientSelectorModalProps, Contract, Contracts(), CURRENCIES, generateContractNo(), getContractFinancialStatus() (+6 more)
+Cohesion: 0.15
+Nodes (25): ContractDetails(), ContractDetailsProps, ContractFormProps, ContractListProps, contractTariffs, calculateDaysLeft(), calculateDaysProgress(), calculateInvoiceProgress() (+17 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.13
-Nodes (16): Avatar(), AvatarProps, Button(), ButtonProps, ButtonVariant, Card(), CardProps, CardHeader() (+8 more)
+Cohesion: 0.11
+Nodes (22): AppContent(), meta, Header(), HeaderProps, JalaaliDatePicker(), JalaaliDatePickerProps, navItems, Sidebar() (+14 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.15
-Nodes (14): Badge(), BadgeProps, BadgeTone, StatusPill(), StatusPillProps, StatusType, inspectors, contractHealth() (+6 more)
+Cohesion: 0.10
+Nodes (12): VirtualClientListProps, exportToExcel(), formatDate(), validateMobile(), validateNationalCode(), validateNationalId(), calculatePerformedWorkValue(), calculateTotalInvoicedFromTariffs() (+4 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.13
-Nodes (8): VirtualClientListProps, exportToExcel(), calculatePerformedWorkValue(), calculateTotalInvoicedFromTariffs(), calculateUninvoicedWork(), Client, ContactPerson, Contract
+Cohesion: 0.12
+Nodes (18): ATTACHMENT_CATEGORIES, ContractAttachment, ContractAttachmentsEditor(), ContractAttachmentsEditorProps, ContractForm(), ContractList(), CURRENCIES, TariffEditor() (+10 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.17
-Nodes (9): Theme, ThemeContext, ThemeContextType, useTheme(), colors, themeColors, borderRadius, spacing (+1 more)
+Cohesion: 0.21
+Nodes (15): Badge(), Button(), Card(), CardHeader(), StatusPill(), inspections, inspectionsByDiscipline, inspectionsByMonth (+7 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.25
 Nodes (4): CONTRACT_STATUSES, CONTRACT_TYPES, ContractStatusType, ContractType
 
-### Community 9 - "Community 9"
-Cohesion: 0.40
-Nodes (3): TariffEditorProps, TariffLine, UNITS
+### Community 8 - "Community 8"
+Cohesion: 0.32
+Nodes (4): loadFromStorage(), saveToStorage(), storage, STORAGE_KEYS
 
 ## Knowledge Gaps
-- **55 isolated node(s):** `meta`, `ClientSelectorProps`, `HeaderProps`, `JalaaliDatePickerProps`, `SidebarProps` (+50 more)
+- **58 isolated node(s):** `meta`, `ClientSelectorProps`, `ClientSelectorModalProps`, `ContractAttachment`, `ATTACHMENT_CATEGORIES` (+53 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **2 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `cn()` connect `Community 3` to `Community 0`, `Community 4`?**
-  _High betweenness centrality (0.035) - this node is a cross-community bridge._
-- **Why does `useTheme()` connect `Community 0` to `Community 2`, `Community 5`?**
-  _High betweenness centrality (0.030) - this node is a cross-community bridge._
-- **Why does `Badge()` connect `Community 4` to `Community 1`, `Community 2`, `Community 3`, `Community 5`?**
+- **Why does `useTheme()` connect `Community 3` to `Community 0`, `Community 1`, `Community 2`, `Community 4`, `Community 5`?**
+  _High betweenness centrality (0.051) - this node is a cross-community bridge._
+- **Why does `cn()` connect `Community 0` to `Community 2`, `Community 3`, `Community 6`?**
+  _High betweenness centrality (0.032) - this node is a cross-community bridge._
+- **Why does `Badge()` connect `Community 6` to `Community 0`, `Community 1`, `Community 2`, `Community 4`, `Community 5`?**
   _High betweenness centrality (0.023) - this node is a cross-community bridge._
-- **What connects `meta`, `ClientSelectorProps`, `HeaderProps` to the rest of the system?**
-  _55 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `meta`, `ClientSelectorProps`, `ClientSelectorModalProps` to the rest of the system?**
+  _58 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.11396011396011396 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07665505226480836 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.09971509971509972 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07692307692307693 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.08262108262108261 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.1497326203208556 - nodes in this community are weakly interconnected._
