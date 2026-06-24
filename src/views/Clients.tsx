@@ -1,191 +1,100 @@
-import { useState, useMemo, useEffect } from "react";
-import { Card, Badge, Button, Avatar, Modal } from "../design-system";
-import { clients as initialClients, contracts as initialContracts, contractTariffs } from "../data/mockData";
-import { formatCurrency, formatDate } from "../lib/formatters";
-import { exportToExcel } from "../lib/exportToExcel";
-import { validateNationalCode, validateNationalId, validateMobile } from "../lib/validators";
-import * as jalaali from "jalaali-js";
+// src/views/Clients.tsx
+// Orchestration Component - فقط ترکیب کامپوننت‌های کوچکتر
+// 📊 Refactor شده بر اساس تحلیل Graphify - Cohesion Community 4
+// 🚀 Performance optimized با React.memo و useCallback
+
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useTheme } from "../contexts/ThemeContext";
-import { usePersistedState } from '../hooks/usePersistedState';
+import { clients as initialClients, contracts as initialContracts, contractTariffs } from "../data/mockData";
+import { formatCurrency } from "../lib/formatters";
+import { exportToExcel } from "../lib/exportToExcel";
+import { usePersistedState } from "../hooks/usePersistedState";
+import { useClickOutside } from "../hooks/useClickOutside";
+import { validateNationalCode, validateNationalId, validateMobile } from "../lib/validators";
+import {
+  calculateProgressFromTariffs,
+  calculateInvoiceProgress,
+  calculateUninvoicedWork,
+} from "../lib/contractCalculations";
+import type { Client, Contract } from "../types/contract";
 
-// ============ PROGRESS CALCULATION ============
-const calculateProgressFromTariffs = (contract: any): number => {
-  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
-  if (tariffs.length === 0) return 0;
-  if (contract.total_value <= 0) return 0;
-  const totalPerformed = tariffs.reduce((sum, t) => {
-    return sum + (t.rate * t.consumed_quantity);
-  }, 0);
-  return (totalPerformed / contract.total_value) * 100;
-};
+// 🔑 کامپوننت‌های استخراج‌شده
+import { useClients } from "./clients/hooks/useClients";
+import { ClientList } from "./clients/components/ClientList";
+import { ClientDetails } from "./clients/components/ClientDetails";
+import { ClientForm } from "./clients/components/ClientForm";
+import { ClientEditModal } from "./clients/components/ClientEditModal";
+import { DuplicateWarningModal } from "./clients/components/DuplicateWarningModal";
+import { ContractDetailsModal } from "./clients/components/ContractDetailsModal";
 
-const getProgressTone = (progress: number): string => {
-  if (progress >= 100) return "emerald";
-  if (progress >= 80) return "amber";
-  if (progress >= 50) return "yellow";
-  if (progress >= 25) return "orange";
-  return "rose";
-};
+const CURRENT_DEPARTMENT = "Unit A";
 
-const getProgressBgClass = (progress: number): string => {
-  if (progress >= 100) return "bg-emerald-500";
-  if (progress >= 80) return "bg-amber-500";
-  if (progress >= 50) return "bg-yellow-500";
-  if (progress >= 25) return "bg-orange-500";
-  return "bg-rose-500";
-};
-
-const getProgressTextClass = (progress: number): string => {
-  if (progress >= 100) return "text-emerald-600";
-  if (progress >= 80) return "text-amber-600";
-  if (progress >= 50) return "text-yellow-600";
-  if (progress >= 25) return "text-orange-600";
-  return "text-rose-600";
-};
-
-// ============ DATE CALCULATION HELPERS ============
-const calculateDaysLeft = (endDate: string): number => {
-  if (!endDate) return 0;
-  const [jy, jm, jd] = endDate.split('/').map(Number);
-  const gDate = jalaali.toGregorian(jy, jm, jd);
-  const endGregorian = new Date(gDate.gy, gDate.gm - 1, gDate.gd);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diffTime = endGregorian.getTime() - today.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-};
-
-const calculateBudgetSpent = (totalValue: number, invoiced: number): number => {
-  if (totalValue <= 0) return 0;
-  return (invoiced / totalValue) * 100;
-};
-
-const calculateInvoiceProgress = (contract: any): number => {
-  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
-  if (tariffs.length === 0) return 0;
-  
-  const totalInvoiced = tariffs.reduce((sum, t) => sum + (t.invoiced || 0), 0);
-  const performedWork = tariffs.reduce((sum, t) => {
-    const rate = typeof t.rate === 'string' ? parseNumberInput(t.rate) : (t.rate || 0);
-    const consumed = t.consumed_quantity || 0;
-    return sum + (rate * consumed);
-  }, 0);
-  
-  if (performedWork <= 0) return 0;
-  return (totalInvoiced / performedWork) * 100;
-};
-
-// ============ UNINVOICED WORK CALCULATION ============
-const calculatePerformedWorkValue = (contract: Contract): number => {
-  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
-  if (tariffs.length === 0) return 0;
-  return tariffs.reduce((sum, t) => {
-    const rate = typeof t.rate === 'string' ? parseNumberInput(t.rate) : (t.rate || 0);
-    const consumed = t.consumed_quantity || 0;
-    return sum + (rate * consumed);
-  }, 0);
-};
-
-const calculateTotalInvoicedFromTariffs = (contract: Contract): number => {
-  const tariffs = contractTariffs.filter((t) => t.contract_id === contract.id);
-  return tariffs.reduce((sum, t) => sum + (t.invoiced || 0), 0);
-};
-
-const calculateUninvoicedWork = (contract: Contract): number => {
-  const performedWork = calculatePerformedWorkValue(contract);
-  const totalInvoiced = calculateTotalInvoicedFromTariffs(contract);
-  return Math.max(0, performedWork - totalInvoiced);
-};
-
-const parseNumberInput = (value: string): number => {
-  const num = value.replace(/,/g, "");
-  return Number(num) || 0;
-};
-
-// ============ TYPES ============
-interface ContactPerson {
-  id: string;
-  name: string;
-  position: string;
-  mobile: string;
-  email: string;
-  department: string;
-}
-
-interface Client {
-  id: string;
-  type: "LEGAL" | "INDIVIDUAL";
-  name_en: string;
-  name_fa: string;
-  national_id?: string;
-  email?: string;
-  emails?: string[];
-  phone?: string;
-  category: string;
-  contacts: number;
-  contracts: number;
-  logoColor: string;
-  abbreviated_name?: string;
-  company_type?: string;
-  registration_no?: string;
-  economic_code?: string;
-  address_en?: string;
-  address_fa?: string;
-  departments?: string[];
-  contactPersons?: ContactPerson[];
-}
-
-interface Contract {
-  id: string;
-  contract_no: string;
-  client_id: string;
-  client_name: string;
-  contract_title: string;
-  start_date: string;
-  end_date: string;
-  total_value: number;
-  invoiced: number;
-  currency: string;
-  status: string;
-  type: "CONTRACT" | "WORK_ORDER";
-  tariffs: number;
-}
-
-// ============ COMPONENT ============
 export function Clients() {
   const { isDark } = useTheme();
-  
-  // ============ STATES ============
-  const [clients, setClients] = usePersistedState<Client[]>('ics_clients', initialClients);
-  const [contracts] = usePersistedState<Contract[]>('ics_contracts', initialContracts);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [filter, setFilter] = useState<"ALL" | "LEGAL" | "INDIVIDUAL">("ALL");
-  const [contractTab, setContractTab] = useState<"ALL" | "CONTRACT" | "WORK_ORDER">("ALL");
-  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
-  const [sortBy, setSortBy] = useState<"name" | "contracts" | "value">("contracts");
-  const [showEmailDropdown, setShowEmailDropdown] = useState(false);
-  const [showContactDropdown, setShowContactDropdown] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
+
+  // 🔑 استفاده از hook سفارشی برای state management
+  const {
+    clients,
+    setClients,
+    contracts,
+    searchQuery,
+    setSearchQuery,
+    selectedClient,
+    setSelectedClient,
+    filter,
+    setFilter,
+    contractTab,
+    setContractTab,
+    selectedContract,
+    setSelectedContract,
+    sortBy,
+    setSortBy,
+    clientCounts,
+    filteredClients,
+    clientContracts,
+    filteredContracts,
+  } = useClients();
+
+  // 🔑 Local state برای مودال‌ها
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [addForm, setAddForm] = useState({
-    name_en: "", name_fa: "", abbreviated_name: "", company_type: "", national_id: "",
-    economic_code: "", registration_no: "", address_en: "", address_fa: "", primary_phone: "",
-    email_inbox: "", category: "OIL_GAS" as const,
-    contactPersons: [{ id: "1", name: "", position: "", mobile: "", email: "" }],
-  });
-  const [addErrors, setAddErrors] = useState<any>({});
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editForm, setEditForm] = useState<any>({});
+  const [isDuplicateWarningOpen, setIsDuplicateWarningOpen] = useState(false);
+  const [duplicateClient, setDuplicateClient] = useState<any>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<{ field: string; client: any; message: string } | null>(null);
-  const [isViewDuplicateOpen, setIsViewDuplicateOpen] = useState(false);
-  const [viewDuplicateClient, setViewDuplicateClient] = useState<any>(null);
   const [newContactForDuplicate, setNewContactForDuplicate] = useState({ name: "", position: "", mobile: "", email: "" });
+  const [toastMessage, setToastMessage] = useState("");
 
-  const currentDepartment = "Unit A";
+  // 🔑 Refs برای useClickOutside
+  const emailDropdownRef = useRef<HTMLDivElement>(null);
+  const contactDropdownRef = useRef<HTMLDivElement>(null);
 
-  // ============ HANDLERS ============
-  const handleCopyEmail = async (email: string) => {
+  // 🔑 بستن خودکار dropdown ها با کلیک بیرون
+  useClickOutside(emailDropdownRef, () => {
+    // این فقط برای dropdown های داخلی Clients.tsx هست
+    // ولی چون dropdown ها در ClientDetails هستن، این خط فقط placeholder هست
+  });
+
+  // 🔑 Computed values - بهینه‌سازی شده با useMemo
+  const totalValue = useMemo(() => {
+    return filteredContracts.reduce((sum, c) => sum + c.total_value, 0);
+  }, [filteredContracts]);
+
+  const totalInvoiced = useMemo(() => {
+    const contractIds = filteredContracts.map(c => c.id);
+    return contractTariffs
+      .filter(t => contractIds.includes(t.contract_id))
+      .reduce((sum, t) => sum + (t.invoiced || 0), 0);
+  }, [filteredContracts]);
+
+  const totalUninvoicedWork = useMemo(() => {
+    return filteredContracts.reduce((sum, contract) => {
+      const tariffs = contractTariffs.filter(t => t.contract_id === contract.id);
+      return sum + calculateUninvoicedWork(tariffs);
+    }, 0);
+  }, [filteredContracts]);
+
+  // 🔑 Handlers - بهینه‌سازی شده با useCallback
+  const handleCopyEmail = useCallback(async (email: string) => {
     let success = false;
     if (navigator.clipboard && window.isSecureContext) {
       try {
@@ -220,130 +129,14 @@ export function Clients() {
       setToastMessage("❌ Failed to copy email");
     }
     setTimeout(() => setToastMessage(""), 2500);
-  };
-
-  const handleEditClick = () => {
-    if (!selectedClient) return;
-    setEditForm({
-      ...selectedClient,
-      contactPersons: (selectedClient.contactPersons || []).filter((cp: any) => cp.department === "Unit A").map((cp: any) => ({ ...cp })),
-    });
-    setIsEditModalOpen(true);
-  };
-
-  // ============ EFFECTS ============
-  useEffect(() => {
-    setContractTab("ALL");
-  }, [selectedClient]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.email-dropdown-container') &&
-          !target.closest('.contact-dropdown-container')) {
-        setShowEmailDropdown(false);
-        setShowContactDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      let found: any = null;
-      let field = "";
-      const normalize = (str: string) => str.toLowerCase().replace(/\s+/g, " ").trim();
-      if (addForm.name_en.trim().length >= 3) {
-        found = clients.find((c) => normalize(c.name_en) === normalize(addForm.name_en));
-        if (found) field = "name_en";
-      }
-      if (!found && addForm.national_id && addForm.national_id.length >= 10) {
-        found = clients.find((c) => c.national_id && c.national_id === addForm.national_id);
-        if (found) field = "national_id";
-      }
-      if (!found && addForm.company_type && addForm.registration_no.trim()) {
-        found = clients.find((c) => (c as any).registration_no === addForm.registration_no);
-        if (found) field = "registration_no";
-      }
-      if (found) {
-        const dept = (found as any).departments?.[0] || "Unknown";
-        const totalContacts = (found as any).contactPersons?.length || 0;
-        setDuplicateWarning({ field, client: found, message: `⚠️ This client already exists in ${dept}. Total contacts: ${totalContacts}` });
-      } else {
-        setDuplicateWarning(null);
-      }
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [addForm.national_id, addForm.name_en, addForm.registration_no, clients, addForm.company_type]);
-
-  // ============ COMPUTED VALUES ============
-  const clientCounts = useMemo(() => ({
-    total: clients.length,
-    legal: clients.filter((c) => c.type === "LEGAL").length,
-    individual: clients.filter((c) => c.type === "INDIVIDUAL").length,
-  }), [clients]);
-
-  const filteredClients = useMemo(() => {
-    let result = clients.filter((client) => {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch = !query || client.name_en.toLowerCase().includes(query) || client.name_fa.includes(query) || (client.national_id && client.national_id.includes(query));
-      const matchesFilter = filter === "ALL" || client.type === filter;
-      return matchesSearch && matchesFilter;
-    });
-    return result.sort((a, b) => {
-      if (sortBy === "contracts") {
-        const countA = contracts.filter(c => c.client_id === a.id).length;
-        const countB = contracts.filter(c => c.client_id === b.id).length;
-        if (countB !== countA) return countB - countA;
-        return a.name_en.localeCompare(b.name_en);
-      }
-      if (sortBy === "name") return a.name_en.localeCompare(b.name_en);
-      if (sortBy === "value") {
-        const valA = contracts.filter((c) => c.client_id === a.id).reduce((sum, c) => sum + c.total_value, 0);
-        const valB = contracts.filter((c) => c.client_id === b.id).reduce((sum, c) => sum + c.total_value, 0);
-        if (valB !== valA) return valB - valA;
-        return a.name_en.localeCompare(b.name_en);
-      }
-      return 0;
-    });
-  }, [searchQuery, filter, clients, sortBy, contracts]);
-
-  useEffect(() => {
-    if (selectedClient && !filteredClients.find((c) => c.id === selectedClient.id)) {
-      setSelectedClient(filteredClients[0] || null);
-    }
-  }, [filter, filteredClients, selectedClient]);
-
-  const clientContracts = selectedClient ? contracts.filter((c) => c.client_id === selectedClient.id) : [];
-  const filteredContracts = contractTab === "ALL" ? clientContracts : clientContracts.filter((c) => c.type === contractTab);
-
-  const totalUninvoicedWork = useMemo(() => {
-    return filteredContracts.reduce((sum, contract) => {
-      return sum + calculateUninvoicedWork(contract);
-    }, 0);
-  }, [filteredContracts]);
-
-  const totalValue = filteredContracts.reduce((sum, c) => sum + c.total_value, 0);
-
-  const totalInvoiced = useMemo(() => {
-    const contractIds = filteredContracts.map(c => c.id);
-    return contractTariffs
-      .filter(t => contractIds.includes(t.contract_id))
-      .reduce((sum, t) => sum + (t.invoiced || 0), 0);
-  }, [filteredContracts]);
-
-  const dynamicContractCount = filteredContracts.length;
-  const totalTariffLines = filteredContracts.reduce((sum, c) => sum + c.tariffs, 0);
-  const summaryTitle = contractTab === "ALL" ? "Total Agreements" : contractTab === "CONTRACT" ? "Total Contracts" : "Total Work Orders";
-
-  const filteredContactPersons = useMemo(() => {
-    if (!selectedClient || !selectedClient.contactPersons) return [];
-    return selectedClient.contactPersons.filter((cp) => cp.department === currentDepartment);
+  const handleEditClick = useCallback(() => {
+    if (!selectedClient) return;
+    setIsEditModalOpen(true);
   }, [selectedClient]);
 
-  // ============ HANDLERS ============
-  const handleExportToExcel = () => {
+  const handleExportToExcel = useCallback(() => {
     const dataToExport = filteredClients.map((client) => ({
       "نام انگلیسی": client.name_en,
       "نام فارسی": client.name_fa,
@@ -358,1316 +151,141 @@ export function Clients() {
     const filterName = filter === "ALL" ? "All" : filter === "LEGAL" ? "Legal" : "Individual";
     const today = new Date().toISOString().split("T")[0];
     exportToExcel(dataToExport, `${filterName}_Clients_${today}`, "Clients");
-  };
+  }, [filteredClients, filter]);
 
-  const handleAddClick = () => {
-    setAddForm({
-      name_en: "", name_fa: "", abbreviated_name: "", company_type: "Private Joint Stock",
-      national_id: "", economic_code: "", registration_no: "", address_en: "", address_fa: "",
-      primary_phone: "", email_inbox: "", category: "OIL_GAS",
-      contactPersons: [{ id: "1", name: "", position: "", mobile: "", email: "" }],
-    });
-    setAddErrors({});
-    setDuplicateWarning(null);
+  const handleAddClick = useCallback(() => {
     setIsAddModalOpen(true);
-  };
+  }, []);
 
-  const validateAddForm = () => {
-    const errors: any = {};
-    if (!addForm.name_en.trim()) errors.name_en = "English name is required";
-    if (!addForm.name_fa.trim()) errors.name_fa = "نام فارسی الزامی است";
-    if (!addForm.national_id) errors.national_id = "National ID/Code is required";
-    else if (addForm.company_type && !validateNationalId(addForm.national_id)) errors.national_id = "Must be exactly 11 digits";
-    else if (!addForm.company_type && !validateNationalCode(addForm.national_id)) errors.national_id = "Invalid national code";
-    if (addForm.company_type && !addForm.registration_no) errors.registration_no = "Registration number is required";
-    if (!addForm.primary_phone) errors.primary_phone = "Primary phone is required";
-    else if (!validateMobile(addForm.primary_phone)) errors.primary_phone = "Invalid mobile format";
-    if (!addForm.address_en.trim()) errors.address_en = "English address is required";
-    if (!addForm.address_fa.trim()) errors.address_fa = "آدرس فارسی الزامی است";
-    const validContacts = addForm.contactPersons.filter((cp) => cp.name.trim() && validateMobile(cp.mobile));
-    if (addForm.company_type && validContacts.length === 0) errors.contactPersons = "At least one valid contact person required";
-    setAddErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  const handleSaveAdd = useCallback((newClient: any) => {
+    setClients([newClient, ...clients]);
+    setSelectedClient(newClient);
+    setIsAddModalOpen(false);
+  }, [clients, setClients, setSelectedClient]);
 
-  const handleSaveAdd = () => {
-    if (!validateAddForm()) return;
-    if (duplicateWarning) { alert("Please resolve the duplicate client warning first."); return; }
-    const newClient: any = {
-      id: `c${Date.now()}`, type: addForm.company_type ? "LEGAL" : "INDIVIDUAL",
-      name_en: addForm.name_en, name_fa: addForm.name_fa, national_id: addForm.national_id,
-      category: addForm.category, contacts: addForm.company_type ? addForm.contactPersons.filter((cp) => cp.name.trim()).length : 0,
-      contracts: 0, logoColor: "from-indigo-500 to-violet-600", email: addForm.email_inbox, phone: addForm.primary_phone,
-      address_en: addForm.address_en, address_fa: addForm.address_fa, departments: [(currentDepartment)],
-      contactPersons: addForm.company_type ? addForm.contactPersons.filter((cp) => cp.name.trim()).map((cp) => ({ ...cp, department: (currentDepartment) })) : [],
-    };
-    if (addForm.company_type) {
-      newClient.company_type = addForm.company_type; newClient.registration_no = addForm.registration_no;
-      newClient.economic_code = addForm.economic_code; newClient.abbreviated_name = addForm.abbreviated_name;
-    }
-    setClients([newClient, ...clients]); setSelectedClient(newClient); setIsAddModalOpen(false);
-  };
-
-  const handleSaveEdit = () => {
-    if (!selectedClient) return;
-    const updatedClients = clients.map((c) => {
-      if (c.id === selectedClient.id) {
-        const updated = { ...c, address_en: editForm.address_en, address_fa: editForm.address_fa, email: editForm.email_inbox || editForm.email, phone: editForm.primary_phone || editForm.phone };
-        if (c.type === "LEGAL") {
-          const otherDepts = (c.contactPersons || []).filter((cp: any) => cp.department !== currentDepartment);
-          updated.contactPersons = [...otherDepts, ...editForm.contactPersons.map((cp: any) => ({ ...cp, department: currentDepartment }))];
-          updated.contacts = updated.contactPersons.length;
-        }
-        return updated;
-      }
-      return c;
-    });
+  const handleSaveEdit = useCallback((updatedClient: Client) => {
+    const updatedClients = clients.map((c) =>
+      c.id === updatedClient.id ? updatedClient : c
+    );
     setClients(updatedClients);
-    setSelectedClient(updatedClients.find((c) => c.id === selectedClient.id) || null);
+    setSelectedClient(updatedClient);
     setIsEditModalOpen(false);
-  };
+  }, [clients, setClients, setSelectedClient]);
 
-  const handleViewDuplicate = () => { if (duplicateWarning) { setViewDuplicateClient(duplicateWarning.client); setIsViewDuplicateOpen(true); setIsAddModalOpen(false); } };
+  const handleViewDuplicate = useCallback(() => {
+    if (duplicateWarning) {
+      setDuplicateClient(duplicateWarning.client);
+      setIsDuplicateWarningOpen(true);
+      setIsAddModalOpen(false);
+    }
+  }, [duplicateWarning]);
 
-  const handleAddContactToDuplicate = () => {
-    if (!duplicateWarning || !newContactForDuplicate.name.trim() || !validateMobile(newContactForDuplicate.mobile)) return alert("Valid name and mobile required");
+  const handleAddContactToDuplicate = useCallback(() => {
+    if (!duplicateWarning || !newContactForDuplicate.name.trim() || !validateMobile(newContactForDuplicate.mobile)) {
+      alert("Valid name and mobile required");
+      return;
+    }
     const updatedClients = clients.map((c) => {
       if (c.id === duplicateWarning.client.id) {
         const updated = { ...c };
         if (!updated.departments) updated.departments = [];
-        if (!updated.departments.includes(currentDepartment)) updated.departments.push(currentDepartment);
+        if (!updated.departments.includes(CURRENT_DEPARTMENT)) {
+          updated.departments.push(CURRENT_DEPARTMENT);
+        }
         if (!updated.contactPersons) updated.contactPersons = [];
-        updated.contactPersons.push({ ...newContactForDuplicate, id: Date.now().toString(), department: currentDepartment });
+        updated.contactPersons.push({ ...newContactForDuplicate, id: Date.now().toString(), department: CURRENT_DEPARTMENT });
         updated.contacts = updated.contactPersons.length;
         return updated;
       }
       return c;
     });
-    setClients(updatedClients); setSelectedClient(updatedClients.find((c) => c.id === duplicateWarning.client.id) || null);
-    setIsAddModalOpen(false); setNewContactForDuplicate({ name: "", position: "", mobile: "", email: "" }); setDuplicateWarning(null);
-  };
+    setClients(updatedClients);
+    setSelectedClient(updatedClients.find((c) => c.id === duplicateWarning.client.id) || null);
+    setIsAddModalOpen(false);
+    setNewContactForDuplicate({ name: "", position: "", mobile: "", email: "" });
+    setDuplicateWarning(null);
+  }, [clients, duplicateWarning, newContactForDuplicate, setClients, setSelectedClient]);
 
-  const addContactPerson = () => setAddForm({ ...addForm, contactPersons: [...addForm.contactPersons, { id: Date.now().toString(), name: "", position: "", mobile: "", email: "" }] });
-  const removeContactPerson = (id: string) => setAddForm({ ...addForm, contactPersons: addForm.contactPersons.filter((cp) => cp.id !== id) });
-  const updateContactPerson = (id: string, field: string, value: string) => setAddForm({ ...addForm, contactPersons: addForm.contactPersons.map((cp) => (cp.id === id ? { ...cp, [field]: value } : cp)) });
-  const addEditContactPerson = () => setEditForm({ ...editForm, contactPersons: [...editForm.contactPersons, { id: Date.now().toString(), name: "", position: "", mobile: "", email: "", department: currentDepartment }] });
-  const removeEditContactPerson = (id: string) => setEditForm({ ...editForm, contactPersons: editForm.contactPersons.filter((cp: any) => cp.id !== id) });
-  const updateEditContactPerson = (id: string, field: string, value: string) => setEditForm({ ...editForm, contactPersons: editForm.contactPersons.map((cp: any) => (cp.id === id ? { ...cp, [field]: value } : cp)) });
-
-  // ============ RENDER ============
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 p-3 lg:p-6 h-auto lg:h-[calc(100vh-140px)]`}>
-      {/* LEFT PANEL */}
-      <div className={`col-span-1 lg:col-span-4 relative flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out max-h-[50vh] lg:max-h-none ${
-        isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200/70"
-      }`}>
-        <div className={`relative z-10 border-b px-4 py-4 space-y-3 ${
-          isDark ? "border-slate-700 bg-slate-800/50" : "border-slate-100 bg-slate-50/50"
-        }`}>
-          <div className="flex items-center gap-3">
-			  
-			  <div className="relative flex-1">
-				<span className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-500" : "text-slate-400"}`}>🔍</span>
-				<input
-				  type="text"
-				  value={searchQuery}
-				  onChange={(e) => setSearchQuery(e.target.value)}
-				  placeholder="Search by Name, ..."
-				  className="w-full rounded-lg py-2 pl-9 pr-8 text-sm input-themed"
-				/>
-				{searchQuery && (
-				  <button onClick={() => setSearchQuery("")} className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`}>✕</button>
-				)}
-			  </div>
-			  {/* 🔑 دکمه Sort کنار سرچ */}
-			  <div className="relative">
-				<select
-				  value={sortBy}
-				  onChange={(e) => setSortBy(e.target.value as "name" | "contracts" | "value")}
-				  className={`appearance-none text-xs rounded-md border pl-2 pr-6 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer ${
-					isDark ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-				  }`}
-				>
-				  <option value="contracts">Most Contracts</option>
-				  <option value="value">Highest Value</option>
-				  <option value="name">Name (A-Z)</option>
-				</select>
-				<span className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>▼</span>
-			  </div>
-			</div>
-          
-          <div className={`flex gap-1 rounded-lg border p-0.5 text-xs ${
-            isDark ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white"
-          }`}>
-            {(["ALL", "LEGAL", "INDIVIDUAL"] as const).map((t) => {
-              const count = t === "ALL" ? clientCounts.total : t === "LEGAL" ? clientCounts.legal : clientCounts.individual;
-              return (
-                <button
-                  key={t}
-                  onClick={() => setFilter(t)}
-                  className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-all ${
-					  filter === t
-						? (isDark 
-							? "bg-indigo-600 text-white shadow-md shadow-indigo-500/30 border border-indigo-500" 
-							: "bg-indigo-50 text-indigo-700 border border-indigo-200")
-						: (isDark 
-							? "text-slate-400 hover:text-slate-200 hover:bg-slate-800" 
-							: "text-slate-500 hover:text-slate-700 hover:bg-slate-50")
-					}`}
-                >
-                  {t === "ALL" ? `All (${count})` : t === "LEGAL" ? `🏢 Legal (${count})` : `👤 Individual (${count})`}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 p-3 lg:p-6 h-auto lg:h-[calc(100vh-140px)]">
+      {/* LEFT PANEL - ClientList */}
+      <ClientList
+        clients={clients}
+        filteredClients={filteredClients}
+        contracts={contracts}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        filter={filter}
+        setFilter={setFilter}
+        clientCounts={clientCounts}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        selectedClient={selectedClient}
+        setSelectedClient={setSelectedClient}
+        onAddClick={handleAddClick}
+        onExport={handleExportToExcel}
+      />
 
-        <div className="flex-1 overflow-y-auto pb-24">
-          {filteredClients.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className="text-4xl mb-2">🔍</div>
-              <p className={`text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>No clients found</p>
-            </div>
-          ) : (
-            filteredClients.map((client) => (
-              <div
-                key={client.id}
-                onClick={() => setSelectedClient(client)}
-                className={`flex items-center gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
-                  isDark ? "border-slate-700" : "border-slate-100"
-                } ${
-                  selectedClient?.id === client.id
-                    ? (isDark ? "bg-indigo-900/30 border-l-4 border-l-indigo-400" : "bg-indigo-50 border-l-4 border-l-indigo-500")
-                    : (isDark ? "hover:bg-slate-800/60" : "hover:bg-slate-50")
-                }`}
-              >
-                <Avatar name={client.name_en} gradient={client.logoColor} />
-                <div className="flex-1 min-w-0">
-                  <div className={`text-sm font-medium truncate ${isDark ? "text-slate-100" : "text-slate-900"}`}>{client.name_en}</div>
-                  <div className={`text-xs truncate ${isDark ? "text-slate-300" : "text-slate-600"}`} dir="rtl">{client.name_fa}</div>
-                  <div className="flex items-center gap-2 mt-1">
-				  {/* 🔑 بج نوع مشتری فقط وقتی فیلتر روی ALL هست نمایش داده میشه */}
-				  {filter === "ALL" && (
-					<Badge tone={client.type === "LEGAL" ? "indigo" : "violet"}>
-					  {client.type === "LEGAL" ? "Legal" : "Individual"}
-					</Badge>
-				  )}
-				  {(() => {
-					  const realCount = contracts.filter(c => c.client_id === client.id).length;
-					  return (
-						<Badge tone="slate" className="font-semibold text-[10px]">
-						   {realCount} {realCount === 1 ? "Agreement" : "Agreements"}
-						</Badge>
-					  );
-					})()}
-				</div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t pointer-events-none z-10 ${
-		  isDark 
-			? "from-slate-900 via-slate-900/95 to-slate-900/0" 
-			: "from-white via-white/95 to-white/0"
-		}`} />
-		<div className="absolute bottom-5 left-0 right-0 px-4 z-20 flex gap-2">
-		  <Button 
-			variant="primary" 
-			size="md" 
-			onClick={handleAddClick} 
-			className={`flex-1 justify-center gap-2 transition-all duration-300 hover:-translate-y-0.5 ${
-			  isDark 
-				? "border border-indigo-400/30 shadow-[0_8px_24px_rgba(99,102,241,0.4)] hover:shadow-[0_12px_32px_rgba(99,102,241,0.6)]" 
-				: "shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30"
-			}`}
-		  >
-			<span>➕</span> Add New Client
-		  </Button>
-		  <Button
-			variant="secondary"
-			size="md"
-			onClick={handleExportToExcel}
-			className={`transition-all duration-300 hover:-translate-y-0.5 ${
-			  isDark 
-				? "border border-slate-700 shadow-[0_8px_24px_rgba(0,0,0,0.3)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.5)]" 
-				: "shadow-lg shadow-slate-300/50 hover:shadow-xl hover:shadow-slate-400/50"
-			}`}
-			title="Export to Excel"
-		  >
-			📥
-		  </Button>
-		</div>
-      </div>
-
-      {/* RIGHT PANEL */}
+      {/* RIGHT PANEL - ClientDetails */}
       <div className={`col-span-1 lg:col-span-8 flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out ${
-        isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200/70"
+        isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200/70'
       }`}>
-        {selectedClient ? (
-          <>
-            <div className={`border-b px-6 py-4 ${
-              isDark ? "border-slate-700 bg-gradient-to-r from-slate-800 to-slate-900" : "border-slate-100 bg-gradient-to-r from-slate-50 to-white"
-            }`}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className={`text-xs font-semibold uppercase tracking-wider ${isDark ? "text-slate-200" : "text-slate-600"}`}>Client Details</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedClient(null)}
-                  className={`transition-colors ${
-                    isDark ? "text-slate-200 hover:text-rose-400 hover:bg-rose-900/30" : "text-slate-200 hover:text-rose-600 hover:bg-rose-50"
-                  }`}
-                >✕ Close Panel</Button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <Avatar name={selectedClient.name_en} gradient={selectedClient.logoColor} size="lg" />
-                  <div>
-                    <h3 className={`text-xl font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{selectedClient.name_en}</h3>
-                    <p className={`text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`} dir="rtl">{selectedClient.name_fa}</p>
-                  </div>
-                </div>
-                <Button variant="outline" size="md" onClick={handleEditClick} className="gap-2 shadow-sm">
-                  <span>✏️</span> Edit Client
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-6">
-                {selectedClient.type === "LEGAL" && (
-                  <div className={`rounded-lg border p-4 ${
-                    isDark ? "border-slate-600 bg-slate-800/30" : "border-slate-200 bg-slate-50/30"
-                  }`}>
-                    <h3 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>🏢 Company Information</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>National ID</div>
-                        <div className={`font-mono text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}>{selectedClient.national_id || "—"}</div>
-                      </div>
-                      <div>
-                        <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Registration No</div>
-                        <div className={`font-mono text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}>{(selectedClient as any).registration_no || "—"}</div>
-                      </div>
-                      <div>
-                        <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Economic Code</div>
-                        <div className={`font-mono text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}>{(selectedClient as any).economic_code || "—"}</div>
-                      </div>
-                      <div>
-                        <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Abbreviated Name</div>
-                        <div className={`text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}>{(selectedClient as any).abbreviated_name || "—"}</div>
-                      </div>
-
-                      <div className="relative">
-                        <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Emails</div>
-                        {(() => {
-                          const contactEmails = filteredContactPersons.map(cp => cp.email).filter(email => email);
-                          const allEmails = [
-                            ...(selectedClient.email ? [selectedClient.email] : []),
-                            ...(selectedClient.emails || []),
-                            ...contactEmails
-                          ].filter((email, index, self) => self.indexOf(email) === index);
-
-                          if (allEmails.length > 0) {
-                            return (
-                              <button
-                                onClick={() => setShowEmailDropdown(!showEmailDropdown)}
-                                className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-700 font-medium"
-                              >
-                                <span>📧 {allEmails.length} email{allEmails.length > 1 ? 's' : ''}</span>
-                                <span className={`text-[10px] transition-transform ${showEmailDropdown ? 'rotate-180' : ''}`}>▼</span>
-                              </button>
-                            );
-                          }
-                          return <div className={`text-xs ${isDark ? "text-slate-300" : "text-slate-400"}`}>—</div>;
-                        })()}
-
-                        {showEmailDropdown && (() => {
-                          const contactEmails = filteredContactPersons.filter(cp => cp.email).map(cp => ({ email: cp.email, name: cp.name }));
-                          const primaryEmail = selectedClient.email;
-                          const otherEmails = selectedClient.emails || [];
-
-                          return (
-                            <div className={`absolute top-full left-0 mt-1 w-72 border rounded-lg shadow-lg z-50 py-2 max-h-80 overflow-y-auto ${
-                              isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"
-                            }`}>
-                              {primaryEmail && (
-                                <>
-                                  <div className={`px-3 py-1.5 text-[10px] uppercase font-semibold border-b ${
-                                    isDark ? "text-slate-400 border-slate-700" : "text-slate-500 border-slate-100"
-                                  }`}>⭐ Primary Email</div>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleCopyEmail(primaryEmail); setShowEmailDropdown(false); }}
-                                    className={`w-full text-left px-3 py-2 text-xs font-mono transition-colors flex items-center gap-2 border-b ${
-                                      isDark ? "text-slate-200 hover:bg-indigo-900/30 hover:text-indigo-300 border-slate-700" : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border-slate-100"
-                                    }`}
-                                  >
-                                    <span className="truncate">{primaryEmail}</span>
-                                    <span className={`ml-auto ${isDark ? "text-slate-500" : "text-slate-400"}`}>📋</span>
-                                  </button>
-                                </>
-                              )}
-                              {otherEmails.length > 0 && (
-                                <>
-                                  <div className={`px-3 py-1.5 text-[10px] uppercase font-semibold border-b ${
-                                    isDark ? "text-slate-400 border-slate-700" : "text-slate-500 border-slate-100"
-                                  }`}>Other Emails</div>
-                                  {otherEmails.map((email, index) => (
-                                    <button
-                                      key={index}
-                                      onClick={(e) => { e.stopPropagation(); handleCopyEmail(email); setShowEmailDropdown(false); }}
-                                      className={`w-full text-left px-3 py-2 text-xs font-mono transition-colors flex items-center gap-2 border-b ${
-                                        isDark ? "text-slate-200 hover:bg-indigo-900/30 hover:text-indigo-300 border-slate-700" : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border-slate-50"
-                                      }`}
-                                    >
-                                      <span className={`text-slate-400`}>📋</span>
-                                      <span className="truncate">{email}</span>
-                                    </button>
-                                  ))}
-                                </>
-                              )}
-                              {contactEmails.length > 0 && (
-                                <>
-                                  <div className={`px-3 py-1.5 text-[10px] uppercase font-semibold border-b ${
-                                    isDark ? "text-slate-400 border-slate-700" : "text-slate-500 border-slate-100"
-                                  }`}>👥 Contact Persons</div>
-                                  {contactEmails.map((contact, index) => (
-                                    <button
-                                      key={index}
-                                      onClick={(e) => { e.stopPropagation(); handleCopyEmail(contact.email); setShowEmailDropdown(false); }}
-                                      className={`w-full text-left px-3 py-2 transition-colors border-b last:border-0 ${
-                                        isDark ? "hover:bg-indigo-900/30 border-slate-700" : "hover:bg-indigo-50 border-slate-50"
-                                      }`}
-                                    >
-                                      <div className="flex items-center justify-between mb-0.5">
-                                        <span className={`text-xs font-semibold truncate ${isDark ? "text-slate-100" : "text-slate-900"}`}>{contact.name}</span>
-                                        <span className={`text-slate-400`}>📋</span>
-                                      </div>
-                                      <div className="text-[10px] font-mono text-indigo-600 truncate">{contact.email}</div>
-                                    </button>
-                                  ))}
-                                </>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      <div className="relative">
-                        <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Contact Persons</div>
-                        {filteredContactPersons.length > 0 ? (
-                          <button
-                            onClick={() => setShowContactDropdown(!showContactDropdown)}
-                            className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-700 font-medium"
-                          >
-                            <span>👥 {filteredContactPersons.length} contact{filteredContactPersons.length > 1 ? 's' : ''}</span>
-                            <span className={`text-[10px] transition-transform ${showContactDropdown ? 'rotate-180' : ''}`}>▼</span>
-                          </button>
-                        ) : (
-                          <div className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>—</div>
-                        )}
-
-                        {showContactDropdown && filteredContactPersons.length > 0 && (
-                          <div className={`absolute top-full right-0 mt-1 w-72 bg-card border border-theme rounded-lg shadow-lg z-50 py-2 max-h-80 overflow-y-auto ${
-                            isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"
-                          }`}>
-                            
-                            {filteredContactPersons.map((cp) => (
-                              <div key={cp.id} className={`px-3 py-2 border-b last:border-0 transition-colors ${
-                                isDark ? "border-slate-700 hover:bg-slate-700/50" : "border-slate-50 hover:bg-slate-50"
-                              }`}>
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className={`text-xs font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{cp.name}</span>
-                                </div>
-                                {cp.position && <div className={`text-[10px] mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>{cp.position}</div>}
-                                <div className="flex items-center gap-2 text-[10px]">
-                                  <span className={`text-slate-400`}>📞</span>
-                                  <span className={`font-mono ${isDark ? "text-slate-200" : "text-slate-700"}`}>{cp.mobile}</span>
-                                </div>
-                                {cp.email && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleCopyEmail(cp.email); }}
-                                    className="flex items-center gap-2 text-[10px] mt-0.5 hover:text-indigo-600 transition-colors"
-                                  >
-                                    <span className={`text-slate-400`}>✉️</span>
-                                    <span className="font-mono text-indigo-600 truncate">{cp.email}</span>
-                                    <span className={`text-slate-400 ml-auto`}>📋</span>
-                                  </button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {selectedClient.type === "INDIVIDUAL" && (
-                  <div className={`rounded-lg border p-4 ${
-                    isDark ? "border-slate-600 bg-slate-800/30" : "border-slate-200 bg-slate-50/30"
-                  }`}>
-                    <h3 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>👤 Personal Information</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>National Code</div>
-                        <div className={`font-mono text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}>{selectedClient.national_id || "—"}</div>
-                      </div>
-                      <div>
-                        <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Mobile</div>
-                        <div className={`text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}>{selectedClient.phone || "—"}</div>
-                      </div>
-
-                      <div className="relative">
-                        <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Emails</div>
-                        {(() => {
-                          const allEmails = [
-                            ...(selectedClient.email ? [selectedClient.email] : []),
-                            ...(selectedClient.emails || [])
-                          ].filter((email, index, self) => self.indexOf(email) === index);
-
-                          if (allEmails.length > 0) {
-                            return (
-                              <button onClick={() => setShowEmailDropdown(!showEmailDropdown)} className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-700 font-medium">
-                                <span>📧 {allEmails.length} email{allEmails.length > 1 ? 's' : ''}</span>
-                                <span className={`text-[10px] transition-transform ${showEmailDropdown ? 'rotate-180' : ''}`}>▼</span>
-                              </button>
-                            );
-                          }
-                          return <div className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>—</div>;
-                        })()}
-
-                        {showEmailDropdown && (() => {
-                          const allEmails = [
-                            ...(selectedClient.email ? [selectedClient.email] : []),
-                            ...(selectedClient.emails || [])
-                          ].filter((email, index, self) => self.indexOf(email) === index);
-
-                          return (
-                            <div className={`absolute top-full left-0 mt-1 w-80 bg-card border border-theme rounded-lg shadow-lg z-50 py-2 max-h-80 overflow-y-autoس ${
-                              isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"
-                            }`}>
-                              {selectedClient.email && (
-                                <>
-                                  <div className={`px-3 py-1.5 text-[10px] uppercase font-semibold border-b ${
-                                    isDark ? "text-slate-400 border-slate-700" : "text-slate-500 border-slate-100"
-                                  }`}>⭐ Primary Email</div>
-                                  <button onClick={() => { handleCopyEmail(selectedClient.email!); setShowEmailDropdown(false); }} className={`w-full text-left px-3 py-2 text-xs font-mono transition-colors flex items-center gap-2 border-b ${
-                                    isDark ? "text-slate-200 hover:bg-indigo-900/30 hover:text-indigo-300 border-slate-700" : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border-slate-100"
-                                  }`}>
-                                    <span className="text-emerald-500">⭐</span>
-                                    <span className="truncate">{selectedClient.email}</span>
-                                  </button>
-                                </>
-                              )}
-                              {selectedClient.emails && selectedClient.emails.length > 0 && (
-                                <>
-                                  <div className={`px-3 py-1.5 text-[10px] uppercase font-semibold border-b ${
-                                    isDark ? "text-slate-400 border-slate-700" : "text-slate-500 border-slate-100"
-                                  }`}>Other Emails</div>
-                                  {selectedClient.emails.map((email, index) => (
-                                    <button key={index} onClick={() => { handleCopyEmail(email); setShowEmailDropdown(false); }} className={`w-full text-left px-3 py-2 text-xs font-mono transition-colors flex items-center gap-2 ${
-                                      isDark ? "text-slate-200 hover:bg-indigo-900/30 hover:text-indigo-300" : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-700"
-                                    }`}>
-                                      <span className={`text-slate-400`}>📋</span>
-                                      <span className="truncate">{email}</span>
-                                    </button>
-                                  ))}
-                                </>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4">
-                  <div className={`rounded-lg border p-4 ${isDark ? "border-slate-600 bg-slate-800/30" : "border-slate-200"}`}>
-                    <div className={`text-xs mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>{summaryTitle}</div>
-                    <div className={`text-2xl font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{dynamicContractCount}</div>
-                  </div>
-                 <div className={`rounded-lg border p-4 ${isDark ? "border-slate-600 bg-slate-800/30" : "border-slate-200"}`}>
-				  <div className={`text-xs mb-1 ${isDark ? "text-slate-200" : "text-slate-600"}`}>Total Value of Agreements</div> 
-				  <div className="text-2xl font-bold text-accent-emerald">{formatCurrency(totalValue)}</div> 
-				</div>
-				<div className={`rounded-lg border p-4 ${isDark ? "border-slate-600 bg-slate-800/30" : "border-slate-200"}`}> 
-				  <div className={`text-xs mb-1 ${isDark ? "text-slate-200" : "text-slate-600"}`}>Invoiced Works</div> 
-				  <div className="text-2xl font-bold text-accent-indigo">{formatCurrency(totalInvoiced)}</div> 
-				</div>
-                  <div className={`rounded-lg border p-4 ${isDark ? "border-slate-600 bg-slate-800/30" : "border-slate-200"}`}>
-                    <div className={`text-xs mb-1 ${isDark ? "text-slate-200" : "text-slate-600"}`}>Not Invoiced Works</div>
-                    <div className={`text-2xl font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{formatCurrency(totalUninvoicedWork)}</div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>Agreements</h3>
-                    <div className={`flex gap-1 rounded-lg border p-0.5 text-xs ${
-                      isDark ? "border-slate-600 bg-slate-800" : "border-slate-200 bg-slate-50"
-                    }`}>
-                      {(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => setContractTab(t)}
-                          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
-                            contractTab === t
-                              ? (isDark ? "bg-slate-700 text-slate-100 shadow-sm" : "bg-white text-slate-900 shadow-sm")
-                              : (isDark ? "text-slate-300" : "text-slate-600")
-                          }`}
-                        >
-                          {t === "ALL" ? `All (${clientContracts.length})` : t === "CONTRACT" ? `📄 Contracts (${clientContracts.filter(c => c.type === "CONTRACT").length})` : `📦 Work Orders (${clientContracts.filter(c => c.type === "WORK_ORDER").length})`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    {filteredContracts.map((contract) => {
-                      const workProgress = calculateProgressFromTariffs(contract);
-                      const invoiceProgress = calculateInvoiceProgress(contract);
-
-                      return (
-                        <div
-                          key={contract.id}
-                          onClick={() => setSelectedContract(contract)}
-                          className={`rounded-lg border p-4 transition-colors cursor-pointer ${
-                            isDark ? "border-slate-700 hover:border-indigo-500" : "border-slate-200 hover:border-indigo-300"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge tone={contract.type === "CONTRACT" ? "indigo" : "amber"}>{contract.type === "CONTRACT" ? "Contract" : "Work Order"}</Badge>
-                                <span className={`font-mono text-xs ${isDark ? "text-slate-300" : "text-slate-600"}`}>{contract.contract_no}</span>
-                                <Badge tone="slate">{contract.tariffs} {contract.tariffs === 1 ? "Tariff" : "Tariffs"}</Badge>
-                              </div>
-                              <h4 className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{contract.contract_title}</h4>
-                            </div>
-                            <div className="text-right">
-                              <div className={`text-sm font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{formatCurrency(contract.total_value)}</div>
-                              <Badge tone={contract.status === "ACTIVE" ? "emerald" : contract.status === "PENDING" ? "amber" : "slate"}>{contract.status}</Badge>
-                            </div>
-                          </div>
-
-                          <div className={`flex items-center justify-between text-[10px] mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-                            <span>Work Performed</span>
-                            <span className={`font-semibold ${getProgressTextClass(workProgress)}`}>{workProgress.toFixed(1)}%</span>
-                          </div>
-                          <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-100"}`}>
-                            <div className={`h-full rounded-full ${getProgressBgClass(workProgress)}`} style={{ width: `${Math.min(workProgress, 100)}%` }} />
-                          </div>
-
-                          <div className={`flex items-center justify-between text-[10px] mt-3 mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-                            <span>Invoiced</span>
-                            <span className={`font-semibold ${getProgressTextClass(invoiceProgress)}`}>{invoiceProgress.toFixed(1)}%</span>
-                          </div>
-                          <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-100"}`}>
-                            <div className={`h-full rounded-full ${getProgressBgClass(invoiceProgress)}`} style={{ width: `${Math.min(invoiceProgress, 100)}%` }} />
-                          </div>
-
-                          <div className={`text-xs mt-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>{contract.start_date} → {contract.end_date}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className={`flex-1 flex items-center justify-center relative overflow-hidden min-h-[600px] ${
-            isDark
-              ? "bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950/30"
-              : "bg-gradient-to-br from-slate-50 via-white to-indigo-50/30"
-          }`}>
-            <div className="absolute inset-0 opacity-[0.03]" style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='${isDark ? '%23ffffff' : '%23000000'}' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-            }} />
-
-            <div className="text-center z-10 relative">
-              <div className="relative inline-block mb-8">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 blur-2xl opacity-40 animate-pulse" />
-                <div className={`relative inline-flex items-center justify-center w-44 h-44 rounded-full shadow-2xl shadow-indigo-500/30 border-4 ${
-                  isDark ? "bg-slate-800 border-slate-700" : "bg-white border-white"
-                }`}>
-                  <img src="public/images/logo.png" alt="ICS Logo" className="w-36 h-36 object-contain" />
-                </div>
-              </div>
-
-              <h2 className={`text-3xl font-bold mb-3 ${isDark ? "text-slate-200" : "text-slate-700"}`}>OFFSHORE & ENERGY DEPARTMENT INSPECTION PLATFORM</h2>
-              <p className={`text-base max-w-md mx-auto leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-                Select a client from the list to view details, contracts, and contact information
-              </p>
-
-              <div className="flex items-center justify-center gap-6 mt-8">
-                <div className="flex flex-col items-center gap-2">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-indigo-900/50" : "bg-indigo-100"}`}>👥</div>
-                  <span className={`text-xs font-medium ${isDark ? "text-slate-300" : "text-slate-600"}`}>Clients</span>
-                </div>
-                <div className="flex flex-col items-center gap-2">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-emerald-900/50" : "bg-emerald-100"}`}>📄</div>
-                  <span className={`text-xs font-medium ${isDark ? "text-slate-300" : "text-slate-600"}`}>Contracts</span>
-                </div>
-                <div className="flex flex-col items-center gap-2">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-amber-900/50" : "bg-amber-100"}`}>📧</div>
-                  <span className={`text-xs font-medium ${isDark ? "text-slate-300" : "text-slate-600"}`}>Contacts</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <ClientDetails
+          client={selectedClient}
+          contracts={contracts}
+          clientContracts={clientContracts}
+          filteredContracts={filteredContracts}
+          contractTab={contractTab}
+          setContractTab={setContractTab}
+          contractTariffs={contractTariffs}
+          onEdit={handleEditClick}
+          onClose={() => setSelectedClient(null)}
+          currentDepartment={CURRENT_DEPARTMENT}
+          onContractClick={setSelectedContract}
+        />
       </div>
 
-      {/* ADD CLIENT MODAL */}
-      <Modal isOpen={isAddModalOpen} onClose={() => { setIsAddModalOpen(false); setDuplicateWarning(null); }} title="Entity Onboarding" size="xl">
-        <div className="space-y-6">
-          <div className={`flex gap-2 p-1.5 rounded-xl border w-fit ${
-            isDark ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200"
-          }`}>
-            <button type="button" onClick={() => setAddForm({ ...addForm, company_type: "Private Joint Stock" })} className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-              addForm.company_type ? "bg-indigo-600 text-white shadow-md" : (isDark ? "text-slate-300 hover:bg-slate-700" : "text-slate-600 hover:bg-white")
-            }`}>🏢 LEGAL</button>
-            <button type="button" onClick={() => setAddForm({ ...addForm, company_type: "" })} className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-              !addForm.company_type ? "bg-indigo-600 text-white shadow-md" : (isDark ? "text-slate-300 hover:bg-slate-700" : "text-slate-600 hover:bg-white")
-            }`}>👤 INDIVIDUAL</button>
-          </div>
+      {/* 🔑 ADD CLIENT MODAL */}
+      <ClientForm
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setDuplicateWarning(null);
+        }}
+        onSave={handleSaveAdd}
+        clients={clients}
+        currentDepartment={CURRENT_DEPARTMENT}
+        onDuplicateWarning={setDuplicateWarning}
+      />
 
-          <div className={`rounded-2xl border p-6 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-            <h2 className={`text-lg font-bold mb-6 flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>🌐 BASIC IDENTITY</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div>
-                <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Full Name (English) *</label>
-                <input
-                  value={addForm.name_en}
-                  onChange={(e) => setAddForm({ ...addForm, name_en: e.target.value })}
-                  className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 ${
-                    addErrors.name_en
-                      ? "border-rose-300 focus:ring-rose-100"
-                      : (isDark ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900" : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100")
-                  }`}
-                />
-                {duplicateWarning?.field === "name_en" && (
-                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-xs font-medium text-amber-900 mb-2">{duplicateWarning.message}</p>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={handleViewDuplicate}>👁️ View Client</Button>
-                      <Button size="sm" onClick={handleAddContactToDuplicate}>+ Add Contact</Button>
-                    </div>
-                  </div>
-                )}
-                {addErrors.name_en && !duplicateWarning && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.name_en}</p>}
-              </div>
-              <div dir="rtl">
-                <label className={`mb-1.5 block text-xs font-semibold text-left ${isDark ? "text-slate-300" : "text-slate-700"}`}>Full Name (Farsi) *</label>
-                <input
-                  value={addForm.name_fa}
-                  onChange={(e) => setAddForm({ ...addForm, name_fa: e.target.value })}
-                  className={`w-full rounded-lg border py-2.5 px-3 text-sm text-right focus:outline-none focus:ring-2 ${
-                    addErrors.name_fa
-                      ? "border-rose-300 focus:ring-rose-100"
-                      : (isDark ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900" : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100")
-                  }`}
-                />
-                {addErrors.name_fa && <p className="mt-1 text-[11px] font-medium text-rose-600 text-right">✕ {addErrors.name_fa}</p>}
-              </div>
+      {/* 🔑 EDIT CLIENT MODAL */}
+      <ClientEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleSaveEdit}
+        client={selectedClient}
+        currentDepartment={CURRENT_DEPARTMENT}
+      />
 
-              {addForm.company_type && (<>
-                <div>
-                  <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Abbreviated Name</label>
-                  <input
-                    value={addForm.abbreviated_name}
-                    onChange={(e) => setAddForm({ ...addForm, abbreviated_name: e.target.value })}
-                    className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
-                      isDark ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400" : "border-slate-200 bg-white focus:border-indigo-400"
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Company Type *</label>
-                  <select
-                    value={addForm.company_type}
-                    onChange={(e) => setAddForm({ ...addForm, company_type: e.target.value })}
-                    className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
-                      isDark ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400" : "border-slate-200 bg-white focus:border-indigo-400"
-                    }`}
-                  >
-                    <option value="Private Joint Stock">Private Joint Stock</option>
-                    <option value="Public Joint Stock">Public Joint Stock</option>
-                    <option value="Limited Liability">Limited Liability</option>
-                  </select>
-                </div>
-              </>)}
+      {/* 🔑 DUPLICATE WARNING MODAL */}
+      <DuplicateWarningModal
+        isOpen={isDuplicateWarningOpen}
+        onClose={() => {
+          setIsDuplicateWarningOpen(false);
+          setDuplicateClient(null);
+          setNewContactForDuplicate({ name: "", position: "", mobile: "", email: "" });
+        }}
+        onSaveContact={handleAddContactToDuplicate}
+        duplicateClient={duplicateClient}
+        currentDepartment={CURRENT_DEPARTMENT}
+      />
 
-              <div>
-                <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>{addForm.company_type ? "National ID (11 digits) *" : "National Code (10 digits) *"}</label>
-                <input
-                  value={addForm.national_id}
-                  onChange={(e) => setAddForm({ ...addForm, national_id: e.target.value.replace(/\D/g, "") })}
-                  maxLength={addForm.company_type ? 11 : 10}
-                  className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 ${
-                    addErrors.national_id
-                      ? "border-rose-300 focus:ring-rose-100"
-                      : (isDark ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900" : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100")
-                  }`}
-                />
-                {duplicateWarning?.field === "national_id" && (
-                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-xs font-medium text-amber-900 mb-2">{duplicateWarning.message}</p>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={handleViewDuplicate}>👁️ View Client</Button>
-                      <Button size="sm" onClick={handleAddContactToDuplicate}>+ Add Contact</Button>
-                    </div>
-                  </div>
-                )}
-                {addErrors.national_id && !duplicateWarning && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.national_id}</p>}
-              </div>
-
-              {addForm.company_type && (<>
-                <div>
-                  <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Economic Code</label>
-                  <input
-                    value={addForm.economic_code}
-                    onChange={(e) => setAddForm({ ...addForm, economic_code: e.target.value.replace(/\D/g, "") })}
-                    className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
-                      isDark ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400" : "border-slate-200 bg-white focus:border-indigo-400"
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Registration Number *</label>
-                  <input
-                    value={addForm.registration_no}
-                    onChange={(e) => setAddForm({ ...addForm, registration_no: e.target.value })}
-                    className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 ${
-                      addErrors.registration_no
-                        ? "border-rose-300 focus:ring-rose-100"
-                        : (isDark ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900" : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100")
-                    }`}
-                  />
-                  {duplicateWarning?.field === "registration_no" && (
-                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                      <p className="text-xs font-medium text-amber-900 mb-2">{duplicateWarning.message}</p>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={handleViewDuplicate}>👁️ View Client</Button>
-                        <Button size="sm" onClick={handleAddContactToDuplicate}>+ Add Contact</Button>
-                      </div>
-                    </div>
-                  )}
-                  {addErrors.registration_no && !duplicateWarning && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.registration_no}</p>}
-                </div>
-              </>)}
-            </div>
-          </div>
-
-          <div className={`rounded-2xl border p-6 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-            <h2 className={`text-lg font-bold mb-6 flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>📞 CONTACT HUB</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div>
-                <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Primary Phone *</label>
-                <input
-                  value={addForm.primary_phone}
-                  onChange={(e) => setAddForm({ ...addForm, primary_phone: e.target.value.replace(/\D/g, "") })}
-                  maxLength={11}
-                  className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 ${
-                    addErrors.primary_phone
-                      ? "border-rose-300 focus:ring-rose-100"
-                      : (isDark ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900" : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100")
-                  }`}
-                />
-                {addErrors.primary_phone && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.primary_phone}</p>}
-              </div>
-              <div>
-                <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Email Inbox</label>
-                <input
-                  type="email"
-                  value={addForm.email_inbox}
-                  onChange={(e) => setAddForm({ ...addForm, email_inbox: e.target.value })}
-                  className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
-                    isDark ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400" : "border-slate-200 bg-white focus:border-indigo-400"
-                  }`}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className={`rounded-2xl border p-6 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-            <h2 className={`text-lg font-bold mb-6 flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>🏠 OFFICIAL ADDRESS</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div>
-                <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Address (English) *</label>
-                <textarea
-                  value={addForm.address_en}
-                  onChange={(e) => setAddForm({ ...addForm, address_en: e.target.value })}
-                  rows={3}
-                  className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 ${
-                    addErrors.address_en
-                      ? "border-rose-300 focus:ring-rose-100"
-                      : (isDark ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900" : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100")
-                  }`}
-                />
-                {addErrors.address_en && <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {addErrors.address_en}</p>}
-              </div>
-              <div dir="rtl">
-                <label className={`mb-1.5 block text-xs font-semibold text-left ${isDark ? "text-slate-300" : "text-slate-700"}`}>Address (Farsi) *</label>
-                <textarea
-                  value={addForm.address_fa}
-                  onChange={(e) => setAddForm({ ...addForm, address_fa: e.target.value })}
-                  rows={3}
-                  className={`w-full rounded-lg border py-2.5 px-3 text-sm text-right focus:outline-none focus:ring-2 ${
-                    addErrors.address_fa
-                      ? "border-rose-300 focus:ring-rose-100"
-                      : (isDark ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900" : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100")
-                  }`}
-                />
-                {addErrors.address_fa && <p className="mt-1 text-[11px] font-medium text-rose-600 text-right">✕ {addErrors.address_fa}</p>}
-              </div>
-            </div>
-          </div>
-
-          {addForm.company_type && (
-            <div className={`rounded-2xl border p-6 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className={`text-lg font-bold flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-                  👥 CONTACT PERSONS <span className={`text-xs font-bold px-2 py-1 rounded-full ${isDark ? "bg-indigo-900/50 text-indigo-300" : "bg-indigo-100 text-indigo-700"}`}>{addForm.contactPersons.length}</span>
-                </h2>
-                <button type="button" onClick={addContactPerson} className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">+ ADD LIAISON</button>
-              </div>
-              {addErrors.contactPersons && <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">✕ {addErrors.contactPersons}</div>}
-              <div className="space-y-3">
-                {addForm.contactPersons.map((cp) => (
-                  <div key={cp.id} className={`grid grid-cols-12 gap-3 p-4 rounded-xl border ${
-                    isDark ? "border-slate-700 bg-slate-800/50" : "border-slate-200 bg-slate-50/50"
-                  }`}>
-                    <div className="col-span-4">
-                      <label className={`mb-1 block text-[10px] font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Liaison Name *</label>
-                      <input
-                        value={cp.name}
-                        onChange={(e) => updateContactPerson(cp.id, "name", e.target.value)}
-                        className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none ${
-                          isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                        }`}
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <label className={`mb-1 block text-[10px] font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Position/Rank</label>
-                      <input
-                        value={cp.position}
-                        onChange={(e) => updateContactPerson(cp.id, "position", e.target.value)}
-                        className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none ${
-                          isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                        }`}
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <label className={`mb-1 block text-[10px] font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Mobile *</label>
-                      <input
-                        value={cp.mobile}
-                        onChange={(e) => updateContactPerson(cp.id, "mobile", e.target.value.replace(/\D/g, ""))}
-                        className={`w-full rounded border px-2 py-1.5 text-xs font-mono focus:border-indigo-400 focus:outline-none ${
-                          isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                        }`}
-                      />
-                    </div>
-                    <div className="col-span-2 flex items-end gap-1">
-                      <div className="flex-1">
-                        <label className={`mb-1 block text-[10px] font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Direct Email</label>
-                        <input
-                          value={cp.email}
-                          onChange={(e) => updateContactPerson(cp.id, "email", e.target.value)}
-                          className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none ${
-                            isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                          }`}
-                        />
-                      </div>
-                      {addForm.contactPersons.length > 1 && (
-                        <button type="button" onClick={() => removeContactPerson(cp.id)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">🗑️</button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className={`flex justify-end gap-3 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}>
-            <Button variant="ghost" onClick={() => { setIsAddModalOpen(false); setDuplicateWarning(null); }}>Cancel</Button>
-            <Button onClick={handleSaveAdd}>💾 Save Entity</Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* VIEW DUPLICATE MODAL */}
-      <Modal isOpen={isViewDuplicateOpen} onClose={() => { setIsViewDuplicateOpen(false); setViewDuplicateClient(null); setNewContactForDuplicate({ name: "", position: "", mobile: "", email: "" }); }} title="Existing Client — Add Contact Person" size="xl">
-        {viewDuplicateClient && (
-          <div className="space-y-6">
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <div className="flex items-start gap-3">
-                <div className="text-2xl">⚠️</div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-amber-900 mb-1">This client already exists in the system</h3>
-                  <p className="text-xs text-amber-800">You can view the existing information and add a new contact person for <span className="font-semibold">{currentDepartment}</span>. Other departments' contact persons are hidden for privacy.</p>
-                </div>
-              </div>
-            </div>
-            <div className={`rounded-2xl border p-6 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/30"}`}>
-              <div className="flex items-center gap-4 mb-4">
-                <Avatar name={viewDuplicateClient.name_en} gradient={viewDuplicateClient.logoColor} size="lg" />
-                <div>
-                  <h2 className={`text-lg font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{viewDuplicateClient.name_en}</h2>
-                  <p className={`text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`} dir="rtl">{viewDuplicateClient.name_fa}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge tone={viewDuplicateClient.type === "LEGAL" ? "indigo" : "violet"}>{viewDuplicateClient.type === "LEGAL" ? "Legal Entity" : "Individual"}</Badge>
-                    <Badge tone="slate">{(viewDuplicateClient as any).departments?.join(", ") || "Unknown"}</Badge>
-                  </div>
-                </div>
-              </div>
-              {viewDuplicateClient.type === "LEGAL" && (
-                <div className={`grid grid-cols-2 md:grid-cols-3 gap-4 text-sm pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-                  <div>
-                    <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>National ID</div>
-                    <div className={`font-mono text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}>{viewDuplicateClient.national_id || "—"}</div>
-                  </div>
-                  <div>
-                    <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Registration No</div>
-                    <div className={`font-mono text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}>{(viewDuplicateClient as any).registration_no || "—"}</div>
-                  </div>
-                  <div>
-                    <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Economic Code</div>
-                    <div className={`font-mono text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}>{(viewDuplicateClient as any).economic_code || "—"}</div>
-                  </div>
-                  <div>
-                    <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Company Type</div>
-                    <div className={`text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}>{(viewDuplicateClient as any).company_type || "—"}</div>
-                  </div>
-                  <div>
-                    <div className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Total Contacts</div>
-                    <div className={`text-xs font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{(viewDuplicateClient as any).contactPersons?.length || 0}</div>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className={`rounded-2xl border p-6 ${isDark ? "border-indigo-800 bg-indigo-950/30" : "border-indigo-200 bg-indigo-50/30"}`}>
-              <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>➕ Add New Contact Person for {currentDepartment}</h3>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={`mb-1 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Contact Name *</label>
-                    <input
-                      value={newContactForDuplicate.name}
-                      onChange={(e) => setNewContactForDuplicate({ ...newContactForDuplicate, name: e.target.value })}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
-                        isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <label className={`mb-1 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Position</label>
-                    <input
-                      value={newContactForDuplicate.position}
-                      onChange={(e) => setNewContactForDuplicate({ ...newContactForDuplicate, position: e.target.value })}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
-                        isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                      }`}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={`mb-1 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Mobile *</label>
-                    <input
-                      value={newContactForDuplicate.mobile}
-                      onChange={(e) => setNewContactForDuplicate({ ...newContactForDuplicate, mobile: e.target.value.replace(/\D/g, "") })}
-                      maxLength={11}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm font-mono focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
-                        isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <label className={`mb-1 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Email</label>
-                    <input
-                      type="email"
-                      value={newContactForDuplicate.email}
-                      onChange={(e) => setNewContactForDuplicate({ ...newContactForDuplicate, email: e.target.value })}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
-                        isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                      }`}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className={`flex justify-end gap-3 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}>
-              <Button variant="ghost" onClick={() => { setIsViewDuplicateOpen(false); setViewDuplicateClient(null); setNewContactForDuplicate({ name: "", position: "", mobile: "", email: "" }); }}>Cancel</Button>
-              <Button onClick={handleAddContactToDuplicate}>💾 Save Contact Person</Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* EDIT CLIENT MODAL */}
-      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Client Information" size="xl">
-        {selectedClient && (
-          <div className="space-y-6">
-            <div className={`rounded-2xl border p-6 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/30"}`}>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-sm">🔒</span>
-                <h3 className={`text-sm font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Read-Only Information</h3>
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div>
-                  <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Full Name (English)</label>
-                  <div className={`w-full rounded-lg border py-2.5 px-3 text-sm ${isDark ? "border-slate-700 bg-slate-800 text-slate-400" : "border-slate-200 bg-slate-100 text-slate-600"}`}>{editForm.name_en}</div>
-                </div>
-                <div dir="rtl">
-                  <label className={`mb-1.5 block text-xs font-semibold text-left ${isDark ? "text-slate-300" : "text-slate-600"}`}>Full Name (Farsi)</label>
-                  <div className={`w-full rounded-lg border py-2.5 px-3 text-sm text-right ${isDark ? "border-slate-700 bg-slate-800 text-slate-400" : "border-slate-200 bg-slate-100 text-slate-600"}`}>{editForm.name_fa}</div>
-                </div>
-                {editForm.type === "LEGAL" && (<>
-                  <div>
-                    <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Abbreviated Name</label>
-                    <div className={`w-full rounded-lg border py-2.5 px-3 text-sm ${isDark ? "border-slate-700 bg-slate-800 text-slate-400" : "border-slate-200 bg-slate-100 text-slate-600"}`}>{editForm.abbreviated_name || "—"}</div>
-                  </div>
-                  <div>
-                    <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Company Type</label>
-                    <div className={`w-full rounded-lg border py-2.5 px-3 text-sm ${isDark ? "border-slate-700 bg-slate-800 text-slate-400" : "border-slate-200 bg-slate-100 text-slate-600"}`}>{editForm.company_type || "—"}</div>
-                  </div>
-                  <div>
-                    <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>National ID</label>
-                    <div className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono ${isDark ? "border-slate-700 bg-slate-800 text-slate-400" : "border-slate-200 bg-slate-100 text-slate-600"}`}>{editForm.national_id}</div>
-                  </div>
-                  <div>
-                    <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Registration Number</label>
-                    <div className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono ${isDark ? "border-slate-700 bg-slate-800 text-slate-400" : "border-slate-200 bg-slate-100 text-slate-600"}`}>{editForm.registration_no || "—"}</div>
-                  </div>
-                  <div>
-                    <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Economic Code</label>
-                    <div className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono ${isDark ? "border-slate-700 bg-slate-800 text-slate-400" : "border-slate-200 bg-slate-100 text-slate-600"}`}>{editForm.economic_code || "—"}</div>
-                  </div>
-                </>)}
-                {editForm.type === "INDIVIDUAL" && (
-                  <div>
-                    <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>National Code</label>
-                    <div className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono ${isDark ? "border-slate-700 bg-slate-800 text-slate-400" : "border-slate-200 bg-slate-100 text-slate-600"}`}>{editForm.national_id}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className={`rounded-2xl border p-6 ${isDark ? "border-indigo-800 bg-indigo-950/30" : "border-indigo-200 bg-indigo-50/30"}`}>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-sm">✏️</span>
-                <h3 className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>Editable Information</h3>
-              </div>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div>
-                    <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Primary Phone *</label>
-                    <input
-                      value={editForm.phone || editForm.primary_phone || ""}
-                      onChange={(e) => setEditForm({ ...editForm, primary_phone: e.target.value, phone: e.target.value })}
-                      className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 ${
-                        isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Email Inbox</label>
-                    <input
-                      type="email"
-                      value={editForm.email || editForm.email_inbox || ""}
-                      onChange={(e) => setEditForm({ ...editForm, email_inbox: e.target.value, email: e.target.value })}
-                      className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 ${
-                        isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                      }`}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div>
-                    <label className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>Address (English) *</label>
-                    <textarea
-                      value={editForm.address_en || ""}
-                      onChange={(e) => setEditForm({ ...editForm, address_en: e.target.value })}
-                      rows={3}
-                      className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 ${
-                        isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <label className={`mb-1.5 block text-xs font-semibold text-left ${isDark ? "text-slate-300" : "text-slate-700"}`}>Address (Farsi) *</label>
-                    <textarea
-                      value={editForm.address_fa || ""}
-                      onChange={(e) => setEditForm({ ...editForm, address_fa: e.target.value })}
-                      rows={3}
-                      className={`w-full rounded-lg border py-2.5 px-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 ${
-                        isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"
-                      }`}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {editForm.type === "LEGAL" && (
-              <div className={`rounded-2xl border p-6 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className={`text-sm font-semibold flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-                    👥 Contact Persons <span className={`text-xs font-bold px-2 py-1 rounded-full ${isDark ? "bg-indigo-900/50 text-indigo-300" : "bg-indigo-100 text-indigo-700"}`}>{editForm.contactPersons?.length || 0}</span>
-                  </h3>
-                  <button type="button" onClick={addEditContactPerson} className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">+ ADD LIAISON</button>
-                </div>
-                <p className={`text-xs mb-4 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Only contact persons related to your department ({currentDepartment}) are shown and editable. Other departments' contacts (if any) are hidden.</p>
-                <div className="space-y-3">
-                  {editForm.contactPersons?.map((cp: any) => (
-                    <div key={cp.id} className={`grid grid-cols-12 gap-3 p-4 rounded-xl border ${isDark ? "border-slate-700 bg-slate-800/50" : "border-slate-200 bg-slate-50/50"}`}>
-                      <div className="col-span-4">
-                        <label className={`mb-1 block text-[10px] font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Liaison Name *</label>
-                        <input value={cp.name} onChange={(e) => updateEditContactPerson(cp.id, "name", e.target.value)} className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none ${isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`} />
-                      </div>
-                      <div className="col-span-3">
-                        <label className={`mb-1 block text-[10px] font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Position/Rank</label>
-                        <input value={cp.position} onChange={(e) => updateEditContactPerson(cp.id, "position", e.target.value)} className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none ${isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`} />
-                      </div>
-                      <div className="col-span-3">
-                        <label className={`mb-1 block text-[10px] font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Mobile *</label>
-                        <input value={cp.mobile} onChange={(e) => updateEditContactPerson(cp.id, "mobile", e.target.value.replace(/\D/g, ""))} className={`w-full rounded border px-2 py-1.5 text-xs font-mono focus:border-indigo-400 focus:outline-none ${isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`} />
-                      </div>
-                      <div className="col-span-2 flex items-end gap-1">
-                        <div className="flex-1">
-                          <label className={`mb-1 block text-[10px] font-semibold ${isDark ? "text-slate-300" : "text-slate-600"}`}>Direct Email</label>
-                          <input value={cp.email} onChange={(e) => updateEditContactPerson(cp.id, "email", e.target.value)} className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none ${isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`} />
-                        </div>
-                        {editForm.contactPersons.length > 1 && (
-                          <button type="button" onClick={() => removeEditContactPerson(cp.id)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">🗑️</button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {(!editForm.contactPersons || editForm.contactPersons.length === 0) && (
-                    <div className={`text-center py-6 text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}>No contact persons for {currentDepartment} yet. Click "+ ADD LIAISON" to add one.</div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className={`flex justify-end gap-3 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}>
-              <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
-              <Button onClick={handleSaveEdit}>💾 Save Changes</Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* CONTRACT DETAILS MODAL */}
-      <Modal isOpen={!!selectedContract} onClose={() => setSelectedContract(null)} title="Contract Details" size="lg">
-        {selectedContract && (() => {
-          const tariffs = contractTariffs.filter((t) => t.contract_id === selectedContract.id);
-          const daysLeft = calculateDaysLeft(selectedContract.end_date);
-          const workProgress = calculateProgressFromTariffs(selectedContract);
-          const invoiceProgress = calculateInvoiceProgress(selectedContract);
-
-          return (
-            <div className="space-y-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge tone={selectedContract.type === "CONTRACT" ? "indigo" : "amber"}>{selectedContract.type}</Badge>
-                    <Badge tone={selectedContract.status === "ACTIVE" ? "emerald" : "slate"}>{selectedContract.status}</Badge>
-                  </div>
-                  <h2 className={`text-lg font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{selectedContract.contract_title}</h2>
-                  <div className={`text-sm mt-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>{selectedContract.contract_no} • {selectedContract.client_name}</div>
-                </div>
-                <div className="text-right">
-                  <div className={`text-xs ${isDark ? "text-slate-300" : "text-slate-600"}`}>Total Value</div>
-                  <div className={`text-xl font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{formatCurrency(selectedContract.total_value)}</div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <Card className="p-4 card-3d">
-                  <div className={`text-xs mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Work Progress</div>
-                  <div className={`text-lg font-bold ${getProgressTextClass(workProgress)}`}>{workProgress.toFixed(2)}%</div>
-                  <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}>
-                    <div className={`h-full rounded-full ${getProgressBgClass(workProgress)}`} style={{ width: `${Math.min(workProgress, 100)}%` }} />
-                  </div>
-                </Card>
-
-                <Card className="p-4 card-3d">
-                  <div className={`text-xs mb-1 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Invoice Progress of Performed Works</div>
-                  <div className={`text-lg font-bold ${getProgressTextClass(invoiceProgress)}`}>{invoiceProgress.toFixed(2)}%</div>
-                  <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}>
-                    <div className={`h-full rounded-full ${getProgressBgClass(invoiceProgress)}`} style={{ width: `${Math.min(invoiceProgress, 100)}%` }} />
-                  </div>
-                </Card>
-
-                <Card className="p-4 card-3d">
-                  <div className={`text-xs ${isDark ? "text-slate-300" : "text-slate-600"}`}>Time Remaining</div>
-                  {daysLeft < 0 ? (
-                    <div className="text-lg font-bold text-rose-600">{Math.abs(daysLeft)} days overdue</div>
-                  ) : daysLeft === 0 ? (
-                    <div className="text-lg font-bold text-amber-600">Today (Expires)</div>
-                  ) : (
-                    <div className="text-lg font-bold text-emerald-600">{daysLeft} days remaining</div>
-                  )}
-                </Card>
-              </div>
-
-              <div>
-                <h3 className={`text-sm font-semibold mb-3 ${isDark ? "text-slate-100" : "text-slate-900"}`}>Details</h3>
-                {tariffs.length === 0 ? (
-                  <div className={`text-center py-8 text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}>No tariff lines defined for this contract</div>
-                ) : (
-                  <div className={`overflow-x-auto rounded-lg border ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-                    <table className="w-full text-left text-xs">
-                      <thead className={`${isDark ? "bg-slate-800 text-slate-400" : "bg-slate-50 text-slate-500"} text-[10px] uppercase tracking-wide`}>
-                        <tr>
-                          <th className="px-3 py-2 font-medium">Description</th>
-                          <th className="px-3 py-2 font-medium">Unit</th>
-                          <th className="px-3 py-2 font-medium text-right">Rate</th>
-                          <th className="px-3 py-2 font-medium text-center">Total Performed Work</th>
-                          <th className="px-3 py-2 font-medium text-right">Total Value of Performed Works</th>
-                          <th className="px-3 py-2 font-medium text-right">Total Invoiced</th>
-                        </tr>
-                      </thead>
-                      <tbody className={isDark ? "divide-y divide-slate-700" : "divide-y divide-slate-100"}>
-                        {tariffs.map((tariff) => {
-                          const progress = tariff.consumed_quantity;
-                          const value = tariff.consumed_quantity * tariff.rate;
-                          const invoiced = (tariff as any).invoiced || 0;
-                          return (
-                            <tr key={tariff.id} className={isDark ? "hover:bg-slate-800/60" : "hover:bg-slate-50/60"}>
-                              <td className={`px-3 py-2 font-medium ${isDark ? "text-slate-200" : "text-slate-800"}`}>{tariff.description}</td>
-                              <td className="px-3 py-2"><Badge tone="indigo">{tariff.unit.replace("_", " ")}</Badge></td>
-                              <td className="px-3 py-2 text-right font-mono">{formatCurrency(tariff.rate)}</td>
-                              <td className="px-3 py-2 text-center font-mono">{progress}</td>
-                              <td className="px-3 py-2 text-right font-mono font-semibold">{formatCurrency(value)}</td>
-                              <td className="px-3 py-2 text-right font-mono font-semibold text-indigo-600">{formatCurrency(invoiced)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot className={isDark ? "bg-slate-800 border-t-2 border-slate-600" : "bg-slate-100 border-t-2 border-slate-300"}>
-                        <tr>
-                          <td colSpan={3} className={`px-3 py-2.5 text-sm font-bold text-left uppercase tracking-wider ${isDark ? "text-slate-200" : "text-slate-700"}`}>💰 Total</td>
-                          <td className={`px-3 py-2.5 text-center font-mono font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}></td>
-                          <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-700">{formatCurrency(tariffs.reduce((sum, t) => sum + ((t.consumed_quantity || 0) * (t.rate || 0)), 0))}</td>
-                          <td className="px-3 py-2.5 text-right font-mono font-bold text-indigo-700">{formatCurrency(tariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-      </Modal>
+      {/* 🔑 CONTRACT DETAILS MODAL */}
+      <ContractDetailsModal
+        isOpen={!!selectedContract}
+        onClose={() => setSelectedContract(null)}
+        contract={selectedContract}
+      />
 
       {/* Toast Notification */}
       {toastMessage && (

@@ -139,6 +139,11 @@
     "ast_hash": "42b940df5a7bd2f253bf0c619cfd8b09",
     "semantic_hash": "42b940df5a7bd2f253bf0c619cfd8b09"
   },
+  "hooks/useClickOutside.ts": {
+    "mtime": 1782283544.2100441,
+    "ast_hash": "98469e4b1b1b1f076d36d96718b616be",
+    "semantic_hash": "98469e4b1b1b1f076d36d96718b616be"
+  },
   "hooks/usePersistedState.ts": {
     "mtime": 1782103663.348527,
     "ast_hash": "b65cbcef5ec7d2e4b22cbcf10b8d50ac",
@@ -190,9 +195,9 @@
     "semantic_hash": "8198b4717cf0dd4a58af6af3b86556b0"
   },
   "types/contract.ts": {
-    "mtime": 1782231315.9923427,
-    "ast_hash": "71d9de6534540fc1a303c76edb8f4433",
-    "semantic_hash": "71d9de6534540fc1a303c76edb8f4433"
+    "mtime": 1782250183.3058972,
+    "ast_hash": "fc83853a0676a71c56287d45c69147a6",
+    "semantic_hash": "fc83853a0676a71c56287d45c69147a6"
   },
   "types/index.ts": {
     "mtime": 1782226284.6514184,
@@ -205,9 +210,9 @@
     "semantic_hash": "53936eb0d31d16c4288a6a0cf5831098"
   },
   "views/Clients.tsx": {
-    "mtime": 1782197229.4959476,
-    "ast_hash": "3b63c36539eaed4519a50bb0a5dd3584",
-    "semantic_hash": "3b63c36539eaed4519a50bb0a5dd3584"
+    "mtime": 1782286625.4208653,
+    "ast_hash": "0554176b3905f373c516bac21f493f17",
+    "semantic_hash": "0554176b3905f373c516bac21f493f17"
   },
   "views/Contracts.tsx": {
     "mtime": 1782234181.6833284,
@@ -233,6 +238,41 @@
     "mtime": 1782029343.9195845,
     "ast_hash": "87d14ea8f6bfed1d88c17e61a0729642",
     "semantic_hash": "87d14ea8f6bfed1d88c17e61a0729642"
+  },
+  "views/clients/components/ClientDetails.tsx": {
+    "mtime": 1782285801.4618404,
+    "ast_hash": "8e79db4fc1c1b66c408f57938fde06e6",
+    "semantic_hash": "8e79db4fc1c1b66c408f57938fde06e6"
+  },
+  "views/clients/components/ClientEditModal.tsx": {
+    "mtime": 1782248162.9167297,
+    "ast_hash": "703732f735a77e1d2a4d651efd10a1a9",
+    "semantic_hash": "703732f735a77e1d2a4d651efd10a1a9"
+  },
+  "views/clients/components/ClientForm.tsx": {
+    "mtime": 1782246952.3049479,
+    "ast_hash": "b17ef8884531cc336349e70e930d1a1a",
+    "semantic_hash": "b17ef8884531cc336349e70e930d1a1a"
+  },
+  "views/clients/components/ClientList.tsx": {
+    "mtime": 1782246535.2063391,
+    "ast_hash": "a7b9fc794023275db54dbafda3d9220f",
+    "semantic_hash": "a7b9fc794023275db54dbafda3d9220f"
+  },
+  "views/clients/components/ContractDetailsModal.tsx": {
+    "mtime": 1782281904.0693822,
+    "ast_hash": "2c1bf65f3be75c58058f17aa06948cb5",
+    "semantic_hash": "2c1bf65f3be75c58058f17aa06948cb5"
+  },
+  "views/clients/components/DuplicateWarningModal.tsx": {
+    "mtime": 1782248248.5464995,
+    "ast_hash": "f25fae2513af02ea55667b11b7d67d97",
+    "semantic_hash": "f25fae2513af02ea55667b11b7d67d97"
+  },
+  "views/clients/hooks/useClients.ts": {
+    "mtime": 1782246514.0062015,
+    "ast_hash": "6b98565ca722b894b35caa4eefe314de",
+    "semantic_hash": "6b98565ca722b894b35caa4eefe314de"
   },
   "views/contracts/components/ContractDetails.tsx": {
     "mtime": 1782234112.5260365,

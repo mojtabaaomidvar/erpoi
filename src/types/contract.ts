@@ -36,6 +36,15 @@ export interface Client {
   logoColor: string;
   emails?: string[];
   contact_persons?: ContactPerson[];
+  // 🔑 فیلدهای جدید برای پشتیبانی از کد قدیمی
+  contactPersons?: ContactPerson[];
+  departments?: string[];
+  address_en?: string;
+  address_fa?: string;
+  abbreviated_name?: string;
+  company_type?: string;
+  registration_no?: string;
+  economic_code?: string;
 }
 
 export interface TariffLine {

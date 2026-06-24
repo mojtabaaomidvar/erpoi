@@ -27,7 +27,14 @@ export const parseNumberInput = (value: string): number => {
 };
 
 // 🔑 توابع Progress Color
-export const getProgressColor = (progress: number): string => {
+export const getProgressColor = (progress: number, isDark: boolean = false): string => {
+  if (isDark) {
+    if (progress >= 100) return "bg-emerald-400";
+    if (progress >= 75) return "bg-emerald-300";
+    if (progress >= 50) return "bg-amber-400";
+    if (progress >= 25) return "bg-orange-400";
+    return "bg-rose-400";
+  }
   if (progress >= 100) return "bg-emerald-500";
   if (progress >= 75) return "bg-emerald-400";
   if (progress >= 50) return "bg-amber-500";
@@ -35,7 +42,14 @@ export const getProgressColor = (progress: number): string => {
   return "bg-rose-500";
 };
 
-export const getProgressTextClass = (progress: number): string => {
+export const getProgressTextClass = (progress: number, isDark: boolean = false): string => {
+  if (isDark) {
+    if (progress >= 100) return "text-emerald-400";
+    if (progress >= 80) return "text-amber-400";
+    if (progress >= 50) return "text-yellow-400";
+    if (progress >= 25) return "text-orange-400";
+    return "text-rose-400";
+  }
   if (progress >= 100) return "text-emerald-600";
   if (progress >= 80) return "text-amber-600";
   if (progress >= 50) return "text-yellow-600";
@@ -43,7 +57,14 @@ export const getProgressTextClass = (progress: number): string => {
   return "text-rose-600";
 };
 
-export const getProgressTextColor = (progress: number): string => {
+export const getProgressTextColor = (progress: number, isDark: boolean = false): string => {
+  if (isDark) {
+    if (progress >= 100) return "text-emerald-400";
+    if (progress >= 75) return "text-emerald-300";
+    if (progress >= 50) return "text-amber-400";
+    if (progress >= 25) return "text-orange-400";
+    return "text-rose-400";
+  }
   if (progress >= 100) return "text-emerald-600";
   if (progress >= 75) return "text-emerald-500";
   if (progress >= 50) return "text-amber-600";
@@ -51,7 +72,7 @@ export const getProgressTextColor = (progress: number): string => {
   return "text-rose-600";
 };
 
-export const getProgressTone = (progress: number): string => {
+export const getProgressTone = (progress: number, isDark: boolean = false): string => {
   if (progress >= 100) return "emerald";
   if (progress >= 80) return "amber";
   if (progress >= 50) return "yellow";
@@ -59,7 +80,14 @@ export const getProgressTone = (progress: number): string => {
   return "rose";
 };
 
-export const getProgressBgClass = (progress: number): string => {
+export const getProgressBgClass = (progress: number, isDark: boolean = false): string => {
+  if (isDark) {
+    if (progress >= 100) return "bg-emerald-400";
+    if (progress >= 80) return "bg-amber-400";
+    if (progress >= 50) return "bg-yellow-400";
+    if (progress >= 25) return "bg-orange-400";
+    return "bg-rose-400";
+  }
   if (progress >= 100) return "bg-emerald-500";
   if (progress >= 80) return "bg-amber-500";
   if (progress >= 50) return "bg-yellow-500";
@@ -67,7 +95,13 @@ export const getProgressBgClass = (progress: number): string => {
   return "bg-rose-500";
 };
 
-export const getDaysProgressColor = (progress: number): string => {
+export const getDaysProgressColor = (progress: number, isDark: boolean = false): string => {
+  if (isDark) {
+    if (progress >= 90) return "bg-rose-400";
+    if (progress >= 70) return "bg-amber-400";
+    if (progress >= 50) return "bg-yellow-400";
+    return "bg-emerald-400";
+  }
   if (progress >= 90) return "bg-rose-500";
   if (progress >= 70) return "bg-amber-500";
   if (progress >= 50) return "bg-yellow-500";

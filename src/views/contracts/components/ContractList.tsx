@@ -259,8 +259,7 @@ export function ContractList({
                         <div className="flex items-center gap-2">
                           <span>⏳</span>
                           <span className="font-medium">Starts in {daysUntilStart} days</span>
-                        </div>
-                        <div className="text-[10px] mt-1 opacity-75">No work performed yet</div>
+                        </div>  
                       </div>
                     );
                   }
