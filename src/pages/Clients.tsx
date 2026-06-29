@@ -3,31 +3,31 @@
 // 📊 Refactor شده بر اساس تحلیل Graphify - Cohesion Community 4
 // 🚀 Performance optimized با React.memo و useCallback
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { useTheme } from "@app/providers/ThemeProvider";
-import { clients as initialClients, contracts as initialContracts, contractTariffs } from "../data/mockData";
-import { formatCurrency } from "@shared/lib/formatters";
-import { exportToExcel } from "@shared/lib/exportToExcel";
-import { usePersistedState } from "@shared/hooks/usePersistedState";
-import { useClickOutside } from "@shared/hooks/useClickOutside";
-import { validateNationalCode, validateNationalId, validateMobile } from "@shared/lib/validators";
+import { useState, useMemo, useEffect, useRef, useCallback } from"react";
+import { useTheme } from"@app/providers/ThemeProvider";
+import { clients as initialClients, contracts as initialContracts, contractTariffs } from"../data/mockData";
+import { formatCurrency } from"@shared/lib/formatters";
+import { exportToExcel } from"@shared/lib/exportToExcel";
+import { usePersistedState } from"@shared/hooks/usePersistedState";
+import { useClickOutside } from"@shared/hooks/useClickOutside";
+import { validateNationalCode, validateNationalId, validateMobile } from"@shared/lib/validators";
 import {
   calculateProgressFromTariffs,
   calculateInvoiceProgress,
   calculateUninvoicedWork,
-} from "@entities/contract/services/contractCalculations";
-import type { Client, Contract } from "../types/contract";
+} from"@entities/contract/services/contractCalculations";
+import type { Client, Contract } from"../types/contract";
 
 // 🔑 کامپوننت‌های استخراج‌شده
-import { useClients } from "@features/client-management/hooks/useClients";
-import { ClientList } from "@features/client-management/ui/ClientList";
-import { ClientDetails } from "@features/client-management/ui/ClientDetails";
-import { ClientForm } from "@features/client-management/ui/ClientForm";
-import { ClientEditModal } from "@features/client-management/ui/ClientEditModal";
-import { DuplicateWarningModal } from "@features/client-management/ui/DuplicateWarningModal";
-import { ContractDetailsModal } from "@features/client-management/ui/ContractDetailsModal";
+import { useClients } from"@features/client-management/hooks/useClients";
+import { ClientList } from"@features/client-management/ui/ClientList";
+import { ClientDetails } from"@features/client-management/ui/ClientDetails";
+import { ClientForm } from"@features/client-management/ui/ClientForm";
+import { ClientEditModal } from"@features/client-management/ui/ClientEditModal";
+import { DuplicateWarningModal } from"@features/client-management/ui/DuplicateWarningModal";
+import { ContractDetailsModal } from"@features/client-management/ui/ContractDetailsModal";
 
-const CURRENT_DEPARTMENT = "Unit A";
+const CURRENT_DEPARTMENT ="Unit A";
 
 export function Clients() {
   const { isDark } = useTheme();
@@ -61,7 +61,7 @@ export function Clients() {
   const [isDuplicateWarningOpen, setIsDuplicateWarningOpen] = useState(false);
   const [duplicateClient, setDuplicateClient] = useState<any>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<{ field: string; client: any; message: string } | null>(null);
-  const [newContactForDuplicate, setNewContactForDuplicate] = useState({ name: "", position: "", mobile: "", email: "" });
+  const [newContactForDuplicate, setNewContactForDuplicate] = useState({ name:"", position:"", mobile:"", email:""});
   const [toastMessage, setToastMessage] = useState("");
 
   // 🔑 Refs برای useClickOutside
@@ -108,11 +108,11 @@ export function Clients() {
       try {
         const textArea = document.createElement("textarea");
         textArea.value = email;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-999999px";
-        textArea.style.top = "-999999px";
-        textArea.style.opacity = "0";
-        textArea.setAttribute("readonly", "");
+        textArea.style.position ="fixed";
+        textArea.style.left ="-999999px";
+        textArea.style.top ="-999999px";
+        textArea.style.opacity ="0";
+        textArea.setAttribute("readonly","");
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
@@ -137,20 +137,11 @@ export function Clients() {
   }, [selectedClient]);
 
   const handleExportToExcel = useCallback(() => {
-    const dataToExport = filteredClients.map((client) => ({
-      "نام انگلیسی": client.name_en,
-      "نام فارسی": client.name_fa,
-      "نوع": client.type === "LEGAL" ? "حقوقی" : "حقیقی",
-      "شناسه/کد ملی": client.national_id || "-",
-      "شماره ثبت": (client as any).registration_no || "-",
-      "کد اقتصادی": (client as any).economic_code || "-",
-      "تلفن": client.phone || "-",
-      "ایمیل": client.email || "-",
-      "تعداد قراردادها": client.contracts,
+    const dataToExport = filteredClients.map((client) => ({"نام انگلیسی": client.name_en,"نام فارسی": client.name_fa,"نوع": client.type ==="LEGAL"?"حقوقی":"حقیقی","شناسه/کد ملی": client.national_id ||"-","شماره ثبت": (client as any).registration_no ||"-","کد اقتصادی": (client as any).economic_code ||"-","تلفن": client.phone ||"-","ایمیل": client.email ||"-","تعداد قراردادها": client.contracts,
     }));
-    const filterName = filter === "ALL" ? "All" : filter === "LEGAL" ? "Legal" : "Individual";
+    const filterName = filter ==="ALL"?"All": filter ==="LEGAL"?"Legal":"Individual";
     const today = new Date().toISOString().split("T")[0];
-    exportToExcel(dataToExport, `${filterName}_Clients_${today}`, "Clients");
+    exportToExcel(dataToExport, `${filterName}_Clients_${today}`,"Clients");
   }, [filteredClients, filter]);
 
   const handleAddClick = useCallback(() => {
@@ -202,7 +193,7 @@ export function Clients() {
     setClients(updatedClients);
     setSelectedClient(updatedClients.find((c) => c.id === duplicateWarning.client.id) || null);
     setIsAddModalOpen(false);
-    setNewContactForDuplicate({ name: "", position: "", mobile: "", email: "" });
+    setNewContactForDuplicate({ name:"", position:"", mobile:"", email:""});
     setDuplicateWarning(null);
   }, [clients, duplicateWarning, newContactForDuplicate, setClients, setSelectedClient]);
 
@@ -228,8 +219,7 @@ export function Clients() {
 
       {/* RIGHT PANEL - ClientDetails */}
       <div className={`col-span-1 lg:col-span-8 flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out ${
-        isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200/70'
-      }`}>
+        isDark ?'bg-slate-900 border-slate-700':'bg-white border-slate-200/70'}`}>
         <ClientDetails
           client={selectedClient}
           contracts={contracts}
@@ -273,7 +263,7 @@ export function Clients() {
         onClose={() => {
           setIsDuplicateWarningOpen(false);
           setDuplicateClient(null);
-          setNewContactForDuplicate({ name: "", position: "", mobile: "", email: "" });
+          setNewContactForDuplicate({ name:"", position:"", mobile:"", email:""});
         }}
         onSaveContact={handleAddContactToDuplicate}
         duplicateClient={duplicateClient}

@@ -14,14 +14,14 @@ export function validateMobile(phone: string): boolean {
 }
 
 export function formatPrice(value: string | number | undefined | null): string {
-  if (value === undefined || value === null) return '';
-  const number = typeof value === 'string' ? value.replace(/,/g, '') : value.toString();
-  if (number === '' || isNaN(Number(number))) return '';
-  return number.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  if (value === undefined || value === null) return'';
+  const number = typeof value ==='string'? value.replace(/,/g,'') : value.toString();
+  if (number ===''|| isNaN(Number(number))) return'';
+  return number.replace(/\B(?=(\d{3})+(?!\d))/g,',');
 }
 
 export function parsePrice(formattedValue: string): number {
-  return Number(formattedValue.replace(/,/g, ''));
+  return Number(formattedValue.replace(/,/g,''));
 }
 
 

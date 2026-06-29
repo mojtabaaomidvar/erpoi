@@ -1,7 +1,7 @@
 // src/infrastructure/events/publishEvent.ts
 
-import { eventBus } from './EventBus';
-import { DomainEvent } from './types';
+import { eventBus } from'./EventBus';
+import { DomainEvent } from'./types';
 
 let eventCounter = 0;
 

@@ -1,14 +1,24 @@
 // src/features/audit-log/hooks/useAuditLogger.ts
-import { subscribeToEvent, EVENT_TYPES } from '@infra/events';
-import { useEffect } from 'react';
+import { useEffect } from'react';
+import { eventBus } from'@infra/events';
+import { auditLogService } from'../services/AuditLogService';
 
-export function useAuditLogger() {
+/**
+ * Hook برای گوش دادن به تمام رویدادها و ثبت در Audit Log
+ */
+export function useAuditLogger(): void {
   useEffect(() => {
-    const unsubscribe = subscribeToEvent(EVENT_TYPES.ALL, (event) => {
-      // ذخیره در Audit Log
-      console.log('📝 Audit:', event.type, event.payload);
+    console.log('🎧 [AuditLogger] Starting to listen to all events...');
+    
+    // گوش دادن به همه رویدادها با wildcard
+    const unsubscribe = eventBus.subscribe('*', (event) => {
+      console.log('📝 [AuditLogger] Logging event:', event.type, event.payload);
+      auditLogService.log(event);
     });
 
-    return unsubscribe;
+    return () => {
+      console.log('🔇 [AuditLogger] Stopped listening');
+      unsubscribe();
+    };
   }, []);
 }

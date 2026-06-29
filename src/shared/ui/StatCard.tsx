@@ -1,17 +1,9 @@
 // src/shared/ui/StatCard.ts
 
-import { cn } from "../lib/cn";
+import { cn } from"../lib/cn";
 
 export type StatCardTone =
-  | "default"
-  | "success"
-  | "warning"
-  | "danger"
-  | "info"
-  | "indigo"
-  | "emerald"
-  | "rose"
-  | "amber";
+  |"default"|"success"|"warning"|"danger"|"info"|"indigo"|"emerald"|"rose"|"amber";
 
 export interface StatCardProps {
   label: string;
@@ -28,27 +20,26 @@ export function StatCard({
   value,
   subtitle,
   delta,
-  tone = "default",
+  tone ="default",
   icon,
   className,
 }: StatCardProps) {
   const toneClasses = {
-	  default: "border-slate-200 dark:border-slate-700",
-	  success: "border-emerald-200 dark:border-emerald-800",
-	  warning: "border-amber-200 dark:border-amber-800",
-	  danger: "border-rose-200 dark:border-rose-800",
-	  info: "border-sky-200 dark:border-sky-800",
+	  default:"border-slate-200 dark:border-slate-700",
+	  success:"border-emerald-200 dark:border-emerald-800",
+	  warning:"border-amber-200 dark:border-amber-800",
+	  danger:"border-rose-200 dark:border-rose-800",
+	  info:"border-sky-200 dark:border-sky-800",
 
-	  indigo: "border-indigo-200 dark:border-indigo-800",
-	  emerald: "border-emerald-200 dark:border-emerald-800",
-	  rose: "border-rose-200 dark:border-rose-800",
-	  amber: "border-amber-200 dark:border-amber-800",
+	  indigo:"border-indigo-200 dark:border-indigo-800",
+	  emerald:"border-emerald-200 dark:border-emerald-800",
+	  rose:"border-rose-200 dark:border-rose-800",
+	  amber:"border-amber-200 dark:border-amber-800",
 	};
 
   return (
     <div
-      className={cn(
-        "rounded-xl border bg-white p-5 shadow-sm dark:bg-slate-900",
+      className={cn("rounded-xl border bg-white p-5 shadow-sm dark:bg-slate-900",
         toneClasses[tone],
         className
       )}

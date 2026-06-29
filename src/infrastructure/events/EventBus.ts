@@ -1,6 +1,6 @@
 // src/infrastructure/events/EventBus.ts
 
-import { DomainEvent, EventHandler, IEventBus } from './types';
+import { DomainEvent, EventHandler, IEventBus } from'./types';
 
 /**
  * Event Bus مرکزی با الگوی Singleton
@@ -14,7 +14,7 @@ import { DomainEvent, EventHandler, IEventBus } from './types';
 class EventBus implements IEventBus {
   private static instance: EventBus;
   private handlers: Map<string, Set<EventHandler>> = new Map();
-  private isDevelopment = process.env.NODE_ENV === 'development';
+  private isDevelopment = process.env.NODE_ENV ==='development';
 
   private constructor() {}
 

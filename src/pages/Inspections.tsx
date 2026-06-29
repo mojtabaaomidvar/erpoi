@@ -1,15 +1,15 @@
-import { Card, Badge, Button, StatusPill } from "@design-system";
-import { inspections } from "../data/mockData";
-import { formatDateShort } from "@shared/lib/formatters";
+import { Card, Badge, Button, StatusPill } from"@design-system";
+import { inspections } from"../data/mockData";
+import { formatDateShort } from"@shared/lib/formatters";
 
 export function Inspections() {
   const cols = [
-    { status: "REQUESTED", label: "Requested", accent: "bg-sky-500" },
-    { status: "DOC_REVIEW", label: "Doc Review", accent: "bg-indigo-500" },
-    { status: "INSPECTOR_ASSIGNED", label: "Assigned", accent: "bg-violet-500" },
-    { status: "EXECUTING", label: "Executing", accent: "bg-amber-500" },
-    { status: "NCR_ISSUED", label: "NCR Issued", accent: "bg-rose-500" },
-    { status: "COMPLETED", label: "Completed", accent: "bg-emerald-500" },
+    { status:"REQUESTED", label:"Requested", accent:"bg-sky-500"},
+    { status:"DOC_REVIEW", label:"Doc Review", accent:"bg-indigo-500"},
+    { status:"INSPECTOR_ASSIGNED", label:"Assigned", accent:"bg-violet-500"},
+    { status:"EXECUTING", label:"Executing", accent:"bg-amber-500"},
+    { status:"NCR_ISSUED", label:"NCR Issued", accent:"bg-rose-500"},
+    { status:"COMPLETED", label:"Completed", accent:"bg-emerald-500"},
   ];
 
   return (
@@ -34,8 +34,7 @@ export function Inspections() {
                 {items.map((ins) => (
                   <div
                     key={ins.id}
-                    className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:border-indigo-300 transition-all cursor-pointer"
-                  >
+                    className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:border-indigo-300 transition-all cursor-pointer">
                     <div className="flex items-start justify-between gap-2">
                       <div className="font-mono text-[11px] font-semibold text-indigo-600">
                         {ins.inspection_no}
@@ -52,12 +51,12 @@ export function Inspections() {
                         <span>
 						  📅 {ins.date_requested
 							? formatDateShort(ins.date_requested)
-							: "-"}
+							:"-"}
 						</span>
                       <span>
                         {ins.inspector_name
-                          ? `👤 ${ins.inspector_name.split(" ")[0]}`
-                          : "Unassigned"}
+                          ? `👤 ${ins.inspector_name.split("")[0]}`
+                          :"Unassigned"}
                       </span>
                     </div>
                   </div>

@@ -2,14 +2,14 @@
 
 // ============ انواع پایه ============
 
-export type ClientType = "LEGAL" | "INDIVIDUAL";
-export type ContractStatus = "ACTIVE" | "COMPLETED";
-export type ContractType = "CONTRACT" | "WORK_ORDER";
-export type SourceType = "EMAIL" | "LETTER";
-export type AttachmentCategory = "CONTRACT" | "ADDENDUM" | "CORRESPONDENCE" | "TECHNICAL";
-export type AdjustmentMode = "FIXED" | "TBD";
-export type GuaranteeType = "CHECK" | "BANK_GUARANTEE" | "PROMISSORY_NOTE" | "CASH_BLOCK";
-export type ServiceDescription = "TPI" | "MWS" | "TPER" | "OTHER";
+export type ClientType ="LEGAL"|"INDIVIDUAL";
+export type ContractStatus ="ACTIVE"|"COMPLETED";
+export type ContractType ="CONTRACT"|"WORK_ORDER";
+export type SourceType ="EMAIL"|"LETTER";
+export type AttachmentCategory ="CONTRACT"|"ADDENDUM"|"CORRESPONDENCE"|"TECHNICAL";
+export type AdjustmentMode ="FIXED"|"TBD";
+export type GuaranteeType ="CHECK"|"BANK_GUARANTEE"|"PROMISSORY_NOTE"|"CASH_BLOCK";
+export type ServiceDescription ="TPI"|"MWS"|"TPER"|"OTHER";
 
 // ============ Interfaces اصلی ============
 
@@ -165,9 +165,7 @@ export interface Inspector {
   location: string;
   rating: number;
   status:
-    | "AVAILABLE"
-    | "BUSY"
-    | "ON_LEAVE";
+    |"AVAILABLE"|"BUSY"|"ON_LEAVE";
   specialties: string[];
   certifications: number;
   activeJobs: number;
@@ -203,13 +201,9 @@ export interface NCR {
   client_name?: string;
   description: string;
   severity:
-    | "MINOR"
-    | "MAJOR"
-    | "CRITICAL";
+    |"MINOR"|"MAJOR"|"CRITICAL";
   status:
-    | "OPEN"
-    | "IN_PROGRESS"
-    | "CLOSED";
+    |"OPEN"|"IN_PROGRESS"|"CLOSED";
   date_raised?: string;
   date_closed?: string;
 }
@@ -230,12 +224,7 @@ export interface Invoice {
   due_date?: string;
   paid_date?: string;
   status:
-    | "DRAFT"
-    | "ISSUED"
-    | "PENDING"
-    | "PAID"
-    | "OVERDUE"
-	| "CANCELLED" ;
+    |"DRAFT"|"ISSUED"|"PENDING"|"PAID"|"OVERDUE"|"CANCELLED";
 }
 
 

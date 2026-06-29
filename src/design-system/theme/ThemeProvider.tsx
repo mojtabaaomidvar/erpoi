@@ -5,10 +5,10 @@ import React, {
   useContext,
   useEffect,
   useState,
-} from "react";
-import { themeColors } from "../tokens/colors";
+} from"react";
+import { themeColors } from"../tokens/colors";
 
-type Theme = "light" | "dark";
+type Theme ="light"|"dark";
 type ThemeColors = (typeof themeColors)[keyof typeof themeColors];
 
 interface ThemeContextType {
@@ -26,26 +26,22 @@ export function ThemeProvider({
 }) {
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem("theme");
-    return (saved as Theme) || "light";
+    return (saved as Theme) ||"light";
   });
 
   useEffect(() => {
     localStorage.setItem("theme", theme);
-    document.documentElement.classList.toggle(
-      "dark",
-      theme === "dark"
-    );
+    document.documentElement.classList.toggle("dark",
+      theme ==="dark");
   }, [theme]);
 
   const toggleTheme = () => {
     setTheme(prev =>
-      prev === "light" ? "dark" : "light"
-    );
+      prev ==="light"?"dark":"light");
   };
 
   const colors =
-    theme === "light"
-      ? themeColors.light
+    theme ==="light"? themeColors.light
       : themeColors.dark;
 
   return (
@@ -61,9 +57,7 @@ export function useTheme() {
   const context = useContext(ThemeContext);
 
   if (!context) {
-    throw new Error(
-      "useTheme must be used within ThemeProvider"
-    );
+    throw new Error("useTheme must be used within ThemeProvider");
   }
 
   return context;

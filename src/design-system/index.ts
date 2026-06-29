@@ -1,2 +1,2 @@
-export * from "@shared/ui";
-export { CardHeader } from "./components/CardHeader";
+export * from"@shared/ui";
+export { CardHeader } from"./components/CardHeader";

@@ -1,9 +1,9 @@
 // src/components/JalaaliDatePicker.tsx
-import { useTheme } from "@app/providers/ThemeProvider";
-import DatePicker from 'react-multi-date-picker';
-import persian from 'react-date-object/calendars/persian';
-import persian_en from 'react-date-object/locales/persian_en';
-import * as jalaali from 'jalaali-js';
+import { useTheme } from"@app/providers/ThemeProvider";
+import DatePicker from'react-multi-date-picker';
+import persian from'react-date-object/calendars/persian';
+import persian_en from'react-date-object/locales/persian_en';
+import * as jalaali from'jalaali-js';
 
 interface JalaaliDatePickerProps {
   value: string;
@@ -20,9 +20,9 @@ export function JalaaliDatePicker({
   onChange,
   minDate,
   maxDate,
-  placeholder = "Select date",
+  placeholder ="Select date",
   disabled = false,
-  className = "",
+  className ="",
 }: JalaaliDatePickerProps) {
   const { isDark } = useTheme();
 
@@ -42,7 +42,7 @@ export function JalaaliDatePicker({
   // 🔑 تبدیل Date object به تاریخ جلالی (1405/01/15)
   const dateToJalaali = (date: Date): string => {
     const j = jalaali.toJalaali(date.getFullYear(), date.getMonth() + 1, date.getDate());
-    return `${j.jy}/${String(j.jm).padStart(2, '0')}/${String(j.jd).padStart(2, '0')}`;
+    return `${j.jy}/${String(j.jm).padStart(2,'0')}/${String(j.jd).padStart(2,'0')}`;
   };
 
   const handleSelect = (date: any) => {
@@ -50,7 +50,7 @@ export function JalaaliDatePicker({
       if (date instanceof Date) {
         onChange(dateToJalaali(date));
       } else if (date.year && date.month && date.day) {
-        const formatted = `${date.year}/${String(date.month.index || date.month).padStart(2, '0')}/${String(date.day).padStart(2, '0')}`;
+        const formatted = `${date.year}/${String(date.month.index || date.month).padStart(2,'0')}/${String(date.day).padStart(2,'0')}`;
         onChange(formatted);
       }
     } else {
@@ -63,21 +63,16 @@ export function JalaaliDatePicker({
       <DatePicker
         calendar={persian}
         locale={persian_en}
-        calendarPosition="bottom-right"
-        value={jalaaliToDate(value)}
+        calendarPosition="bottom-right"value={jalaaliToDate(value)}
         onChange={handleSelect}
         minDate={minDate ? jalaaliToDate(minDate) : undefined}
         maxDate={maxDate ? jalaaliToDate(maxDate) : undefined}
         placeholder={placeholder}
         disabled={disabled}
-        format="YYYY/MM/DD"
-        inputClass={`w-full rounded-lg py-2.5 px-3 text-sm text-left font-sans input-themed ${
+        format="YYYY/MM/DD"inputClass={`w-full rounded-lg py-2.5 px-3 text-sm text-left font-sans input-themed ${
           isDark
-            ? "border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500"
-            : "border-slate-300 bg-white text-slate-900 placeholder-slate-400"
-        }`}
-        containerClassName="w-full"
-        style={{ width: "100%" }}
+            ?"border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500":"border-slate-300 bg-white text-slate-900 placeholder-slate-400"}`}
+        containerClassName="w-full"style={{ width:"100%"}}
       />
     </div>
   );

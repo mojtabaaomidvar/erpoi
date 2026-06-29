@@ -1,14 +1,14 @@
 // src/views/contracts/hooks/useContracts.ts
 
-import { subscribeToEvent, EVENT_TYPES } from '@infra/events';
-import { useState, useMemo, useEffect } from 'react';
-import { usePersistedState } from '@shared/hooks/usePersistedState';
+import { subscribeToEvent, EVENT_TYPES } from'@infra/events';
+import { useState, useMemo, useEffect } from'react';
+import { usePersistedState } from'@shared/hooks/usePersistedState';
 import {
   contracts as initialContracts,
   clients as initialClients,
   contractTariffs,
-} from '@data/mockData';
-import type { Contract, Client } from '@entities/contract/types';
+} from'@data/mockData';
+import type { Contract, Client } from'@entities/contract/types';
 import {
   calculateProgressFromTariffs,
   calculateDaysProgress,
@@ -16,7 +16,7 @@ import {
   getDaysUntilStart,
   getContractFinancialStatus,
   isExpiringSoon,
-} from '@entities/contract/services/contractCalculations';
+} from'@entities/contract/services/contractCalculations';
 
 export function useContracts() {
   const [contracts, setContracts] = usePersistedState<Contract[]>('ics_contracts', initialContracts);
@@ -24,9 +24,9 @@ export function useContracts() {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'CONTRACT' | 'WORK_ORDER'>('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'NOT_STARTED' | 'NEEDS_REVIEW' | 'COMPLETED'>('ALL');
-  const [sortBy, setSortBy] = useState<'date' | 'value' | 'status'>('date');
+  const [typeFilter, setTypeFilter] = useState<'ALL'|'CONTRACT'|'WORK_ORDER'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL'|'ACTIVE'|'NOT_STARTED'|'NEEDS_REVIEW'|'COMPLETED'>('ALL');
+  const [sortBy, setSortBy] = useState<'date'|'value'|'status'>('date');
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   useEffect(() => {
@@ -63,14 +63,14 @@ export function useContracts() {
   const filterCounts = useMemo(() => {
     return {
       type: {
-        ALL: baseContracts.filter(c => statusFilter === 'ALL' || c.status === statusFilter).length,
-        CONTRACT: baseContracts.filter(c => c.type === 'CONTRACT' && (statusFilter === 'ALL' || c.status === statusFilter)).length,
-        WORK_ORDER: baseContracts.filter(c => c.type === 'WORK_ORDER' && (statusFilter === 'ALL' || c.status === statusFilter)).length,
+        ALL: baseContracts.filter(c => statusFilter ==='ALL'|| c.status === statusFilter).length,
+        CONTRACT: baseContracts.filter(c => c.type ==='CONTRACT'&& (statusFilter ==='ALL'|| c.status === statusFilter)).length,
+        WORK_ORDER: baseContracts.filter(c => c.type ==='WORK_ORDER'&& (statusFilter ==='ALL'|| c.status === statusFilter)).length,
       },
       status: {
-        ALL: baseContracts.filter(c => typeFilter === 'ALL' || c.type === typeFilter).length,
-        ACTIVE: baseContracts.filter(c => c.status === 'ACTIVE' && (typeFilter === 'ALL' || c.type === typeFilter)).length,
-        COMPLETED: baseContracts.filter(c => c.status === 'COMPLETED' && (typeFilter === 'ALL' || c.type === typeFilter)).length,
+        ALL: baseContracts.filter(c => typeFilter ==='ALL'|| c.type === typeFilter).length,
+        ACTIVE: baseContracts.filter(c => c.status ==='ACTIVE'&& (typeFilter ==='ALL'|| c.type === typeFilter)).length,
+        COMPLETED: baseContracts.filter(c => c.status ==='COMPLETED'&& (typeFilter ==='ALL'|| c.type === typeFilter)).length,
       },
       total: baseContracts.length,
       totalValue: baseContracts.reduce((sum, c) => sum + c.total_value, 0),
@@ -81,14 +81,14 @@ export function useContracts() {
   // Final filtered contracts
   const filteredContracts = useMemo(() => {
     let result = baseContracts.filter((contract) => {
-      const matchesType = typeFilter === 'ALL' || contract.type === typeFilter;
+      const matchesType = typeFilter ==='ALL'|| contract.type === typeFilter;
       const financialStatus = getContractFinancialStatus(contract);
       let matchesStatus = true;
       
-      if (statusFilter === 'ACTIVE') matchesStatus = financialStatus === 'active';
-      else if (statusFilter === 'NOT_STARTED') matchesStatus = financialStatus === 'not_started';
-      else if (statusFilter === 'NEEDS_REVIEW') matchesStatus = financialStatus === 'needs_review';
-      else if (statusFilter === 'COMPLETED') matchesStatus = financialStatus === 'completed';
+      if (statusFilter ==='ACTIVE') matchesStatus = financialStatus ==='active';
+      else if (statusFilter ==='NOT_STARTED') matchesStatus = financialStatus ==='not_started';
+      else if (statusFilter ==='NEEDS_REVIEW') matchesStatus = financialStatus ==='needs_review';
+      else if (statusFilter ==='COMPLETED') matchesStatus = financialStatus ==='completed';
 
       return matchesType && matchesStatus;
     });
@@ -103,9 +103,9 @@ export function useContracts() {
         return aExpiring.daysLeft - bExpiring.daysLeft;
       }
 
-      if (sortBy === 'date') return b.start_date.localeCompare(a.start_date);
-      if (sortBy === 'value') return b.total_value - a.total_value;
-      if (sortBy === 'status') {
+      if (sortBy ==='date') return b.start_date.localeCompare(a.start_date);
+      if (sortBy ==='value') return b.total_value - a.total_value;
+      if (sortBy ==='status') {
         const order: Record<string, number> = { ACTIVE: 1, COMPLETED: 2 };
         return (order[a.status] || 99) - (order[b.status] || 99);
       }

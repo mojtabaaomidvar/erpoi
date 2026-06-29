@@ -1,8 +1,8 @@
 // src/infrastructure/events/hooks/useEvent.ts
 
-import { useEffect, useRef } from 'react';
-import { eventBus } from '../EventBus';
-import { EventHandler } from '../types';
+import { useEffect, useRef } from'react';
+import { eventBus } from'../EventBus';
+import { EventHandler } from'../types';
 
 /**
  * Hook برای اشتراک در رویدادها در کامپوننت‌های React

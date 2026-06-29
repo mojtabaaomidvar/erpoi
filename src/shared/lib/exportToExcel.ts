@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import * as XLSX from"xlsx";
 
 /**
  * تابع عمومی برای خروجی گرفتن از هر آرایه‌ای به فرمت اکسل
@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
  * @param fileName نام فایل خروجی (بدون پسوند)
  * @param sheetName نام شیت داخل فایل اکسل
  */
-export function exportToExcel(data: any[], fileName: string, sheetName: string = "Sheet1") {
+export function exportToExcel(data: any[], fileName: string, sheetName: string ="Sheet1") {
   // ۱. ساخت یک ورک‌بوک جدید
   const wb = XLSX.utils.book_new();
   

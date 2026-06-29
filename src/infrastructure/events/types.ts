@@ -1,16 +1,7 @@
 // src/infrastructure/events.ts
 
 export type EventType =
-  | 'client.created'
-  | 'client.updated'
-  | 'client.deleted'
-  | 'contract.created'
-  | 'contract.updated'
-  | 'invoice.created'
-  | 'invoice.paid'
-  | 'inspection.created'
-  | 'inspection.updated'
-  | string;
+  |'client.created'|'client.updated'|'client.deleted'|'contract.created'|'contract.updated'|'invoice.created'|'invoice.paid'|'inspection.created'|'inspection.updated'| string;
 
 export interface DomainEvent<T = unknown> {
   type: EventType;

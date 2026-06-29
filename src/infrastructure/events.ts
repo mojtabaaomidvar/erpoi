@@ -1,61 +1,16 @@
 // src/infrastructure/events.ts
 
-// ═══════════════════════════════════════════════════════════
-// 📌 تعریف تایپ‌های پایه
-// ═══════════════════════════════════════════════════════════
-
-/**
- * لیست تمام رویدادهای سیستم
- * برای Type Safety و جلوگیری از Magic Strings
- */
 export type EventType =
   // Client Events
-  | 'client.created'
-  | 'client.updated'
-  | 'client.deleted'
-  | 'client.duplicated'
-  
-  // Contract Events
-  | 'contract.created'
-  | 'contract.updated'
-  | 'contract.deleted'
-  | 'contract.expiring'    // 132 روز مانده به پایان
-  | 'contract.expired'
-  | 'contract.terminated'
-  | 'contract.renewed'
-  
-  // Inspection Events
-  | 'inspection.created'
-  | 'inspection.updated'
-  | 'inspection.assigned'
-  | 'inspection.completed'
-  | 'inspection.cancelled'
-  
-  // NCR Events
-  | 'ncr.raised'
-  | 'ncr.resolved'
-  | 'ncr.closed'
-  
-  // Invoice Events
-  | 'invoice.created'
-  | 'invoice.issued'
-  | 'invoice.paid'
-  | 'invoice.overdue'
-  | 'invoice.cancelled'
-  
-  // Inspector Events
-  | 'inspector.available'
-  | 'inspector.busy'
-  | 'inspector.onLeave'
-  
-  // System Events
-  | 'system.user.login'
-  | 'system.user.logout'
-  | 'system.theme.changed'
-  | 'system.notification.sent'
-  
-  // Wildcard (برای گوش دادن به همه رویدادها)
-  | '*';
+  |'client.created'|'client.updated'|'client.deleted'|'client.duplicated'// Contract Events
+  |'contract.created'|'contract.updated'|'contract.deleted'|'contract.expiring'|'contract.expired'|'contract.terminated'|'contract.renewed'// Inspection Events
+  |'inspection.created'|'inspection.updated'|'inspection.assigned'|'inspection.completed'|'inspection.cancelled'// NCR Events
+  |'ncr.raised'|'ncr.resolved'|'ncr.closed'// Invoice Events
+  |'invoice.created'|'invoice.issued'|'invoice.paid'|'invoice.overdue'|'invoice.cancelled'// Inspector Events
+  |'inspector.available'|'inspector.busy'|'inspector.onLeave'// System Events
+  |'system.user.login'|'system.user.logout'|'system.theme.changed'|'system.notification.sent'// Storage Events
+  |'storage.clients.changed'|'storage.contracts.changed'|'storage.inspections.changed'|'storage.inspectors.changed'|'storage.invoices.changed'|'storage.ncrs.changed'|'storage.settings.changed'|'storage.notifications.changed'|'storage.audit_log.changed'// Wildcard (برای گوش دادن به همه رویدادها)
+  |'*';
 
 /**
  * ساختار استاندارد یک Domain Event
@@ -127,8 +82,8 @@ class EventBus implements IEventBus {
       });
     }
 
-    // اگر نوع رویداد '*' هست، به همه handler ها ارسال کن
-    if (event.type === '*') {
+    // اگر نوع رویداد'*'هست، به همه handler ها ارسال کن
+    if (event.type ==='*') {
       console.warn('[EventBus] Cannot publish wildcard event');
       return;
     }
@@ -143,7 +98,7 @@ class EventBus implements IEventBus {
   private dispatchToSubscribers<T>(type: string, event: DomainEvent<T>): void {
     const subscribers = this.handlers.get(type);
     if (!subscribers || subscribers.size === 0) {
-      if (this.isDevelopment && type !== '*') {
+      if (this.isDevelopment && type !=='*') {
         console.warn(`⚠️ [EventBus] No subscribers for: ${type}`);
       }
       return;
@@ -231,7 +186,7 @@ let eventCounter = 0;
  * Helper برای انتشار آسان رویداد
  * 
  * @example
- * publishEvent('client.created', { clientId: '123' }, { source: 'client-management' });
+ * publishEvent('client.created', { clientId:'123'}, { source:'client-management'});
  */
 export function publishEvent<T>(
   type: EventType,
@@ -285,50 +240,58 @@ export function subscribeOnce<T>(
  */
 export const EVENT_TYPES = {
   // Client
-  CLIENT_CREATED: 'client.created' as const,
-  CLIENT_UPDATED: 'client.updated' as const,
-  CLIENT_DELETED: 'client.deleted' as const,
-  CLIENT_DUPLICATED: 'client.duplicated' as const,
+  CLIENT_CREATED:'client.created'as const,
+  CLIENT_UPDATED:'client.updated'as const,
+  CLIENT_DELETED:'client.deleted'as const,
+  CLIENT_DUPLICATED:'client.duplicated'as const,
 
   // Contract
-  CONTRACT_CREATED: 'contract.created' as const,
-  CONTRACT_UPDATED: 'contract.updated' as const,
-  CONTRACT_DELETED: 'contract.deleted' as const,
-  CONTRACT_EXPIRING: 'contract.expiring' as const,
-  CONTRACT_EXPIRED: 'contract.expired' as const,
-  CONTRACT_TERMINATED: 'contract.terminated' as const,
-  CONTRACT_RENEWED: 'contract.renewed' as const,
+  CONTRACT_CREATED:'contract.created'as const,
+  CONTRACT_UPDATED:'contract.updated'as const,
+  CONTRACT_DELETED:'contract.deleted'as const,
+  CONTRACT_EXPIRING:'contract.expiring'as const,
+  CONTRACT_EXPIRED:'contract.expired'as const,
+  CONTRACT_TERMINATED:'contract.terminated'as const,
+  CONTRACT_RENEWED:'contract.renewed'as const,
 
   // Inspection
-  INSPECTION_CREATED: 'inspection.created' as const,
-  INSPECTION_UPDATED: 'inspection.updated' as const,
-  INSPECTION_ASSIGNED: 'inspection.assigned' as const,
-  INSPECTION_COMPLETED: 'inspection.completed' as const,
-  INSPECTION_CANCELLED: 'inspection.cancelled' as const,
+  INSPECTION_CREATED:'inspection.created'as const,
+  INSPECTION_UPDATED:'inspection.updated'as const,
+  INSPECTION_ASSIGNED:'inspection.assigned'as const,
+  INSPECTION_COMPLETED:'inspection.completed'as const,
+  INSPECTION_CANCELLED:'inspection.cancelled'as const,
 
   // NCR
-  NCR_RAISED: 'ncr.raised' as const,
-  NCR_RESOLVED: 'ncr.resolved' as const,
-  NCR_CLOSED: 'ncr.closed' as const,
+  NCR_RAISED:'ncr.raised'as const,
+  NCR_RESOLVED:'ncr.resolved'as const,
+  NCR_CLOSED:'ncr.closed'as const,
 
   // Invoice
-  INVOICE_CREATED: 'invoice.created' as const,
-  INVOICE_ISSUED: 'invoice.issued' as const,
-  INVOICE_PAID: 'invoice.paid' as const,
-  INVOICE_OVERDUE: 'invoice.overdue' as const,
-  INVOICE_CANCELLED: 'invoice.cancelled' as const,
+  INVOICE_CREATED:'invoice.created'as const,
+  INVOICE_ISSUED:'invoice.issued'as const,
+  INVOICE_PAID:'invoice.paid'as const,
+  INVOICE_OVERDUE:'invoice.overdue'as const,
+  INVOICE_CANCELLED:'invoice.cancelled'as const,
 
   // Inspector
-  INSPECTOR_AVAILABLE: 'inspector.available' as const,
-  INSPECTOR_BUSY: 'inspector.busy' as const,
-  INSPECTOR_ON_LEAVE: 'inspector.onLeave' as const,
+  INSPECTOR_AVAILABLE:'inspector.available'as const,
+  INSPECTOR_BUSY:'inspector.busy'as const,
+  INSPECTOR_ON_LEAVE:'inspector.onLeave'as const,
 
   // System
-  USER_LOGIN: 'system.user.login' as const,
-  USER_LOGOUT: 'system.user.logout' as const,
-  THEME_CHANGED: 'system.theme.changed' as const,
-  NOTIFICATION_SENT: 'system.notification.sent' as const,
+  USER_LOGIN:'system.user.login'as const,
+  USER_LOGOUT:'system.user.logout'as const,
+  THEME_CHANGED:'system.theme.changed'as const,
+  NOTIFICATION_SENT:'system.notification.sent'as const,
+  
+  // Storage Events
+  STORAGE_CLIENTS_CHANGED:'storage.clients.changed'as const,
+  STORAGE_CONTRACTS_CHANGED:'storage.contracts.changed'as const,
+  STORAGE_INSPECTIONS_CHANGED:'storage.inspections.changed'as const,
+  STORAGE_INSPECTORS_CHANGED:'storage.inspectors.changed'as const,
+  sSTORAGE_INVOICES_CHANGED:'storage.invoices.changed'as const,
+  STORAGE_NCRS_CHANGED:'storage.ncrs.changed'as const,
 
   // Wildcard
-  ALL: '*' as const,
+  ALL:'*'as const,
 } as const;

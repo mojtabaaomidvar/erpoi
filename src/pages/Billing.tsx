@@ -1,14 +1,14 @@
 // src/pages/Billing.tsx
 
-import { Card, CardHeader, Badge, Button, StatusPill } from "@design-system";
-import { invoices } from "../data/mockData";
-import { formatCurrency, formatDate } from "@shared/lib/formatters";
+import { Card, CardHeader, Badge, Button, StatusPill } from"@design-system";
+import { invoices } from"../data/mockData";
+import { formatCurrency, formatDate } from"@shared/lib/formatters";
 
 export function Billing() {
-const paid = invoices.filter((i) => i.status === "PAID").reduce((s, i) => s + (i.total_amount ?? 0), 0);
-const outstanding = invoices.filter((i) => i.status === "ISSUED").reduce((s, i) => s + (i.total_amount ?? 0), 0);
-const overdue = invoices.filter((i) => i.status === "OVERDUE").reduce((s, i) => s + (i.total_amount ?? 0), 0);
-const draft = invoices.filter((i) => i.status === "DRAFT").reduce((s, i) => s + (i.total_amount ?? 0), 0);
+const paid = invoices.filter((i) => i.status ==="PAID").reduce((s, i) => s + (i.total_amount ?? 0), 0);
+const outstanding = invoices.filter((i) => i.status ==="ISSUED").reduce((s, i) => s + (i.total_amount ?? 0), 0);
+const overdue = invoices.filter((i) => i.status ==="OVERDUE").reduce((s, i) => s + (i.total_amount ?? 0), 0);
+const draft = invoices.filter((i) => i.status ==="DRAFT").reduce((s, i) => s + (i.total_amount ?? 0), 0);
 
   return (
     <div className="space-y-4">
@@ -41,8 +41,7 @@ const draft = invoices.filter((i) => i.status === "DRAFT").reduce((s, i) => s + 
 
       <Card>
         <CardHeader
-          title="Invoices"
-          subtitle={`${invoices.length} total`}
+          title="Invoices"subtitle={`${invoices.length} total`}
           action={<Button size="sm">+ New Invoice</Button>}
         />
         <div className="overflow-x-auto">
@@ -64,9 +63,9 @@ const draft = invoices.filter((i) => i.status === "DRAFT").reduce((s, i) => s + 
                   </td>
                   <td className="px-5 py-3 text-sm text-slate-800">{inv.client_name}</td>
                   <td className="px-5 py-3 text-sm font-semibold text-slate-900">
-					{formatCurrency(inv.total_amount ?? 0, inv.currency ?? "USD")}
+					{formatCurrency(inv.total_amount ?? 0, inv.currency ??"USD")}
                   </td>
-                  <td className="px-5 py-3 text-xs text-slate-600">{inv.due_date ? formatDate(inv.due_date) : "-"}</td>
+                  <td className="px-5 py-3 text-xs text-slate-600">{inv.due_date ? formatDate(inv.due_date) :"-"}</td>
                   <td className="px-5 py-3">
                     <StatusPill
 					  status={inv.status.toLowerCase()}

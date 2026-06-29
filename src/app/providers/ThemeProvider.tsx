@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from'react';
 
-type ThemeMode = 'light' | 'dark' | 'auto';
+type ThemeMode ='light'|'dark'|'auto';
 
 interface ThemeContextType {
   isDark: boolean;
@@ -20,7 +20,7 @@ const isNightTime = (): boolean => {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
     const saved = localStorage.getItem('theme-mode');
-    return (saved as ThemeMode) || 'auto';
+    return (saved as ThemeMode) ||'auto';
   });
 
   const [currentHour, setCurrentHour] = useState(new Date().getHours());
@@ -34,7 +34,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // تعیین حالت تاریک
-  const isDark = themeMode === 'auto' ? isNightTime() : themeMode === 'dark';
+  const isDark = themeMode ==='auto'? isNightTime() : themeMode ==='dark';
 
   // اعمال کلاس dark
   useEffect(() => {
@@ -49,8 +49,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const toggleTheme = () => {
     setThemeModeState(prev => {
-      if (prev === 'auto') return isNightTime() ? 'light' : 'dark';
-      return prev === 'dark' ? 'light' : 'dark';
+      if (prev ==='auto') return isNightTime() ?'light':'dark';
+      return prev ==='dark'?'light':'dark';
     });
   };
 

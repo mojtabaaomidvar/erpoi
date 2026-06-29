@@ -1,1 +1,1 @@
-export * from "@/types/contract";
+export * from"@/types/contract";
