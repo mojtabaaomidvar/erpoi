@@ -1,4 +1,4 @@
-import { cn } from "../../lib/cn";
+import { cn } from "@shared/lib/cn";
 
 export interface CardHeaderProps {
   title: string;
@@ -24,3 +24,7 @@ export function CardHeader({ title, subtitle, action, className }: CardHeaderPro
     </div>
   );
 }
+
+
+
+

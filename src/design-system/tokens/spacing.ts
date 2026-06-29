@@ -19,3 +19,7 @@ export const borderRadius = {
   '2xl': '1rem',   // 16px
   full: '9999px',
 } as const;
+
+
+
+

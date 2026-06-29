@@ -1,6 +1,4 @@
 // src/types/contract.ts
-// همه interfaces مربوط به قراردادها و مشتریان
-// 📊 استخراج شده بر اساس تحلیل Graphify
 
 // ============ انواع پایه ============
 
@@ -16,10 +14,13 @@ export type ServiceDescription = "TPI" | "MWS" | "TPER" | "OTHER";
 // ============ Interfaces اصلی ============
 
 export interface ContactPerson {
+  id?: string;
   name: string;
   position: string;
-  phone: string;
-  email: string;
+  phone?: string;
+  mobile?: string;
+  email?: string;
+  department?: string;
 }
 
 export interface Client {
@@ -129,8 +130,6 @@ export interface Contract {
   service_description?: ServiceDescription[];
 }
 
-// ============ Interfaces برای محاسبات (Lightweight) ============
-
 export interface ContractLike {
   id: string;
   total_value: number;
@@ -157,39 +156,88 @@ export interface TariffLike {
   contract_id?: string;
 }
 
-// ============ سایر Interfaces ============
-
 export interface Inspector {
   id: string;
-  name: string;
-  discipline: string;
-  certifications: string[];
-  experience_years: number;
+  name_en: string;
+  name_fa: string;
+  phone: string;
+  email: string;
+  location: string;
+  rating: number;
+  status:
+    | "AVAILABLE"
+    | "BUSY"
+    | "ON_LEAVE";
+  specialties: string[];
+  certifications: number;
+  activeJobs: number;
+  completedJobs: number;
 }
 
 export interface Inspection {
   id: string;
+  inspection_no: string;
   contract_id: string;
-  inspector_id: string;
-  date: string;
-  type: string;
+  contract_no?: string;
+  client_name?: string;
+  inspector_id?: string;
+  inspector_name?: string;
+  source?: string;
+  reference_no?: string;
+  date_requested?: string;
+  date_assigned?: string;
+  date_executed?: string;
+  date_completed?: string;
   status: string;
-  findings: string[];
+  has_ncr?: boolean;
+  location?: string;
+  discipline?: string;
+  findings?: string[];
 }
 
 export interface NCR {
   id: string;
+  ncr_no?: string;
   inspection_id: string;
+  inspection_no?: string;
+  client_name?: string;
   description: string;
-  severity: "MINOR" | "MAJOR" | "CRITICAL";
-  status: "OPEN" | "CLOSED";
-  date: string;
+  severity:
+    | "MINOR"
+    | "MAJOR"
+    | "CRITICAL";
+  status:
+    | "OPEN"
+    | "IN_PROGRESS"
+    | "CLOSED";
+  date_raised?: string;
+  date_closed?: string;
 }
 
 export interface Invoice {
   id: string;
-  contract_id: string;
+  invoice_no?: string;
+  contract_id?: string;
+  contract_no?: string;
+  inspection_id?: string;
+  inspection_no?: string;
+  client_name?: string;
   amount: number;
-  date: string;
-  status: "PENDING" | "PAID" | "OVERDUE";
+  tax_amount?: number;
+  total_amount?: number;
+  currency?: string;
+  issued_date?: string;
+  due_date?: string;
+  paid_date?: string;
+  status:
+    | "DRAFT"
+    | "ISSUED"
+    | "PENDING"
+    | "PAID"
+    | "OVERDUE"
+	| "CANCELLED" ;
 }
+
+
+
+

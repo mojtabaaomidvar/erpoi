@@ -1,5 +1,5 @@
 // src/config/views.ts
-import { ViewKey } from '../components/Sidebar';
+import { ViewKey } from '@widgets/layout/Sidebar';
 
 export interface ViewMeta {
   title: string;
@@ -36,3 +36,7 @@ export const VIEW_META: Record<ViewKey, ViewMeta> = {
     subtitle: "Performance, quality, and financial intelligence" 
   },
 };
+
+
+
+

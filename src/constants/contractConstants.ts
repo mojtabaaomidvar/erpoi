@@ -31,3 +31,7 @@ export type ContractType = typeof CONTRACT_TYPES[number]["value"];
 export const getTypeConfig = (type: string) => {
   return CONTRACT_TYPES.find(t => t.value === type) || CONTRACT_TYPES[0];
 };
+
+
+
+

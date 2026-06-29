@@ -1,24 +1,50 @@
+// tsconfig.json
+
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "target": "ES2022",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+
     "module": "ESNext",
+    "moduleResolution": "Bundler",
+
+    "jsx": "react-jsx",
+
+    "strict": true,
     "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
+
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx",
-    "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true,
-    "allowJs": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true
+
+    "baseUrl": ".",
+
+    "paths": {
+	  "@/*": ["src/*"],
+	  "@app/*": ["src/app/*"],
+	  "@shared/*": ["src/shared/*"],
+	  "@entities/*": ["src/entities/*"],
+	  "@features/*": ["src/features/*"],
+	  "@widgets/*": ["src/widgets/*"],
+	  "@pages/*": ["src/pages/*"],
+	  "@infra/*": ["src/infrastructure/*"],
+	  "@design-system": ["src/design-system/index.ts"],
+	  "@design-system/*": ["src/design-system/*"],
+	  "@data/*": ["src/data/*"],
+	  "@shared/ui": ["src/shared/ui/index.ts"]
+	}
   },
-  "include": ["src"]
+
+  "include": [
+    "src",
+    "vite.config.ts"
+  ],
+
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }
