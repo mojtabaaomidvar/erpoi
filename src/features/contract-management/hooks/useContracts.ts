@@ -1,18 +1,32 @@
 // src/features/contract-management/hooks/useContracts.ts
+
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { usePersistedState } from "@shared/hooks/usePersistedState";
-import { useClients } from '@features/client-management/hooks/useClients';
-import { contracts as initialContracts } from '@data/mockData';
-import type { Contract } from '@entities/contract/types';
+import { 
+  contracts as initialContracts,
+  clients as initialClients,
+} from '@data/mockData';
+import type { Contract, Client } from '@entities/contract/types';
 import { publishEvent, EVENT_TYPES } from '@infra/events';
 import { showToast } from '@shared/ui/ToastContainer';
+
+import { usePermission } from '@shared/authorization/hooks/usePermission';
+import { useAuth } from '@features/auth/hooks/useAuth';
+import { getDepartmentName } from '@shared/authorization/departments';
 
 type ContractStatusFilter = 'ALL' | 'ACTIVE' | 'NOT_STARTED' | 'NEEDS_REVIEW' | 'COMPLETED';
 
 export function useContracts() {
-  const { clients, setClients } = useClients();
+  const { can, canAny } = usePermission();
   
+  const { user } = useAuth();
+  const currentDepartment = getDepartmentName(user?.department || 'general');
+
+  const canViewAllContracts = can('contract:view_all');
+  const canViewOwnContracts = can('contract:view_own');
+
   const [contracts, setContracts] = usePersistedState<Contract[]>('ics_contracts', initialContracts);
+  const [clients] = usePersistedState<Client[]>('ics_clients', initialClients);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'CONTRACT' | 'WORK_ORDER'>('ALL');
@@ -23,6 +37,23 @@ export function useContracts() {
   const prevContractsRef = useRef<Contract[]>(contracts);
   const isFirstRender = useRef(true);
 
+  const accessibleContracts = useMemo(() => {
+    if (canViewAllContracts) {
+      return contracts;
+    }
+    if (canViewOwnContracts) {
+      // فقط قراردادهایی که مشتری‌شون در دپارتمان کاربر هست
+      return contracts.filter(contract => {
+        const client = clients.find(c => c.id === contract.client_id);
+        if (!client) return false;
+        const clientDepartments = (client as any).departments || [];
+        return clientDepartments.includes(currentDepartment);
+      });
+    }
+    return [];
+  }, [contracts, clients, canViewAllContracts, canViewOwnContracts, currentDepartment]);
+
+  // 🔔 Event publishing + Toast notifications
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -68,19 +99,20 @@ export function useContracts() {
     prevContractsRef.current = contracts;
   }, [contracts]);
 
-  const baseContracts = contracts;
+  const baseContracts = accessibleContracts;
 
-  // ✅ استفاده از type assertion برای جلوگیری از خطای type
+  // 🔐 RBAC: filterCounts فقط برای قراردادهای قابل دسترسی
   const filterCounts = useMemo(() => ({
-    ALL: contracts.length,
-    ACTIVE: contracts.filter(c => c.status === 'ACTIVE').length,
-    NOT_STARTED: contracts.filter(c => (c.status as string) === 'NOT_STARTED').length,
-    NEEDS_REVIEW: contracts.filter(c => (c.status as string) === 'NEEDS_REVIEW').length,
-    COMPLETED: contracts.filter(c => c.status === 'COMPLETED').length,
-  }), [contracts]);
+    ALL: accessibleContracts.length,
+    ACTIVE: accessibleContracts.filter(c => c.status === 'ACTIVE').length,
+    NOT_STARTED: accessibleContracts.filter(c => (c.status as string) === 'NOT_STARTED').length,
+    NEEDS_REVIEW: accessibleContracts.filter(c => (c.status as string) === 'NEEDS_REVIEW').length,
+    COMPLETED: accessibleContracts.filter(c => c.status === 'COMPLETED').length,
+  }), [accessibleContracts]);
 
+  // 🔐 RBAC: filteredContracts فقط از قراردادهای قابل دسترسی
   const filteredContracts = useMemo(() => {
-    let result = contracts;
+    let result = accessibleContracts;
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -113,13 +145,12 @@ export function useContracts() {
     });
 
     return result;
-  }, [contracts, searchQuery, typeFilter, statusFilter, sortBy]);
+  }, [accessibleContracts, searchQuery, typeFilter, statusFilter, sortBy]);
 
   return {
-    contracts,
+    contracts: accessibleContracts,
     setContracts,
     clients,
-    setClients,
     searchQuery,
     setSearchQuery,
     selectedContract,
@@ -135,5 +166,6 @@ export function useContracts() {
     baseContracts,
     filterCounts,
     filteredContracts,
+    currentDepartment,
   };
 }
