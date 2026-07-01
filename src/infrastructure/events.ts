@@ -1,16 +1,84 @@
 // src/infrastructure/events.ts
 
 export type EventType =
-  // Client Events
-  |'client.created'|'client.updated'|'client.deleted'|'client.duplicated'// Contract Events
-  |'contract.created'|'contract.updated'|'contract.deleted'|'contract.expiring'|'contract.expired'|'contract.terminated'|'contract.renewed'// Inspection Events
-  |'inspection.created'|'inspection.updated'|'inspection.assigned'|'inspection.completed'|'inspection.cancelled'// NCR Events
-  |'ncr.raised'|'ncr.resolved'|'ncr.closed'// Invoice Events
-  |'invoice.created'|'invoice.issued'|'invoice.paid'|'invoice.overdue'|'invoice.cancelled'// Inspector Events
-  |'inspector.available'|'inspector.busy'|'inspector.onLeave'// System Events
-  |'system.user.login'|'system.user.logout'|'system.theme.changed'|'system.notification.sent'// Storage Events
-  |'storage.clients.changed'|'storage.contracts.changed'|'storage.inspections.changed'|'storage.inspectors.changed'|'storage.invoices.changed'|'storage.ncrs.changed'|'storage.settings.changed'|'storage.notifications.changed'|'storage.audit_log.changed'// Wildcard (برای گوش دادن به همه رویدادها)
-  |'*';
+    // Client Events
+  | 'client.created'
+  | 'client.updated'
+  | 'client.deleted'
+  | 'client.duplicated'
+  
+  // Contract Events
+  | 'contract.created'
+  | 'contract.updated'
+  | 'contract.deleted'
+  | 'contract.expiring'
+  | 'contract.expired'
+  | 'contract.terminated'
+  | 'contract.renewed'
+  
+  // Inspection Events
+  | 'inspection.created'
+  | 'inspection.updated'
+  | 'inspection.assigned'
+  | 'inspection.completed'
+  | 'inspection.cancelled'
+  | 'inspection.deleted'
+
+  
+  // NCR Events
+  | 'ncr.raised'
+  | 'ncr.resolved'
+  | 'ncr.closed'
+  
+  // Invoice Events
+  | 'invoice.created'
+  | 'invoice.issued'
+  | 'invoice.paid'
+  | 'invoice.overdue'
+  | 'invoice.cancelled'
+  | 'invoice.updated'
+  | 'invoice.deleted'
+  
+  // Inspector Events
+  | 'inspector.created'
+  | 'inspector.available'
+  | 'inspector.busy'
+  | 'inspector.onLeave'
+  | 'inspector.updated'
+  | 'inspector.deleted'
+
+  // User Events
+  | 'user.created'
+  | 'user.updated'
+  | 'user.deleted'
+  | 'user.role.changed'
+  | 'user.status.changed'
+  | 'user.permissions.changed'
+  | 'user.password.reset'
+  
+  // Role Events
+  | 'user.role.created'
+  | 'user.role.updated'
+  | 'user.role.deleted'
+  
+  // Storage Events
+  | 'storage.clients.changed'
+  | 'storage.contracts.changed'
+  | 'storage.inspections.changed'
+  | 'storage.inspectors.changed'
+  | 'storage.invoices.changed'
+  | 'storage.ncrs.changed'
+  | 'storage.settings.changed'
+  | 'storage.notifications.changed'
+  
+  // System Events
+  | 'system.user.login'
+  | 'system.user.logout'
+  | 'system.theme.changed'
+  | 'system.notification.sent'
+  
+  // Wildcard
+  | '*';
 
 /**
  * ساختار استاندارد یک Domain Event
@@ -260,6 +328,8 @@ export const EVENT_TYPES = {
   INSPECTION_ASSIGNED:'inspection.assigned'as const,
   INSPECTION_COMPLETED:'inspection.completed'as const,
   INSPECTION_CANCELLED:'inspection.cancelled'as const,
+  INSPECTION_DELETED: 'inspection.deleted' as const,
+  
 
   // NCR
   NCR_RAISED:'ncr.raised'as const,
@@ -272,11 +342,16 @@ export const EVENT_TYPES = {
   INVOICE_PAID:'invoice.paid'as const,
   INVOICE_OVERDUE:'invoice.overdue'as const,
   INVOICE_CANCELLED:'invoice.cancelled'as const,
+  INVOICE_UPDATED: 'invoice.updated' as const,
+  INVOICE_DELETED: 'invoice.deleted' as const,
 
   // Inspector
   INSPECTOR_AVAILABLE:'inspector.available'as const,
   INSPECTOR_BUSY:'inspector.busy'as const,
   INSPECTOR_ON_LEAVE:'inspector.onLeave'as const,
+  INSPECTOR_CREATED: 'inspector.created' as const,
+  INSPECTOR_UPDATED: 'inspector.updated' as const,
+  INSPECTOR_DELETED: 'inspector.deleted' as const,
 
   // System
   USER_LOGIN:'system.user.login'as const,
@@ -291,7 +366,21 @@ export const EVENT_TYPES = {
   STORAGE_INSPECTORS_CHANGED:'storage.inspectors.changed'as const,
   sSTORAGE_INVOICES_CHANGED:'storage.invoices.changed'as const,
   STORAGE_NCRS_CHANGED:'storage.ncrs.changed'as const,
-
+  
+  // User Events
+  USER_CREATED: 'user.created' as const,
+  USER_UPDATED: 'user.updated' as const,
+  USER_DELETED: 'user.deleted' as const,
+  USER_ROLE_CHANGED: 'user.role.changed' as const,
+  USER_STATUS_CHANGED: 'user.status.changed' as const,
+  USER_PERMISSIONS_CHANGED: 'user.permissions.changed' as const,
+  USER_PASSWORD_RESET: 'user.password.reset' as const,
+  
+  // Role Events
+  USER_ROLE_CREATED: 'user.role.created' as const,
+  USER_ROLE_UPDATED: 'user.role.updated' as const,
+  USER_ROLE_DELETED: 'user.role.deleted' as const,
+  
   // Wildcard
   ALL:'*'as const,
 } as const;

@@ -1,117 +1,119 @@
-// src/views/contracts/hooks/useContracts.ts
+// src/features/contract-management/hooks/useContracts.ts
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { usePersistedState } from "@shared/hooks/usePersistedState";
+import { useClients } from '@features/client-management/hooks/useClients';
+import { contracts as initialContracts } from '@data/mockData';
+import type { Contract } from '@entities/contract/types';
+import { publishEvent, EVENT_TYPES } from '@infra/events';
+import { showToast } from '@shared/ui/ToastContainer';
 
-import { subscribeToEvent, EVENT_TYPES } from'@infra/events';
-import { useState, useMemo, useEffect } from'react';
-import { usePersistedState } from'@shared/hooks/usePersistedState';
-import {
-  contracts as initialContracts,
-  clients as initialClients,
-  contractTariffs,
-} from'@data/mockData';
-import type { Contract, Client } from'@entities/contract/types';
-import {
-  calculateProgressFromTariffs,
-  calculateDaysProgress,
-  calculateDaysLeft,
-  getDaysUntilStart,
-  getContractFinancialStatus,
-  isExpiringSoon,
-} from'@entities/contract/services/contractCalculations';
+type ContractStatusFilter = 'ALL' | 'ACTIVE' | 'NOT_STARTED' | 'NEEDS_REVIEW' | 'COMPLETED';
 
 export function useContracts() {
-  const [contracts, setContracts] = usePersistedState<Contract[]>('ics_contracts', initialContracts);
-  const [clients, setClients] = usePersistedState<Client[]>('ics_clients', initialClients);
+  const { clients, setClients } = useClients();
   
+  const [contracts, setContracts] = usePersistedState<Contract[]>('ics_contracts', initialContracts);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
-  const [typeFilter, setTypeFilter] = useState<'ALL'|'CONTRACT'|'WORK_ORDER'>('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL'|'ACTIVE'|'NOT_STARTED'|'NEEDS_REVIEW'|'COMPLETED'>('ALL');
-  const [sortBy, setSortBy] = useState<'date'|'value'|'status'>('date');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'CONTRACT' | 'WORK_ORDER'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<ContractStatusFilter>('ALL');
+  const [sortBy, setSortBy] = useState<'date' | 'value' | 'status'>('date');
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-  useEffect(() => {
-    setStatusFilter('ALL');
-  }, [typeFilter]);
+  const prevContractsRef = useRef<Contract[]>(contracts);
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
-    const unsubscribe = subscribeToEvent<{ contractId: string; daysLeft: number }>(
-      EVENT_TYPES.CONTRACT_EXPIRING,
-      (event) => {
-        console.log(`قرارداد ${event.payload.contractId} تا ${event.payload.daysLeft} روز دیگر منقضی می‌شود`);
-        // نمایش نوتیفیکیشن
-      }
-    );
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      prevContractsRef.current = contracts;
+      return;
+    }
 
-    return unsubscribe; // Cleanup هنگام unmount
-  }, []);
-  
-  // Base filtered contracts
-  const baseContracts = useMemo(() => {
-    return contracts.filter((contract) => {
-      const query = searchQuery.toLowerCase();
-      return (
-        !query ||
-        contract.contract_no.toLowerCase().includes(query) ||
-        (contract.external_contract_no && contract.external_contract_no.toLowerCase().includes(query)) ||
-        contract.client_name.toLowerCase().includes(query) ||
-        contract.contract_title.toLowerCase().includes(query)
-      );
+    const prevContracts = prevContractsRef.current;
+
+    const newContracts = contracts.filter(c => !prevContracts.find(pc => pc.id === c.id));
+    newContracts.forEach(contract => {
+      publishEvent(EVENT_TYPES.CONTRACT_CREATED, {
+        contractId: contract.id,
+        contractNo: contract.contract_no,
+        contractTitle: contract.contract_title,
+        totalValue: contract.total_value,
+      }, { source: 'contract-management' });
+      showToast('success', 'Contract Created', `Contract ${contract.contract_no || contract.id} has been added`);
     });
-  }, [searchQuery, contracts]);
 
-  // Cross-filtered counts
-  const filterCounts = useMemo(() => {
-    return {
-      type: {
-        ALL: baseContracts.filter(c => statusFilter ==='ALL'|| c.status === statusFilter).length,
-        CONTRACT: baseContracts.filter(c => c.type ==='CONTRACT'&& (statusFilter ==='ALL'|| c.status === statusFilter)).length,
-        WORK_ORDER: baseContracts.filter(c => c.type ==='WORK_ORDER'&& (statusFilter ==='ALL'|| c.status === statusFilter)).length,
-      },
-      status: {
-        ALL: baseContracts.filter(c => typeFilter ==='ALL'|| c.type === typeFilter).length,
-        ACTIVE: baseContracts.filter(c => c.status ==='ACTIVE'&& (typeFilter ==='ALL'|| c.type === typeFilter)).length,
-        COMPLETED: baseContracts.filter(c => c.status ==='COMPLETED'&& (typeFilter ==='ALL'|| c.type === typeFilter)).length,
-      },
-      total: baseContracts.length,
-      totalValue: baseContracts.reduce((sum, c) => sum + c.total_value, 0),
-      totalInvoiced: baseContracts.reduce((sum, c) => sum + c.invoiced, 0),
-    };
-  }, [baseContracts, typeFilter, statusFilter]);
+    const deletedContracts = prevContracts.filter(c => !contracts.find(nc => nc.id === c.id));
+    deletedContracts.forEach(contract => {
+      publishEvent(EVENT_TYPES.CONTRACT_DELETED, {
+        contractId: contract.id,
+        contractNo: contract.contract_no,
+      }, { source: 'contract-management' });
+      showToast('success', 'Contract Deleted', `Contract ${contract.contract_no || contract.id} has been removed`);
+    });
 
-  // Final filtered contracts
+    const updatedContracts = contracts.filter(c => {
+      const prev = prevContracts.find(pc => pc.id === c.id);
+      return prev && JSON.stringify(prev) !== JSON.stringify(c);
+    });
+    updatedContracts.forEach(contract => {
+      publishEvent(EVENT_TYPES.CONTRACT_UPDATED, {
+        contractId: contract.id,
+        contractNo: contract.contract_no,
+        contractTitle: contract.contract_title,
+      }, { source: 'contract-management' });
+      showToast('success', 'Contract Updated', `Contract ${contract.contract_no || contract.id} has been updated`);
+    });
+
+    prevContractsRef.current = contracts;
+  }, [contracts]);
+
+  const baseContracts = contracts;
+
+  // ✅ استفاده از type assertion برای جلوگیری از خطای type
+  const filterCounts = useMemo(() => ({
+    ALL: contracts.length,
+    ACTIVE: contracts.filter(c => c.status === 'ACTIVE').length,
+    NOT_STARTED: contracts.filter(c => (c.status as string) === 'NOT_STARTED').length,
+    NEEDS_REVIEW: contracts.filter(c => (c.status as string) === 'NEEDS_REVIEW').length,
+    COMPLETED: contracts.filter(c => c.status === 'COMPLETED').length,
+  }), [contracts]);
+
   const filteredContracts = useMemo(() => {
-    let result = baseContracts.filter((contract) => {
-      const matchesType = typeFilter ==='ALL'|| contract.type === typeFilter;
-      const financialStatus = getContractFinancialStatus(contract);
-      let matchesStatus = true;
-      
-      if (statusFilter ==='ACTIVE') matchesStatus = financialStatus ==='active';
-      else if (statusFilter ==='NOT_STARTED') matchesStatus = financialStatus ==='not_started';
-      else if (statusFilter ==='NEEDS_REVIEW') matchesStatus = financialStatus ==='needs_review';
-      else if (statusFilter ==='COMPLETED') matchesStatus = financialStatus ==='completed';
+    let result = contracts;
 
-      return matchesType && matchesStatus;
-    });
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(contract => 
+        (contract.contract_no && contract.contract_no.toLowerCase().includes(query)) ||
+        (contract.contract_title && contract.contract_title.toLowerCase().includes(query)) ||
+        (contract.client_name && contract.client_name.toLowerCase().includes(query))
+      );
+    }
 
-    return result.sort((a, b) => {
-      const aExpiring = isExpiringSoon(a);
-      const bExpiring = isExpiringSoon(b);
-      
-      if (aExpiring.expiring && !bExpiring.expiring) return -1;
-      if (!aExpiring.expiring && bExpiring.expiring) return 1;
-      if (aExpiring.expiring && bExpiring.expiring) {
-        return aExpiring.daysLeft - bExpiring.daysLeft;
+    if (typeFilter !== 'ALL') {
+      result = result.filter(c => c.type === typeFilter);
+    }
+
+    if (statusFilter !== 'ALL') {
+      result = result.filter(c => (c.status as string) === statusFilter);
+    }
+
+    result = [...result].sort((a, b) => {
+      if (sortBy === 'date') {
+        return new Date(b.start_date || 0).getTime() - new Date(a.start_date || 0).getTime();
       }
-
-      if (sortBy ==='date') return b.start_date.localeCompare(a.start_date);
-      if (sortBy ==='value') return b.total_value - a.total_value;
-      if (sortBy ==='status') {
-        const order: Record<string, number> = { ACTIVE: 1, COMPLETED: 2 };
-        return (order[a.status] || 99) - (order[b.status] || 99);
+      if (sortBy === 'value') {
+        return (b.total_value || 0) - (a.total_value || 0);
+      }
+      if (sortBy === 'status') {
+        return (a.status || '').localeCompare(b.status || '');
       }
       return 0;
     });
-  }, [baseContracts, typeFilter, statusFilter, sortBy]);
+
+    return result;
+  }, [contracts, searchQuery, typeFilter, statusFilter, sortBy]);
 
   return {
     contracts,
@@ -135,7 +137,3 @@ export function useContracts() {
     filteredContracts,
   };
 }
-
-
-
-

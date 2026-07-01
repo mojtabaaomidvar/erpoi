@@ -31,6 +31,9 @@ export const VIEW_META: Record<ViewKey, ViewMeta> = {
   audit: {
 	title: "Audit",
 	subtitle: "System audit and activity logs"},
+  settings: { 
+	title: "Settings", 
+	subtitle: "Manage roles, users, and permissions" },
 };
 
 

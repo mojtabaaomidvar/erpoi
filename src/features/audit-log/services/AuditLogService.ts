@@ -230,6 +230,12 @@ class AuditLogService implements IAuditLogService {
       'storage.ncrs.changed': 'NCR Data Changed',
       'storage.settings.changed': 'Settings Changed',
       'system.theme.changed': 'Theme Changed',
+	  'user.created': 'User Created',
+      'user.updated': 'User Updated',
+      'user.deleted': 'User Deleted',
+      'user.role.changed': 'User Role Changed',
+      'user.status.changed': 'User Status Changed',
+      'user.password.reset': 'Password Reset',
     };
 
     return titleMap[eventType] || this.toTitleCase(eventType);
@@ -257,6 +263,26 @@ class AuditLogService implements IAuditLogService {
 		  return `${entityName} updated: ${payload.updated.length} item(s), ${totalFieldChanges} field(s) changed`;
 		}
 		
+		// User Events
+		  if (event.type.startsWith('user.')) {
+			switch (event.type) {
+			  case 'user.created':
+				return `New user "${payload.fullName}" created with role ${payload.role}`;
+			  case 'user.updated':
+				return `User "${payload.fullName}" updated`;
+			  case 'user.deleted':
+				return `User "${payload.fullName}" deleted`;
+			  case 'user.role.changed':
+				return `User "${payload.fullName}" role changed from ${payload.oldRole} to ${payload.newRole}`;
+			  case 'user.status.changed':
+				return `User "${payload.fullName}" status changed from ${payload.oldStatus} to ${payload.newStatus}`;
+			  case 'user.password.reset':
+				return `Password reset for user "${payload.fullName}"`;
+			  default:
+				return `User event: ${event.type}`;
+			}
+		  }
+  
 		// Array changes
 		switch (payload.changeType) {
 		  case 'created':

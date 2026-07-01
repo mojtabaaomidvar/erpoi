@@ -1,6 +1,5 @@
-// src/views/Contracts.tsx
-// Orchestration Component - فقط ترکیب کامپوننت‌های کوچکتر
-// 📊 Refactor شده بر اساس تحلیل Graphify - Cohesion Community 0
+// src/pages/Contracts.tsx
+
 
 import { useState, useEffect, useMemo } from"react";
 import { Button, Badge, Modal } from"@design-system";
@@ -88,7 +87,7 @@ export function Contracts() {
   };
 
   const handleAddSave = (formData: any) => {
-    const client = clients.find((c) => c.id === formData.client_id);
+    const client = clients.find((c: any) => c.id === formData.client_id);
     const newContract: Contract = {
       id: `ct${Date.now()}`,
       contract_no: formData.contract_no,
@@ -208,7 +207,7 @@ export function Contracts() {
     const existingContracts = contracts.filter(
       (c) => c.client_id === clientId && c.department === CURRENT_DEPARTMENT
     );
-    const client = clients.find((c) => c.id === clientId);
+    const client = clients.find((c: any) => c.id === clientId);
     setClientContractsList(existingContracts);
     setSelectedClientForView(client);
     setViewFilterStatus("ALL");
@@ -509,7 +508,3 @@ export function Contracts() {
     </div>
   );
 }
-
-
-
-

@@ -211,7 +211,7 @@ export function AuditLogPanel() {
                         <span>{levelIcons[log.level]}</span>
                         <div>
                           <div className="font-medium text-slate-900 dark:text-slate-100">{log.title}</div>
-                          
+                          <div className="text-xs text-slate-500 dark:text-slate-400">{log.description}</div>
                         </div>
                       </div>
                     </td>
