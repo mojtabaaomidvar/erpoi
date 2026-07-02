@@ -17,22 +17,25 @@ export function RoleManager() {
 
   const refresh = () => setRoles(roleService.getAllRoles());
 
-  const handleEdit = (role: any) => {
-    if (!role.isCustom) {
-      // برای role های سیستمی، یک کپی می‌سازیم
-      const newId = `${role.id}_custom`;
-      try {
-        const duplicated = roleService.duplicateRole(role.id, newId, `${role.name} (Custom)`);
-        showToast('info', 'System Role Copied', `Create a custom copy to edit. Editing "${duplicated.name}"`);
-        setEditingRole(duplicated);
-      } catch (e: any) {
-        showToast('error', 'Error', e.message);
-      }
-    } else {
-      setEditingRole(role);
-    }
+  // 🔧 FIX: async کردن handleEdit
+  const handleEdit = async (role: any) => {
+	  if (!role.isCustom) {
+		// برای role های سیستمی، یک کپی می‌سازیم
+		try {
+		  // 🔧 FIX: duplicateRole خودش ID تولید می‌کنه
+		  const duplicated = await roleService.duplicateRole(role.id, `${role.name} (Custom)`);
+		  showToast('info', 'System Role Copied', `Create a custom copy to edit. Editing "${duplicated.name}"`);
+		  setEditingRole(duplicated);
+		  refresh();
+		} catch (e: any) {
+		  showToast('error', 'Error', e.message);
+		}
+	  } else {
+		setEditingRole(role);
+	  }
   };
 
+  // 🔧 FIX: async کردن handleDelete
   const handleDelete = async (role: any) => {
     if (!role.isCustom) {
       showToast('warning', 'Cannot Delete', 'System roles cannot be deleted');
@@ -49,7 +52,8 @@ export function RoleManager() {
     if (!confirmed) return;
 
     try {
-      roleService.deleteRole(role.id);
+      // 🔧 FIX: await اضافه شد چون deleteRole الان async هست
+      await roleService.deleteRole(role.id);
       showToast('success', 'Role Deleted', `Role "${role.name}" has been deleted`);
       refresh();
     } catch (e: any) {
@@ -71,7 +75,7 @@ export function RoleManager() {
             onClick={() => setViewMode(viewMode === 'list' ? 'matrix' : 'list')}
             className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium"
           >
-            {viewMode === 'list' ? ' Matrix View' : '📋 List View'}
+            {viewMode === 'list' ? '🔲 Matrix View' : '📋 List View'}
           </button>
           <button
             onClick={() => setShowCreateForm(true)}

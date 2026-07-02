@@ -45,20 +45,23 @@ export function RoleForm({ role, onClose, onSuccess }: Props) {
     setIsSubmitting(true);
     try {
       if (isEdit && role) {
-        roleService.updateRole(role.id, {
+        // 🔧 FIX: await اضافه شد چون updateRole الان async هست
+        await roleService.updateRole(role.id, {
           name: formData.name,
           description: formData.description,
           permissions: formData.permissions,
         });
         showToast('success', 'Role Updated', `Role "${formData.name}" has been updated`);
       } else {
-        roleService.createRole(formData);
+        // 🔧 FIX: await اضافه شد چون createRole الان async هست
+        await roleService.createRole(formData);
         showToast('success', 'Role Created', `Role "${formData.name}" has been created`);
       }
       onSuccess();
       onClose();
     } catch (error: any) {
       setErrors({ submit: error.message });
+      showToast('error', 'Error', error.message || 'Failed to save role');
     } finally {
       setIsSubmitting(false);
     }

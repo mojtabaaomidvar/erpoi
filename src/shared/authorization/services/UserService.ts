@@ -2,6 +2,8 @@
 
 import { User, UserFormData, UserStatus, Role, Permission } from '../types';
 import { eventBus } from '@infra/events';
+import { db } from '@shared/database';
+import type { DBUser } from '@shared/database/types';
 
 const STORAGE_KEY = 'ics_users';
 
@@ -42,7 +44,7 @@ const INITIAL_USERS: User[] = [
     email: 'sara.m@ics.com',
     fullName: 'Sara Mohammadi',
     role: 'manager',
-    department: 'inspections',
+    department: 'oi',
     status: 'active',
     phone: '+98 912 234 5678',
     preferences: DEFAULT_PREFERENCES,
@@ -56,46 +58,25 @@ const INITIAL_USERS: User[] = [
     email: 'reza.h@ics.com',
     fullName: 'Reza Hosseini',
     role: 'inspector',
-    department: 'field',
+    department: 'oi',
     status: 'active',
     phone: '+98 912 123 4567',
     preferences: DEFAULT_PREFERENCES,
     customPermissions: [],
     createdAt: new Date('2024-02-01'),
   },
-  {
-    id: 'user_004',
-    username: 'maryam.k',
-    email: 'maryam.k@ics.com',
-    fullName: 'Maryam Karimi',
-    role: 'accountant',
-    department: 'finance',
-    status: 'active',
-    phone: '+98 912 987 6543',
-    preferences: DEFAULT_PREFERENCES,
-    customPermissions: [],
-    createdAt: new Date('2024-02-15'),
-  },
-  {
-    id: 'user_005',
-    username: 'hassan.t',
-    email: 'hassan.t@ics.com',
-    fullName: 'Hassan Tehrani',
-    role: 'viewer',
-    department: 'management',
-    status: 'active',
-    preferences: DEFAULT_PREFERENCES,
-    customPermissions: [],
-    createdAt: new Date('2024-03-01'),
-  },
 ];
 
 class UserService {
   private static instance: UserService;
   private users: User[] = [];
+  private initialized: boolean = false;
 
   private constructor() {
+    // 🔧 FIX: Load sync از localStorage برای backward compatibility
     this.loadFromStorage();
+    // 🎯 Initialize DB در پس‌زمینه
+    this.initializeDB();
   }
 
   static getInstance(): UserService {
@@ -103,6 +84,55 @@ class UserService {
       UserService.instance = new UserService();
     }
     return UserService.instance;
+  }
+
+  // 🎯 Initialize DB از localStorage
+  private async initializeDB() {
+    if (this.initialized) return;
+    
+    try {
+      const dbUsers = await db.getAllUsers();
+      
+      // اگه DB خالیه، از localStorage یا defaults پر کن
+      if (dbUsers.length === 0) {
+        for (const user of this.users) {
+          await db.createUser({
+            username: user.username,
+            email: user.email,
+            fullName: user.fullName,
+            password: (user as any).password || 'password123',
+            role: user.role,
+            department: user.department || '',
+            status: user.status,
+            customPermissions: user.customPermissions,
+          });
+        }
+      } else {
+        // اگه DB داده داره، از DB بخون
+        this.users = dbUsers.map(u => this.dbUserToUser(u));
+        this.saveToStorage(); // Sync با localStorage
+      }
+      
+      this.initialized = true;
+    } catch (error) {
+      console.error('[UserService] Failed to initialize DB:', error);
+    }
+  }
+
+  // 🔧 Helper: تبدیل DBUser به User
+  private dbUserToUser(dbUser: DBUser): User {
+    return {
+      id: dbUser.id,
+      username: dbUser.username,
+      email: dbUser.email,
+      fullName: dbUser.fullName,
+      role: dbUser.role as Role,
+      department: dbUser.department || '',
+      status: dbUser.status,
+      preferences: DEFAULT_PREFERENCES,
+      customPermissions: (dbUser.customPermissions || []) as Permission[],
+      createdAt: new Date(dbUser.createdAt),
+    };
   }
 
   // ═══════════════════════════════════════
@@ -167,6 +197,18 @@ class UserService {
     this.users.push(newUser);
     this.saveToStorage();
 
+    // 🎯 Save به DB
+    db.createUser({
+      username: newUser.username,
+      email: newUser.email,
+      fullName: newUser.fullName,
+      password: (formData as any).password || 'password123',
+      role: newUser.role,
+      department: newUser.department || '',
+      status: newUser.status,
+      customPermissions: newUser.customPermissions,
+    }).catch(err => console.error('[UserService] Failed to save to DB:', err));
+
     // ✅ Publish Event
     eventBus.publish({
       type: 'user.created',
@@ -176,7 +218,7 @@ class UserService {
         fullName: newUser.fullName,
         email: newUser.email,
         role: newUser.role,
-        department: newUser.department,
+        department: newUser.department || '',
       },
       timestamp: new Date(),
       eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -201,17 +243,27 @@ class UserService {
 
     const oldUser = { ...this.users[userIndex] };
 
-    // ✅ اصلاح: preferences رو کامل merge کن
     const updatedUser: User = {
       ...this.users[userIndex],
       ...formData,
-      preferences: formData.preferences 
+      preferences: formData.preferences
         ? { ...this.users[userIndex].preferences, ...formData.preferences }
         : this.users[userIndex].preferences,
     };
 
     this.users[userIndex] = updatedUser;
     this.saveToStorage();
+
+    // 🎯 Update در DB
+    db.updateUser(id, {
+      username: updatedUser.username,
+      email: updatedUser.email,
+      fullName: updatedUser.fullName,
+      role: updatedUser.role,
+      department: updatedUser.department,
+      status: updatedUser.status,
+      customPermissions: updatedUser.customPermissions,
+    }).catch(err => console.error('[UserService] Failed to update DB:', err));
 
     eventBus.publish({
       type: 'user.updated',
@@ -236,7 +288,6 @@ class UserService {
     const oldStatus = user.status;
     const updatedUser = this.update(id, { status });
 
-    // ✅ Publish Event
     eventBus.publish({
       type: 'user.status.changed',
       payload: {
@@ -272,7 +323,6 @@ class UserService {
     const oldPermissions = [...(user.customPermissions || [])];
     const updatedUser = this.update(id, { customPermissions: permissions });
 
-    // ✅ Publish Event
     eventBus.publish({
       type: 'user.permissions.changed',
       payload: {
@@ -298,7 +348,9 @@ class UserService {
     this.users = this.users.filter(u => u.id !== id);
     this.saveToStorage();
 
-    // ✅ Publish Event
+    // 🎯 Delete از DB
+    db.deleteUser(id).catch(err => console.error('[UserService] Failed to delete from DB:', err));
+
     eventBus.publish({
       type: 'user.deleted',
       payload: {
@@ -320,10 +372,11 @@ class UserService {
       throw new Error('User not found');
     }
 
-    // In a real app, this would hash the password
-    console.log(`Password reset for user ${user.username}`);
+    // 🎯 Update password در DB
+    db.updateUser(id, { password: newPassword }).catch(err => 
+      console.error('[UserService] Failed to reset password in DB:', err)
+    );
 
-    // ✅ Publish Event
     eventBus.publish({
       type: 'user.password.reset',
       payload: {
@@ -360,39 +413,25 @@ class UserService {
     };
   }
 
-  /**
-   * Helper: Get changes between old and new user
-   */
   private getChanges(oldUser: User, newUser: User): Record<string, { before: any; after: any }> {
     const changes: Record<string, { before: any; after: any }> = {};
-    
     const fields: (keyof User)[] = ['username', 'email', 'fullName', 'role', 'department', 'status', 'phone'];
-    
+
     fields.forEach(field => {
       const oldVal = oldUser[field];
       const newVal = newUser[field];
-      
-      // مقایسه عمیق برای آرایه‌ها (مثل customPermissions)
       const oldStr = JSON.stringify(oldVal);
       const newStr = JSON.stringify(newVal);
-      
+
       if (oldStr !== newStr) {
-        changes[field] = {
-          before: oldVal,
-          after: newVal,
-        };
+        changes[field] = { before: oldVal, after: newVal };
       }
     });
 
-    // چک کردن preferences
     if (JSON.stringify(oldUser.preferences) !== JSON.stringify(newUser.preferences)) {
-      changes.preferences = {
-        before: oldUser.preferences,
-        after: newUser.preferences,
-      };
+      changes.preferences = { before: oldUser.preferences, after: newUser.preferences };
     }
 
-    // چک کردن customPermissions
     if (JSON.stringify(oldUser.customPermissions) !== JSON.stringify(newUser.customPermissions)) {
       changes.customPermissions = {
         before: oldUser.customPermissions || [],
@@ -404,7 +443,7 @@ class UserService {
   }
 
   // ═══════════════════════════════════════
-  // 💾 Storage Methods
+  // 💾 Storage Methods (localStorage برای backward compatibility)
   // ═══════════════════════════════════════
 
   private loadFromStorage(): void {
@@ -433,6 +472,27 @@ class UserService {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.users));
     } catch (error) {
       console.error('[UserService] Failed to save:', error);
+    }
+  }
+
+  // 🎯 Reset به defaults
+  async resetToDefaults(): Promise<void> {
+    this.users = INITIAL_USERS;
+    this.saveToStorage();
+    
+    // Reset در DB
+    await db.users.clear();
+    for (const user of INITIAL_USERS) {
+      await db.createUser({
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        password: (user as any).password || 'password123',
+        role: user.role,
+        department: user.department || '',
+        status: user.status,
+        customPermissions: user.customPermissions,
+      });
     }
   }
 }

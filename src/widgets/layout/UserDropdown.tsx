@@ -2,13 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { User, Settings, LogOut, Shield, ChevronDown } from 'lucide-react';
-import { useRole } from '@shared/authorization';
+import { useRole } from '@shared/authorization/hooks/useRole';
 
 interface Props {
   userName?: string;
   userEmail?: string;
   onNavigateSettings: () => void;
-  onLogout?: () => void | Promise<void>;
+  onLogout?: () => void | Promise<void>;  // ✅ اضافه شد
   isExpanded?: boolean;
 }
 
@@ -16,7 +16,7 @@ export function UserDropdown({
   userName = 'Admin User', 
   userEmail = 'admin@ics.com',
   onNavigateSettings,
-  onLogout,
+  onLogout,  // ✅ اضافه شد
   isExpanded = true
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
@@ -42,6 +42,7 @@ export function UserDropdown({
     onNavigateSettings();
   };
 
+  // 🔧 FIX: Logout handler
   const handleLogout = async () => {
     setIsOpen(false);
     if (onLogout) {
@@ -49,16 +50,14 @@ export function UserDropdown({
     }
   };
 
-	const roleColors: Record<string, string> = {
-	  admin: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-	  manager: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-	  inspector: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-	  accountant: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-	  viewer: 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200',
-	};
-	
-	const roleColor = roleColors[role] || roleColors.viewer;
-	
+  const roleColors: Record<string, string> = {
+    admin: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+    manager: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    inspector: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    accountant: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+    viewer: 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200',
+  };
+
   if (isExpanded) {
     return (
       <div className="relative" ref={dropdownRef}>
@@ -90,7 +89,7 @@ export function UserDropdown({
                 {userEmail}
               </div>
               <div className="mt-2">
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${roleColor}`}>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${roleColors[role] || roleColors.viewer}`}>
                   <Shield className="w-3 h-3" />
                   {roleName}
                 </span>
@@ -110,7 +109,11 @@ export function UserDropdown({
 
               <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
 
-              <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+              {/* 🔧 FIX: دکمه Logout */}
+              <button 
+                onClick={handleLogout} 
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
                 <LogOut className="w-4 h-4" />
                 <span>Logout</span>
               </button>
@@ -161,7 +164,11 @@ export function UserDropdown({
 
             <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
 
-            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+            {/* 🔧 FIX: دکمه Logout */}
+            <button 
+              onClick={handleLogout} 
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
               <LogOut className="w-4 h-4" />
               <span>Logout</span>
             </button>

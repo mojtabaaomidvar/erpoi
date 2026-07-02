@@ -75,7 +75,8 @@ export function PermissionExplorer() {
 
   const currentPermissions = getCurrentPermissions();
 
-  const togglePermission = (permission: Permission) => {
+  // 🔧 FIX: async کردن togglePermission
+  const togglePermission = async (permission: Permission) => {
     const hasPermission = currentPermissions.includes(permission);
     const newPermissions = hasPermission
       ? currentPermissions.filter(p => p !== permission)
@@ -83,7 +84,8 @@ export function PermissionExplorer() {
 
     if (assignMode === 'role' && selectedRoleId) {
       try {
-        roleService.updateRole(selectedRoleId, { permissions: newPermissions });
+        // 🔧 FIX: await اضافه شد چون updateRole الان async هست
+        await roleService.updateRole(selectedRoleId, { permissions: newPermissions });
         setRoles(roleService.getAllRoles());
         showToast('success', 'Permission Updated', `${hasPermission ? 'Removed' : 'Added'} ${permission}`);
       } catch (e: any) {
@@ -100,33 +102,53 @@ export function PermissionExplorer() {
     }
   };
 
-  const selectAllInEntity = (entity: string) => {
+  // 🔧 FIX: async کردن selectAllInEntity
+  const selectAllInEntity = async (entity: string) => {
     const entityPermissions = PERMISSION_GROUPS[entity as keyof typeof PERMISSION_GROUPS]?.permissions || [];
     const newPermissions = [...new Set([...currentPermissions, ...entityPermissions])];
 
     if (assignMode === 'role' && selectedRoleId) {
-      roleService.updateRole(selectedRoleId, { permissions: newPermissions });
-      setRoles(roleService.getAllRoles());
-      showToast('success', 'Permissions Added', `All ${entity} permissions added`);
+      try {
+        // 🔧 FIX: await اضافه شد
+        await roleService.updateRole(selectedRoleId, { permissions: newPermissions });
+        setRoles(roleService.getAllRoles());
+        showToast('success', 'Permissions Added', `All ${entity} permissions added`);
+      } catch (e: any) {
+        showToast('error', 'Error', e.message);
+      }
     } else if (assignMode === 'user' && selectedUserId) {
-      userService.updateCustomPermissions(selectedUserId, newPermissions);
-      setUsers(userService.getAll());
-      showToast('success', 'Permissions Added', `All ${entity} permissions added`);
+      try {
+        userService.updateCustomPermissions(selectedUserId, newPermissions);
+        setUsers(userService.getAll());
+        showToast('success', 'Permissions Added', `All ${entity} permissions added`);
+      } catch (e: any) {
+        showToast('error', 'Error', e.message);
+      }
     }
   };
 
-  const deselectAllInEntity = (entity: string) => {
+  // 🔧 FIX: async کردن deselectAllInEntity
+  const deselectAllInEntity = async (entity: string) => {
     const entityPermissions = PERMISSION_GROUPS[entity as keyof typeof PERMISSION_GROUPS]?.permissions || [];
     const newPermissions = currentPermissions.filter(p => !entityPermissions.includes(p));
 
     if (assignMode === 'role' && selectedRoleId) {
-      roleService.updateRole(selectedRoleId, { permissions: newPermissions });
-      setRoles(roleService.getAllRoles());
-      showToast('success', 'Permissions Removed', `All ${entity} permissions removed`);
+      try {
+        // 🔧 FIX: await اضافه شد
+        await roleService.updateRole(selectedRoleId, { permissions: newPermissions });
+        setRoles(roleService.getAllRoles());
+        showToast('success', 'Permissions Removed', `All ${entity} permissions removed`);
+      } catch (e: any) {
+        showToast('error', 'Error', e.message);
+      }
     } else if (assignMode === 'user' && selectedUserId) {
-      userService.updateCustomPermissions(selectedUserId, newPermissions);
-      setUsers(userService.getAll());
-      showToast('success', 'Permissions Removed', `All ${entity} permissions removed`);
+      try {
+        userService.updateCustomPermissions(selectedUserId, newPermissions);
+        setUsers(userService.getAll());
+        showToast('success', 'Permissions Removed', `All ${entity} permissions removed`);
+      } catch (e: any) {
+        showToast('error', 'Error', e.message);
+      }
     }
   };
 
@@ -170,7 +192,7 @@ export function PermissionExplorer() {
       {/* Assign To Section */}
       <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
-           Assign Permissions To
+          🎯 Assign Permissions To
         </h3>
 
         <div className="flex gap-4 items-center flex-wrap">

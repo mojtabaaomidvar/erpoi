@@ -1,4 +1,5 @@
 // src/shared/authorization/components/UserRoleManager.tsx
+
 import { useState } from 'react';
 import { Role } from '../types';
 import { ROLES } from '../roles';

@@ -54,15 +54,13 @@ export const ROLES: Record<Role, RoleInfo> = {
   accountant: {
     id: 'accountant',
     name: 'Accountant',
-    description: 'Can manage invoices and view financial reports',
+    description: 'Financial access',
     permissions: [
       'client:read', 'client:view_all',
       'contract:read', 'contract:view_all',
+      'invoice:create', 'invoice:read', 'invoice:update', 'invoice:export', 'invoice:approve', 'invoice:view_all',
       'inspection:read', 'inspection:view_all',
-      'invoice:create', 'invoice:read', 'invoice:update', 'invoice:export', 'invoice:approve', 'invoice:view_all', 'invoice:view_own',
-      'ncr:read', 'ncr:view_all',
-      'report:create', 'report:read', 'report:export',
-      'audit_log:read',
+      'report:create', 'report:read', 'report:export', 'report:view_all',
       'notification:read',
     ],
   },

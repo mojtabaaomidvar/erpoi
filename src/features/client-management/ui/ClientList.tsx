@@ -2,8 +2,17 @@
 
 import { Button, Badge, Avatar } from '@design-system';
 import { useTheme } from '@app/providers/ThemeProvider';
-import { usePermission } from '@shared/authorization/hooks/usePermission';
+import { PermissionGuard } from '@shared/authorization/ui/PermissionGuard';
 import type { Client, Contract } from '@entities/contract/types';
+import { formatCurrency } from '@shared/lib/formatters';
+import {
+  calculateDaysProgress,
+  calculateDaysLeft,
+  getDaysUntilStart,
+  getContractFinancialStatus,
+  isExpiringSoon,
+  getDaysProgressColor,
+} from '@entities/contract/services/contractCalculations';
 
 interface ClientListProps {
   clients: Client[];
@@ -45,25 +54,20 @@ export function ClientList({
   canRead = true,
 }: ClientListProps) {
   const { isDark } = useTheme();
-  
-  // 🔐 RBAC: چک کردن دسترسی به قراردادها
-  const { canAny } = usePermission();
-  const canViewContracts = canAny(['contract:read', 'contract:view_all', 'contract:view_own']);
-  const canViewInvoices = canAny(['invoice:read', 'invoice:view_all', 'invoice:view_own']);
 
   const handleClientClick = (client: Client) => {
-    if (!canRead) {
-      return;
-    }
+    if (!canRead) return;
     setSelectedClient(client);
   };
 
   return (
     <div className={`col-span-1 lg:col-span-4 relative flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out max-h-[50vh] lg:max-h-none ${
       isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200/70'}`}>
+      
       {/* Header */}
       <div className={`relative z-10 border-b px-4 py-4 space-y-3 ${
         isDark ? 'border-slate-700 bg-slate-800/50' : 'border-slate-100 bg-slate-50/50'}`}>
+        
         {/* Search & Sort */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
@@ -85,7 +89,6 @@ export function ClientList({
             )}
           </div>
           
-          {/* 🔐 RBAC: Sort Dropdown - فقط گزینه‌های مجاز */}
           <div className="relative">
             <select
               value={sortBy}
@@ -94,10 +97,12 @@ export function ClientList({
                 isDark ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
             >
               <option value="name">Name (A-Z)</option>
-              {/* 🔐 فقط با دسترسی قرارداد */}
-              {canViewContracts && <option value="contracts">Most Contracts</option>}
-              {/* 🔐 فقط با دسترسی مالی */}
-              {canViewInvoices && <option value="value">Highest Value</option>}
+              <PermissionGuard elementId="client_stat_contracts" fallback={null}>
+                <option value="contracts">Most Contracts</option>
+              </PermissionGuard>
+              <PermissionGuard elementId="client_stat_total_value" fallback={null}>
+                <option value="value">Highest Value</option>
+              </PermissionGuard>
             </select>
             <span className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>▼</span>
           </div>
@@ -137,52 +142,48 @@ export function ClientList({
             <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>No clients found</p>
           </div>
         ) : (
-          filteredClients.map((client) => {
-            // 🔐 RBAC: محاسبه تعداد قراردادها فقط با permission
-            const contractCount = canViewContracts 
-              ? contracts.filter(c => c.client_id === client.id).length 
-              : 0;
-
-            return (
-              <div
-                key={client.id}
-                onClick={() => handleClientClick(client)}
-                className={`flex items-center gap-3 px-4 py-3 border-b transition-colors ${
-                  canRead ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
-                } ${
-                  isDark ? 'border-slate-700' : 'border-slate-100'
-                } ${
-                  selectedClient?.id === client.id
-                    ? (isDark ? 'bg-indigo-900/30 border-l-4 border-l-indigo-400' : 'bg-indigo-50 border-l-4 border-l-indigo-500')
-                    : (isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50')
-                }`}
-              >
-                {/* 🔧 FIX: Avatar با border و sizing بهتر */}
-                <div className={`w-10 h-10 rounded-lg overflow-hidden border-2 shrink-0 ${
-                  isDark ? 'border-slate-600 bg-slate-800' : 'border-slate-200 bg-slate-50'
-                } flex items-center justify-center`}>
-                  <Avatar name={client.name_en} gradient={client.logoColor} size="md"/>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className={`text-sm font-medium truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{client.name_en}</div>
-                  <div className={`text-xs truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`} dir="rtl">{client.name_fa}</div>
-                  <div className="flex items-center gap-2 mt-1">
-                    {filter === 'ALL' && (
-                      <Badge tone={client.type === 'LEGAL' ? 'indigo' : 'violet'}>
-                        {client.type === 'LEGAL' ? 'Legal' : 'Individual'}
-                      </Badge>
-                    )}
-                    {/* 🔐 RBAC: بج تعداد قراردادها فقط با permission */}
-                    {canViewContracts && contractCount > 0 && (
-                      <Badge tone="slate" className="font-semibold text-[10px]">
-                        {contractCount} {contractCount === 1 ? 'Agreement' : 'Agreements'}
-                      </Badge>
-                    )}
-                  </div>
+          filteredClients.map((client) => (
+            <div
+              key={client.id}
+              onClick={() => handleClientClick(client)}
+              className={`flex items-center gap-3 px-4 py-3 border-b transition-colors ${
+                canRead ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
+              } ${
+                isDark ? 'border-slate-700' : 'border-slate-100'
+              } ${
+                selectedClient?.id === client.id
+                  ? (isDark ? 'bg-indigo-900/30 border-l-4 border-l-indigo-400' : 'bg-indigo-50 border-l-4 border-l-indigo-500')
+                  : (isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50')
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-lg overflow-hidden border-2 shrink-0 ${
+                isDark ? 'border-slate-600 bg-slate-800' : 'border-slate-200 bg-slate-50'
+              } flex items-center justify-center`}>
+                <Avatar name={client.name_en} gradient={client.logoColor} size="md"/>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={`text-sm font-medium truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{client.name_en}</div>
+                <div className={`text-xs truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`} dir="rtl">{client.name_fa}</div>
+                <div className="flex items-center gap-2 mt-1">
+                  {filter === 'ALL' && (
+                    <Badge tone={client.type === 'LEGAL' ? 'indigo' : 'violet'}>
+                      {client.type === 'LEGAL' ? 'Legal' : 'Individual'}
+                    </Badge>
+                  )}
+                  <PermissionGuard elementId="client_stat_contracts" fallback={null}>
+                    {(() => {
+                      const realCount = contracts.filter(c => c.client_id === client.id).length;
+                      return (
+                        <Badge tone="slate" className="font-semibold text-[10px]">
+                          {realCount} {realCount === 1 ? 'Agreement' : 'Agreements'}
+                        </Badge>
+                      );
+                    })()}
+                  </PermissionGuard>
                 </div>
               </div>
-            );
-          })
+            </div>
+          ))
         )}
       </div>
 
@@ -194,7 +195,7 @@ export function ClientList({
       
       {/* Action Buttons */}
       <div className="absolute bottom-5 left-0 right-0 px-4 z-20 flex gap-2">
-        {canCreate && (
+        <PermissionGuard elementId="client_btn_add" fallback={null}>
           <Button 
             variant="primary"
             size="md"
@@ -206,9 +207,9 @@ export function ClientList({
           >
             <span>➕</span> Add New Client
           </Button>
-        )}
+        </PermissionGuard>
 
-        {canExport && (
+        <PermissionGuard elementId="client_btn_export" fallback={null}>
           <Button
             variant="secondary"
             size="md"
@@ -221,7 +222,7 @@ export function ClientList({
           >
             📥
           </Button>
-        )}
+        </PermissionGuard>
       </div>
     </div>
   );
