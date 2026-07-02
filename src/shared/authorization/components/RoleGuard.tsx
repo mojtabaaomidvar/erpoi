@@ -1,20 +1,17 @@
 // src/shared/authorization/components/RoleGuard.tsx
 
 import { ReactNode } from 'react';
-import { Role } from '../types';
 import { useRole } from '../hooks/useRole';
 
-interface Props {
-  roles: Role | Role[];
-  fallback?: ReactNode;
+interface RoleGuardProps {
+  allowedRoles: string[];  // 🔧 FIX: از Role به string
   children: ReactNode;
+  fallback?: ReactNode;
 }
 
-export function RoleGuard({ roles, fallback = null, children }: Props) {
+export function RoleGuard({ allowedRoles, children, fallback = null }: RoleGuardProps) {
   const { role } = useRole();
-  
-  const allowedRoles = Array.isArray(roles) ? roles : [roles];
-  
+
   if (!allowedRoles.includes(role)) {
     return <>{fallback}</>;
   }
@@ -22,22 +19,15 @@ export function RoleGuard({ roles, fallback = null, children }: Props) {
   return <>{children}</>;
 }
 
-// ═══════════════════════════════════════
-//  Shortcut Components
-// ═══════════════════════════════════════
-
-export function AdminOnly({ children }: { children: ReactNode }) {
-  return <RoleGuard roles="admin">{children}</RoleGuard>;
+// 🔧 FIX: اضافه کردن AdminOnly, ManagerOrAbove, InspectorOnly
+export function AdminOnly({ children, fallback = null }: { children: ReactNode; fallback?: ReactNode }) {
+  return <RoleGuard allowedRoles={['admin']} fallback={fallback}>{children}</RoleGuard>;
 }
 
-export function ManagerOrAbove({ children }: { children: ReactNode }) {
-  return (
-    <RoleGuard roles={['admin', 'manager']}>
-      {children}
-    </RoleGuard>
-  );
+export function ManagerOrAbove({ children, fallback = null }: { children: ReactNode; fallback?: ReactNode }) {
+  return <RoleGuard allowedRoles={['admin', 'manager']} fallback={fallback}>{children}</RoleGuard>;
 }
 
-export function InspectorOnly({ children }: { children: ReactNode }) {
-  return <RoleGuard roles="inspector">{children}</RoleGuard>;
+export function InspectorOnly({ children, fallback = null }: { children: ReactNode; fallback?: ReactNode }) {
+  return <RoleGuard allowedRoles={['inspector']} fallback={fallback}>{children}</RoleGuard>;
 }

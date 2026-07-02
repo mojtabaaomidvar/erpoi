@@ -1,44 +1,67 @@
 // src/shared/authorization/hooks/usePermission.ts
 
-import { useCallback } from 'react';
-import { Permission, Role } from '../types';
-import { ROLES, hasPermission, hasAnyPermission, hasAllPermissions } from '../roles';
+import { useCallback, useMemo } from 'react';
+import { Permission } from '../types';
 import { useAuth } from '@features/auth/hooks/useAuth';
-import { userService } from '@shared/authorization/services/UserService';
 
 export function usePermission() {
   const { user } = useAuth();
-  
-  // ✅ گرفتن role از کاربر لاگین شده
-  const role = (user?.role || 'viewer') as Role;
-  
-  // ✅ گرفتن custom permissions کاربر
-  const customPermissions = user?.id 
-    ? (userService.getById(user.id)?.customPermissions || [])
-    : [];
+  const role = user?.role || 'viewer';
 
-  const can = useCallback((permission: Permission): boolean => {
-    // ✅ اول custom permissions رو چک کن
-    if (customPermissions.includes(permission)) return true;
-    // ✅ بعد role permissions رو چک کن (safe)
-    return hasPermission(role, permission);
-  }, [role, customPermissions]);
+  // 🔧 FIX: خواندن مستقیم از localStorage (نه از getDBSync)
+  const rolePermissions = useMemo((): string[] => {
+    try {
+      const rolesJson = localStorage.getItem('ics_db_roles');
+      if (!rolesJson) {
+        console.warn('[usePermission] ❌ No roles in localStorage');
+        return [];
+      }
+      
+      const roles = JSON.parse(rolesJson);
+      const dbRole = roles.find((r: any) => r.name === role);
+      
+      if (dbRole) {
+        console.log(`[usePermission] ✅ Role "${role}" found, permissions:`, dbRole.permissions);
+        return dbRole.permissions || [];
+      } else {
+        console.warn(`[usePermission] ❌ Role "${role}" not found in localStorage`);
+      }
+    } catch (error) {
+      console.error('[usePermission] ❌ Failed to read roles:', error);
+    }
+    
+    return [];
+  }, [role]);
 
-  const canAny = useCallback((permissions: Permission[]): boolean => {
-    return permissions.some(p => {
-      if (customPermissions.includes(p)) return true;
-      return hasPermission(role, p);
-    });
-  }, [role, customPermissions]);
+  const can = useCallback((permission: Permission | string): boolean => {
+    // 🔧 FIX: چک کردن customPermissions کاربر
+    const customPermissions = (user as any)?.customPermissions || [];
+    if (customPermissions.includes(permission as string)) {
+      console.log(`[usePermission] ✅ ${permission} granted via customPermissions`);
+      return true;
+    }
 
-  const canAll = useCallback((permissions: Permission[]): boolean => {
-    return permissions.every(p => {
-      if (customPermissions.includes(p)) return true;
-      return hasPermission(role, p);
-    });
-  }, [role, customPermissions]);
+    // 🔧 FIX: چک کردن *:* (admin)
+    if (rolePermissions.includes('*:*')) {
+      console.log(`[usePermission] ✅ ${permission} granted via *:* (admin)`);
+      return true;
+    }
 
-  const cannot = useCallback((permission: Permission): boolean => {
+    // 🔧 FIX: چک کردن role permissions
+    const hasPermission = rolePermissions.includes(permission as string);
+    console.log(`[usePermission] ${hasPermission ? '✅' : '❌'} ${permission} = ${hasPermission}`);
+    return hasPermission;
+  }, [rolePermissions, user]);
+
+  const canAny = useCallback((permissions: (Permission | string)[]): boolean => {
+    return permissions.some(p => can(p));
+  }, [can]);
+
+  const canAll = useCallback((permissions: (Permission | string)[]): boolean => {
+    return permissions.every(p => can(p));
+  }, [can]);
+
+  const cannot = useCallback((permission: Permission | string): boolean => {
     return !can(permission);
   }, [can]);
 
@@ -48,6 +71,6 @@ export function usePermission() {
     canAny,
     canAll,
     cannot,
-    customPermissions,
+    customPermissions: (user as any)?.customPermissions || [],
   };
 }

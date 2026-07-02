@@ -10,13 +10,11 @@ const SESSION_KEY = 'ics_auth_session';
 class AuthService {
   private static instance: AuthService;
   private session: AuthSession | null = null;
-  
-  // 🔧 FIX: استفاده از Array به جای Set
   private listeners: Array<(session: AuthSession | null) => void> = [];
 
   private constructor() {
-    // 🔧 FIX: حذف loadSession - هر بار باید لاگین کنه
-    // this.loadSession();
+    console.log('[AuthService] 🔧 Constructor called');
+    this.loadSession();
   }
 
   static getInstance(): AuthService {
@@ -26,17 +24,15 @@ class AuthService {
     return AuthService.instance;
   }
 
-  // 🔧 FIX: استفاده از push و filter برای Array
   subscribe(listener: (session: AuthSession | null) => void): () => void {
     this.listeners.push(listener);
-    
-    // Return unsubscribe function
     return () => {
       this.listeners = this.listeners.filter(l => l !== listener);
     };
   }
 
   private notifyListeners() {
+    console.log('[AuthService] 🔔 Notifying listeners, session:', this.session?.user?.username);
     this.listeners.forEach(listener => listener(this.session));
   }
 
@@ -44,9 +40,46 @@ class AuthService {
     return this.session;
   }
 
-  private saveSession(rememberMe: boolean) {
-    if (rememberMe && this.session) {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(this.session));
+  private saveSession() {
+    console.log('[AuthService] 💾 saveSession called, session:', this.session?.user?.username);
+    if (this.session) {
+      try {
+        const json = JSON.stringify(this.session);
+        localStorage.setItem(SESSION_KEY, json);
+        console.log('[AuthService] ✅ Session saved to localStorage');
+        console.log('[AuthService] 📦 Saved data:', JSON.parse(json));
+      } catch (error) {
+        console.error('[AuthService] ❌ Failed to save session:', error);
+      }
+    } else {
+      console.warn('[AuthService] ⚠️ Session is null, not saving');
+    }
+  }
+
+  private loadSession() {
+    console.log('[AuthService] 📂 loadSession called');
+    try {
+      const stored = localStorage.getItem(SESSION_KEY);
+      console.log('[AuthService] 📦 Stored data:', stored);
+      
+      if (stored) {
+        const session = JSON.parse(stored);
+        console.log('[AuthService] 📦 Parsed session:', session);
+        
+        if (session.expiresAt && new Date(session.expiresAt) > new Date()) {
+          this.session = session;
+          this.notifyListeners();
+          console.log('[AuthService] ✅ Session loaded from localStorage');
+          console.log('[AuthService] 👤 User:', session.user?.username, 'Role:', session.user?.role);
+        } else {
+          console.log('[AuthService] ⚠️ Session expired, clearing...');
+          localStorage.removeItem(SESSION_KEY);
+        }
+      } else {
+        console.log('[AuthService] ℹ️ No session in localStorage');
+      }
+    } catch (error) {
+      console.error('[AuthService] ❌ Failed to load session:', error);
     }
   }
 
@@ -55,9 +88,11 @@ class AuthService {
   }
 
   async login(credentials: LoginCredentials): Promise<User> {
+    console.log('[AuthService] 🔐 Login attempt:', credentials.username);
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    const user = userService.getByUsername(credentials.username.trim());
+    const user = await userService.getUserByUsername(credentials.username.trim());
+    console.log('[AuthService] 👤 User found:', user?.username, 'Role:', user?.role);
 
     if (!user) {
       throw this.createError('INVALID_CREDENTIALS', 'Invalid username or password');
@@ -86,9 +121,16 @@ class AuthService {
       createdAt: new Date(),
     };
 
+    console.log('[AuthService] 📝 Session created:', session.user.username, session.user.role);
+
     this.session = session;
-    this.saveSession(credentials.rememberMe || false);
+    console.log('[AuthService] ✅ this.session set');
+    
+    this.saveSession();
+    console.log('[AuthService] ✅ saveSession called');
+    
     this.notifyListeners();
+    console.log('[AuthService] ✅ notifyListeners called');
 
     eventBus.publish({
       type: 'auth.login' as any,
@@ -104,6 +146,7 @@ class AuthService {
   }
 
   async logout(): Promise<void> {
+    console.log('[AuthService] 🚪 Logout called');
     this.session = null;
     localStorage.removeItem(SESSION_KEY);
     this.notifyListeners();
@@ -125,12 +168,12 @@ class AuthService {
     return error;
   }
 
-  async requestPasswordReset(email: string): Promise<void> {
+  async requestPasswordReset(_email: string): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, 500));
     showToast('info', 'Password Reset', 'If this email exists, you will receive a reset link');
   }
 
-  async confirmPasswordReset(token: string, newPassword: string): Promise<void> {
+  async confirmPasswordReset(_token: string, _newPassword: string): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, 500));
     showToast('success', 'Password Reset', 'Your password has been reset successfully');
   }

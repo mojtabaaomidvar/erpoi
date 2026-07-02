@@ -1,22 +1,46 @@
 // src/shared/authorization/hooks/useRole.ts
 
 import { useCallback } from 'react';
-import { Role } from '../types';
-import { ROLES } from '../roles';
 import { useAuth } from '@features/auth/hooks/useAuth';
 
 export function useRole() {
   const { user } = useAuth();
   
-  const role = (user?.role || 'viewer') as Role;
+  const role = user?.role || 'viewer';
   
-  // ✅ Safe: اگر role در ROLES نبود، viewer رو استفاده کن
-  const roleInfo = ROLES[role] || ROLES.viewer;
+  // 🔧 FIX: خواندن مستقیم از localStorage
+  let roleInfo = {
+    id: role,
+    name: role,
+    description: 'Unknown role',
+    permissions: [] as string[],
+    isSystem: false,
+  };
+  
+  try {
+    const rolesJson = localStorage.getItem('ics_db_roles');
+    if (rolesJson) {
+      const roles = JSON.parse(rolesJson);
+      const dbRole = roles.find((r: any) => r.name === role);
+      
+      if (dbRole) {
+        roleInfo = {
+          id: role,
+          name: dbRole.displayName,
+          description: dbRole.description,
+          permissions: dbRole.permissions,
+          isSystem: dbRole.isSystem,
+        };
+      }
+    }
+  } catch (e) {
+    console.error('[useRole] Failed to read role:', e);
+  }
 
-  const roleName = roleInfo?.name || 'Viewer';
-  const roleDescription = roleInfo?.description || 'Read-only access';
+  const roleName = roleInfo?.name || role;
+  const roleDescription = roleInfo?.description || '';
 
-  const setRole = useCallback((newRole: Role) => {
+  const setRole = useCallback((_newRole: string) => {
     console.warn('setRole is deprecated. Use userService.updateRole instead.');
   }, []);
 
@@ -26,9 +50,6 @@ export function useRole() {
     roleDescription,
     setRole,
     isAdmin: role === 'admin',
-    isManager: role === 'manager',
-    isInspector: role === 'inspector',
-    isAccountant: role === 'accountant',
-    isViewer: role === 'viewer',
+    isSystem: roleInfo?.isSystem || false,
   };
 }

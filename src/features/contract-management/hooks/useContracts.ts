@@ -1,23 +1,36 @@
 // src/features/contract-management/hooks/useContracts.ts
+// 🔐 RBAC + 🏢 Department-aware + 💾 Database-backed
 
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { usePersistedState } from "@shared/hooks/usePersistedState";
-import { 
-  contracts as initialContracts,
-  clients as initialClients,
-} from '@data/mockData';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Contract, Client } from '@entities/contract/types';
-import { publishEvent, EVENT_TYPES } from '@infra/events';
-import { showToast } from '@shared/ui/ToastContainer';
 
 import { usePermission } from '@shared/authorization/hooks/usePermission';
 import { useAuth } from '@features/auth/hooks/useAuth';
 import { getDepartmentName } from '@shared/authorization/departments';
 
+// 💾 Database Services
+import { contractService } from '../services/ContractService';
+import { clientService } from '@features/client-management/services/ClientService';
+import type { DBContract, DBClient } from '@shared/database/types';
+
 type ContractStatusFilter = 'ALL' | 'ACTIVE' | 'NOT_STARTED' | 'NEEDS_REVIEW' | 'COMPLETED';
 
+// 🔧 Helper: تبدیل DBContract به Contract type
+const dbContractToContract = (dbContract: DBContract): Contract => {
+  return {
+    ...dbContract,
+  } as Contract;
+};
+
+// 🔧 Helper: تبدیل DBClient به Client type
+const dbClientToClient = (dbClient: DBClient): Client => {
+  return {
+    ...dbClient,
+  } as Client;
+};
+
 export function useContracts() {
-  const { can, canAny } = usePermission();
+  const { can } = usePermission();
   
   const { user } = useAuth();
   const currentDepartment = getDepartmentName(user?.department || 'general');
@@ -25,8 +38,13 @@ export function useContracts() {
   const canViewAllContracts = can('contract:view_all');
   const canViewOwnContracts = can('contract:view_own');
 
-  const [contracts, setContracts] = usePersistedState<Contract[]>('ics_contracts', initialContracts);
-  const [clients] = usePersistedState<Client[]>('ics_clients', initialClients);
+  // 💾 State
+  const [contracts, setContractsState] = useState<Contract[]>([]);
+  const [clients, setClientsState] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // 🎯 UI State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'CONTRACT' | 'WORK_ORDER'>('ALL');
@@ -34,15 +52,98 @@ export function useContracts() {
   const [sortBy, setSortBy] = useState<'date' | 'value' | 'status'>('date');
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-  const prevContractsRef = useRef<Contract[]>(contracts);
-  const isFirstRender = useRef(true);
+  // ═══════════════════════════════════════
+  // 💾 Load Data from Database
+  // ═══════════════════════════════════════
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Load contracts and clients in parallel
+      const [dbContracts, dbClients] = await Promise.all([
+        contractService.getAll(),
+        clientService.getAll(),
+      ]);
+
+      // Convert to app types
+      const appContracts = dbContracts.map(dbContractToContract);
+      const appClients = dbClients.map(dbClientToClient);
+
+      setContractsState(appContracts);
+      setClientsState(appClients);
+    } catch (err: any) {
+      console.error('[useContracts] Failed to load data:', err);
+      setError(err.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // ═══════════════════════════════════════
+  // ✏️ Mutation Methods (Wrapper برای Service)
+  // ═══════════════════════════════════════
+
+  const setContracts = useCallback(async (
+    action: Contract[] | ((prev: Contract[]) => Contract[])
+  ) => {
+    try {
+      // اگه function باشه، apply کن
+      const newContracts = typeof action === 'function' 
+        ? action(contracts) 
+        : action;
+
+      // Detect changes
+      const currentIds = new Set(contracts.map(c => c.id));
+      const newIds = new Set(newContracts.map(c => c.id));
+
+      // Find new contracts
+      const addedContracts = newContracts.filter(c => !currentIds.has(c.id));
+      for (const contract of addedContracts) {
+        await contractService.create(contract as any);
+      }
+
+      // Find deleted contracts
+      const deletedContracts = contracts.filter(c => !newIds.has(c.id));
+      for (const contract of deletedContracts) {
+        try {
+          await contractService.delete(contract.id);
+        } catch (err: any) {
+          console.error('[useContracts] Failed to delete contract:', err);
+        }
+      }
+
+      // Find updated contracts
+      const updatedContracts = newContracts.filter(c => {
+        const prev = contracts.find(pc => pc.id === c.id);
+        return prev && JSON.stringify(prev) !== JSON.stringify(c);
+      });
+      for (const contract of updatedContracts) {
+        await contractService.update(contract.id, contract as any);
+      }
+
+      // Reload data
+      await loadData();
+    } catch (err: any) {
+      console.error('[useContracts] Failed to update contracts:', err);
+      throw err;
+    }
+  }, [contracts, loadData]);
+
+  // ═══════════════════════════════════════
+  // 🔐 RBAC: فیلتر قراردادها بر اساس دپارتمان و permission
+  // ═══════════════════════════════════════
 
   const accessibleContracts = useMemo(() => {
     if (canViewAllContracts) {
       return contracts;
     }
     if (canViewOwnContracts) {
-      // فقط قراردادهایی که مشتری‌شون در دپارتمان کاربر هست
       return contracts.filter(contract => {
         const client = clients.find(c => c.id === contract.client_id);
         if (!client) return false;
@@ -52,52 +153,6 @@ export function useContracts() {
     }
     return [];
   }, [contracts, clients, canViewAllContracts, canViewOwnContracts, currentDepartment]);
-
-  // 🔔 Event publishing + Toast notifications
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      prevContractsRef.current = contracts;
-      return;
-    }
-
-    const prevContracts = prevContractsRef.current;
-
-    const newContracts = contracts.filter(c => !prevContracts.find(pc => pc.id === c.id));
-    newContracts.forEach(contract => {
-      publishEvent(EVENT_TYPES.CONTRACT_CREATED, {
-        contractId: contract.id,
-        contractNo: contract.contract_no,
-        contractTitle: contract.contract_title,
-        totalValue: contract.total_value,
-      }, { source: 'contract-management' });
-      showToast('success', 'Contract Created', `Contract ${contract.contract_no || contract.id} has been added`);
-    });
-
-    const deletedContracts = prevContracts.filter(c => !contracts.find(nc => nc.id === c.id));
-    deletedContracts.forEach(contract => {
-      publishEvent(EVENT_TYPES.CONTRACT_DELETED, {
-        contractId: contract.id,
-        contractNo: contract.contract_no,
-      }, { source: 'contract-management' });
-      showToast('success', 'Contract Deleted', `Contract ${contract.contract_no || contract.id} has been removed`);
-    });
-
-    const updatedContracts = contracts.filter(c => {
-      const prev = prevContracts.find(pc => pc.id === c.id);
-      return prev && JSON.stringify(prev) !== JSON.stringify(c);
-    });
-    updatedContracts.forEach(contract => {
-      publishEvent(EVENT_TYPES.CONTRACT_UPDATED, {
-        contractId: contract.id,
-        contractNo: contract.contract_no,
-        contractTitle: contract.contract_title,
-      }, { source: 'contract-management' });
-      showToast('success', 'Contract Updated', `Contract ${contract.contract_no || contract.id} has been updated`);
-    });
-
-    prevContractsRef.current = contracts;
-  }, [contracts]);
 
   const baseContracts = accessibleContracts;
 
@@ -151,6 +206,9 @@ export function useContracts() {
     contracts: accessibleContracts,
     setContracts,
     clients,
+    loading,
+    error,
+    refresh: loadData,
     searchQuery,
     setSearchQuery,
     selectedContract,

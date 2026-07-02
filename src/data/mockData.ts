@@ -22,12 +22,12 @@ export const clients: Client[] = [
     economic_code:"411111111111",
     address_en:"Tehran, Vanak, Mulla Sadra St., No. 45",
     address_fa:"تهران، ونک، خیابان ملاصدرا، پلاک ۴۵",
-    departments: ["Unit A","Unit B"],
+    departments: ["oi"],
     contactPersons: [
-      { id:"cp1", name:"Ali Rezai", position:"Procurement Manager", mobile:"09121112233", email:"a.rezai@totalpars.com", department:"Unit A"},
-      { id:"cp2", name:"Sara Mohammadi", position:"HSE Lead", mobile:"09124445566", email:"s.mohammadi@totalpars.com", department:"Unit A"},
-      { id:"cp3", name:"Reza Hosseini", position:"Technical Director", mobile:"09127778899", email:"r.hosseini@totalpars.com", department:"Unit B"},
-      { id:"cp4", name:"Maryam Karimi", position:"Contracts Officer", mobile:"09123334455", email:"m.karimi@totalpars.com", department:"Unit A"},
+      { id:"cp1", name:"Ali Rezai", position:"Procurement Manager", mobile:"09121112233", email:"a.rezai@totalpars.com", department:"oi"},
+      { id:"cp2", name:"Sara Mohammadi", position:"HSE Lead", mobile:"09124445566", email:"s.mohammadi@totalpars.com", department:"oi"},
+      { id:"cp3", name:"Reza Hosseini", position:"Technical Director", mobile:"09127778899", email:"r.hosseini@totalpars.com", department:"it"},
+      { id:"cp4", name:"Maryam Karimi", position:"Contracts Officer", mobile:"09123334455", email:"m.karimi@totalpars.com", department:"oi"},
     ],
   },
   {
@@ -48,11 +48,11 @@ export const clients: Client[] = [
     economic_code:"411222222222",
     address_en:"Tehran, Karaj Special Road, Km 18",
     address_fa:"تهران، کیلومتر ۱۸ جاده مخصوص کرج",
-    departments: ["Unit A"],
+    departments: ["oi"],
     contactPersons: [
-      { id:"cp5", name:"Hossein Tavakoli", position:"Project Manager", mobile:"09125556677", email:"h.tavakoli@mapna.com", department:"Unit A"},
-      { id:"cp6", name:"Nasim Karimi", position:"QA/QC Manager", mobile:"09128889900", email:"n.karimi@mapna.com", department:"Unit A"},
-      { id:"cp7", name:"Farhad Ahmadi", position:"Site Engineer", mobile:"09121234567", email:"f.ahmadi@mapna.com", department:"Unit A"},
+      { id:"cp5", name:"Hossein Tavakoli", position:"Project Manager", mobile:"09125556677", email:"h.tavakoli@mapna.com", department:"oi"},
+      { id:"cp6", name:"Nasim Karimi", position:"QA/QC Manager", mobile:"09128889900", email:"n.karimi@mapna.com", department:"oi"},
+      { id:"cp7", name:"Farhad Ahmadi", position:"Site Engineer", mobile:"09121234567", email:"f.ahmadi@mapna.com", department:"oi"},
     ],
   },
   {
@@ -73,10 +73,10 @@ export const clients: Client[] = [
     economic_code:"411333333333",
     address_en:"Tehran, Sheikh Fazlollah Nouri Hwy, No. 120",
     address_fa:"تهران، بزرگراه شیخ فضل‌الله نوری، پلاک ۱۲۰",
-    departments: ["Unit A","Unit B"],
+    departments: ["oi","it"],
     contactPersons: [
-      { id:"cp8", name:"Mohammad Jafari", position:"Operations Manager", mobile:"09129998877", email:"m.jafari@petroiran.com", department:"Unit A"},
-      { id:"cp9", name:"Leila Sadeghi", position:"Finance Director", mobile:"09126665544", email:"l.sadeghi@petroiran.com", department:"Unit B"},
+      { id:"cp8", name:"Mohammad Jafari", position:"Operations Manager", mobile:"09129998877", email:"m.jafari@petroiran.com", department:"oi"},
+      { id:"cp9", name:"Leila Sadeghi", position:"Finance Director", mobile:"09126665544", email:"l.sadeghi@petroiran.com", department:"it"},
     ],
   },
   {
@@ -97,10 +97,10 @@ export const clients: Client[] = [
     economic_code:"411444444444",
     address_en:"Tehran, Valiasr St., Above Vanak Sq.",
     address_fa:"تهران، خیابان ولیعصر، بالاتر از میدان ونک",
-    departments: ["Unit A"],
+    departments: ["oi"],
     contactPersons: [
-      { id:"cp10", name:"Kian Rahimi", position:"CEO", mobile:"09121119999", email:"k.rahimi@sunair.io", department:"Unit A"},
-      { id:"cp11", name:"Shiva Rostami", position:"Technical Lead", mobile:"09122223344", email:"s.rostami@sunair.io", department:"Unit A"},
+      { id:"cp10", name:"Kian Rahimi", position:"CEO", mobile:"09121119999", email:"k.rahimi@sunair.io", department:"oi"},
+      { id:"cp11", name:"Shiva Rostami", position:"Technical Lead", mobile:"09122223344", email:"s.rostami@sunair.io", department:"oi"},
     ],
   },
   {
@@ -121,10 +121,10 @@ export const clients: Client[] = [
     economic_code:"411555555555",
     address_en:"Tehran, Resalat Hwy, East of Sadr",
     address_fa:"تهران، بزرگراه رسالت، شرق صدر",
-    departments: ["Unit A","Unit B"],
+    departments: ["oi","it"],
     contactPersons: [
-      { id:"cp12", name:"Amir Hosseini", position:"Managing Director", mobile:"09123334455", email:"a.hosseini@kianinfra.com", department:"Unit A"},
-      { id:"cp13", name:"Parisa Tehrani", position:"Project Coordinator", mobile:"09124445566", email:"p.tehrani@kianinfra.com", department:"Unit B"},
+      { id:"cp12", name:"Amir Hosseini", position:"Managing Director", mobile:"09123334455", email:"a.hosseini@kianinfra.com", department:"oi"},
+      { id:"cp13", name:"Parisa Tehrani", position:"Project Coordinator", mobile:"09124445566", email:"p.tehrani@kianinfra.com", department:"it"},
     ],
   },
   {
@@ -141,7 +141,7 @@ export const clients: Client[] = [
     logoColor:"from-violet-500 to-purple-600",
     address_en:"Isfahan, Mardavij, Street 15, No. 8",
     address_fa:"اصفهان، مرداویج، خیابان ۱، پلاک ۸",
-    departments: ["Unit A"],
+    departments: ["oi"],
     contactPersons: [],
   },
   {
@@ -158,7 +158,7 @@ export const clients: Client[] = [
     logoColor:"from-pink-500 to-rose-600",
     address_en:"Shiraz, Maaliabad, 15th St.",
     address_fa:"شیراز، معالی‌آباد، خیابان پانزدهم",
-    departments: ["Unit A"],
+    departments: ["oi"],
     contactPersons: [],
   },
   {
@@ -179,11 +179,11 @@ export const clients: Client[] = [
     economic_code:"411666666666",
     address_en:"Tehran, Africa Blvd., No. 88",
     address_fa:"تهران، بلوار آفریقا، پلاک ۸۸",
-    departments: ["Unit A","Unit B"],
+    departments: ["oi","it"],
     contactPersons: [
-      { id:"cp14", name:"Mehdi Rezaei", position:"Technical Manager", mobile:"09127771122", email:"m.rezaei@pgpc.ir", department:"Unit A"},
-      { id:"cp15", name:"Fatemeh Akbari", position:"Procurement Officer", mobile:"09128882233", email:"f.akbari@pgpc.ir", department:"Unit A"},
-      { id:"cp16", name:"Saeid Moradi", position:"HSE Manager", mobile:"09129993344", email:"s.moradi@pgpc.ir", department:"Unit B"},
+      { id:"cp14", name:"Mehdi Rezaei", position:"Technical Manager", mobile:"09127771122", email:"m.rezaei@pgpc.ir", department:"oi"},
+      { id:"cp15", name:"Fatemeh Akbari", position:"Procurement Officer", mobile:"09128882233", email:"f.akbari@pgpc.ir", department:"oi"},
+      { id:"cp16", name:"Saeid Moradi", position:"HSE Manager", mobile:"09129993344", email:"s.moradi@pgpc.ir", department:"it"},
     ],
   },
   {
@@ -204,12 +204,12 @@ export const clients: Client[] = [
     economic_code:"411777777777",
     address_en:"Tehran, Karimkhan Zand St., No. 150",
     address_fa:"تهران، خیابان کریمخان زند، پلاک ۵۰",
-    departments: ["Unit A","Unit B"],
+    departments: ["oi","it"],
     contactPersons: [
-      { id:"cp17", name:"Ali Akbari", position:"Operations Director", mobile:"09121114455", email:"a.akbari@iooc.ir", department:"Unit A"},
-      { id:"cp18", name:"Zahra Hosseini", position:"Contracts Manager", mobile:"09122225566", email:"z.hosseini@iooc.ir", department:"Unit A"},
-      { id:"cp19", name:"Reza Mohammadi", position:"Technical Expert", mobile:"09123336677", email:"r.mohammadi@iooc.ir", department:"Unit B"},
-      { id:"cp20", name:"Maryam Ahmadi", position:"HSE Officer", mobile:"09124447788", email:"m.ahmadi@iooc.ir", department:"Unit A"},
+      { id:"cp17", name:"Ali Akbari", position:"Operations Director", mobile:"09121114455", email:"a.akbari@iooc.ir", department:"oi"},
+      { id:"cp18", name:"Zahra Hosseini", position:"Contracts Manager", mobile:"09122225566", email:"z.hosseini@iooc.ir", department:"oi"},
+      { id:"cp19", name:"Reza Mohammadi", position:"Technical Expert", mobile:"09123336677", email:"r.mohammadi@iooc.ir", department:"it"},
+      { id:"cp20", name:"Maryam Ahmadi", position:"HSE Officer", mobile:"09124447788", email:"m.ahmadi@iooc.ir", department:"oi"},
     ],
   },
   {
@@ -226,7 +226,7 @@ export const clients: Client[] = [
     logoColor:"from-teal-500 to-cyan-600",
     address_en:"Tehran, Saadat Abad, 5th St.",
     address_fa:"تهران، سعادت‌آباد، خیابان پنجم",
-    departments: ["Unit A"],
+    departments: ["oi"],
     contactPersons: [],
   },
   {
@@ -247,10 +247,10 @@ export const clients: Client[] = [
     economic_code:"411888888888",
     address_en:"Tehran, Jordan St., No. 22",
     address_fa:"تهران، خیابان جردن، پلاک ۲۲",
-    departments: ["Unit A"],
+    departments: ["oi"],
     contactPersons: [
-      { id:"cp21", name:"Nima Shahidi", position:"CEO", mobile:"09125551122", email:"n.shahidi@zagrosenergy.com", department:"Unit A"},
-      { id:"cp22", name:"Roya Nikzad", position:"Project Manager", mobile:"09126662233", email:"r.nikzad@zagrosenergy.com", department:"Unit A"},
+      { id:"cp21", name:"Nima Shahidi", position:"CEO", mobile:"09125551122", email:"n.shahidi@zagrosenergy.com", department:"oi"},
+      { id:"cp22", name:"Roya Nikzad", position:"Project Manager", mobile:"09126662233", email:"r.nikzad@zagrosenergy.com", department:"oi"},
     ],
   },
   {
@@ -271,11 +271,11 @@ export const clients: Client[] = [
     economic_code:"411999999999",
     address_en:"Bandar Anzali, Free Zone, Block 5",
     address_fa:"بندر انزلی، منطقه آزاد، بلوک ۵",
-    departments: ["Unit A","Unit B"],
+    departments: ["oi","it"],
     contactPersons: [
-      { id:"cp23", name:"Omid Ghasemi", position:"Marine Operations Manager", mobile:"09127773344", email:"o.ghasemi@caspianmarine.ir", department:"Unit A"},
-      { id:"cp24", name:"Shirin Vahedi", position:"Logistics Coordinator", mobile:"09128884455", email:"s.vahedi@caspianmarine.ir", department:"Unit B"},
-      { id:"cp25", name:"Behnam Safari", position:"Vessel Captain", mobile:"09129995566", email:"b.safari@caspianmarine.ir", department:"Unit A"},
+      { id:"cp23", name:"Omid Ghasemi", position:"Marine Operations Manager", mobile:"09127773344", email:"o.ghasemi@caspianmarine.ir", department:"oi"},
+      { id:"cp24", name:"Shirin Vahedi", position:"Logistics Coordinator", mobile:"09128884455", email:"s.vahedi@caspianmarine.ir", department:"it"},
+      { id:"cp25", name:"Behnam Safari", position:"Vessel Captain", mobile:"09129995566", email:"b.safari@caspianmarine.ir", department:"oi"},
     ],
   },
 ];
@@ -297,7 +297,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"CONTRACT",
     tariffs: 4,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct2",
@@ -314,7 +314,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"CONTRACT",
     tariffs: 2,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct3",
@@ -331,7 +331,7 @@ export const contracts: Contract[] = [
     status:"COMPLETED",
     type:"WORK_ORDER",
     tariffs: 3,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct4",
@@ -347,7 +347,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"CONTRACT",
     tariffs: 4,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct5",
@@ -363,7 +363,7 @@ export const contracts: Contract[] = [
     status:"COMPLETED",
     type:"CONTRACT",
     tariffs: 6,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct6",
@@ -379,7 +379,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"WORK_ORDER",
     tariffs: 4,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct7",
@@ -395,7 +395,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"CONTRACT",
     tariffs: 5,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct8",
@@ -411,7 +411,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"CONTRACT",
     tariffs: 7,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct9",
@@ -427,7 +427,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"WORK_ORDER",
     tariffs: 4,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct10",
@@ -443,7 +443,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"CONTRACT",
     tariffs: 1,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct11",
@@ -459,7 +459,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"CONTRACT",
     tariffs: 3,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct12",
@@ -475,7 +475,7 @@ export const contracts: Contract[] = [
     status:"COMPLETED",
     type:"WORK_ORDER",
     tariffs: 2,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct13",
@@ -491,7 +491,7 @@ export const contracts: Contract[] = [
     status:"COMPLETED",
     type:"CONTRACT",
     tariffs: 2,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct14",
@@ -507,7 +507,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"CONTRACT",
     tariffs: 3,
-    department:"Unit A",
+    department:"oi",
   },
   {
     id:"ct15",
@@ -523,7 +523,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"WORK_ORDER",
     tariffs: 3,
-    department:"Unit A",
+    department:"oi",
   },
   {
 	  id:"ct-test-needs-review",
@@ -539,7 +539,7 @@ export const contracts: Contract[] = [
 	  status:"ACTIVE",
 	  type:"CONTRACT",
 	  tariffs: 3,
-	  department:"Unit A",
+	  department:"oi",
 	}
 ];
 

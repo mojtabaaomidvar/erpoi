@@ -1,6 +1,6 @@
 // src/pages/Clients.tsx
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { exportToExcel } from "@shared/lib/exportToExcel";
 import { validateMobile } from "@shared/lib/validators";
@@ -21,18 +21,28 @@ import { DuplicateWarningModal } from "@features/client-management/ui/DuplicateW
 import { ContractDetailsModal } from "@features/client-management/ui/ContractDetailsModal";
 
 export function Clients() {
+  // ═══════════════════════════════════════
+  // 🎯 ALL HOOKS MUST BE AT THE TOP
+  // ═══════════════════════════════════════
+  
   const { isDark } = useTheme();
   const { can } = usePermission();
+  
   const canCreate = can('client:create');
   const canUpdate = can('client:update');
   const canDelete = can('client:delete');
   const canExport = can('client:export');
   const canRead = can('client:read');
 
+  console.log('[Clients] Permissions:', { canCreate, canUpdate, canDelete, canExport, canRead });
+
   const {
     clients,
     setClients,
     contracts,
+    loading,
+    error,
+    refresh,
     searchQuery,
     setSearchQuery,
     selectedClient,
@@ -63,6 +73,10 @@ export function Clients() {
   const emailDropdownRef = useRef<HTMLDivElement>(null);
   const contactDropdownRef = useRef<HTMLDivElement>(null);
 
+  // ═══════════════════════════════════════
+  // 🎯 ALL useCallback HOOKS
+  // ═══════════════════════════════════════
+
   const handleEditClick = useCallback(() => {
     if (!canUpdate) {
       showToast('error', 'Access Denied', 'You do not have permission to edit clients');
@@ -88,12 +102,14 @@ export function Clients() {
 
     if (!confirmed) return;
 
-    setClients(clients.filter(c => c.id !== selectedClient.id));
-    setSelectedClient(null);
-    showToast('success', 'Client Deleted', `${selectedClient.name_en} has been removed`);
+    try {
+      setClients(clients.filter(c => c.id !== selectedClient.id));
+      setSelectedClient(null);
+    } catch (err: any) {
+      showToast('error', 'Delete Failed', err.message || 'Failed to delete client');
+    }
   }, [selectedClient, clients, setClients, setSelectedClient, canDelete]);
 
-  // 🔐 RBAC: چک کردن permission + confirm dialog قبل از export
   const handleExportToExcel = useCallback(async () => {
     if (!canExport) {
       showToast('error', 'Access Denied', 'You do not have permission to export clients');
@@ -126,7 +142,6 @@ export function Clients() {
     showToast('success', 'Export Successful', `${filteredClients.length} clients exported to Excel`);
   }, [filteredClients, filter, canExport]);
 
-  // 🔐 RBAC: چک کردن permission قبل از ایجاد
   const handleAddClick = useCallback(() => {
     if (!canCreate) {
       showToast('error', 'Access Denied', 'You do not have permission to create clients');
@@ -135,21 +150,27 @@ export function Clients() {
     setIsAddModalOpen(true);
   }, [canCreate]);
 
-  const handleSaveAdd = useCallback((newClient: any) => {
-    setClients([newClient, ...clients]);
-    setSelectedClient(newClient);
-    setIsAddModalOpen(false);
-    showToast('success', 'Client Created', `${newClient.name_en} has been added successfully`);
+  const handleSaveAdd = useCallback(async (newClient: any) => {
+    try {
+      setClients([newClient, ...clients]);
+      setSelectedClient(newClient);
+      setIsAddModalOpen(false);
+    } catch (err: any) {
+      showToast('error', 'Save Failed', err.message || 'Failed to save client');
+    }
   }, [clients, setClients, setSelectedClient]);
 
-  const handleSaveEdit = useCallback((updatedClient: Client) => {
-    const updatedClients = clients.map((c) =>
-      c.id === updatedClient.id ? updatedClient : c
-    );
-    setClients(updatedClients);
-    setSelectedClient(updatedClient);
-    setIsEditModalOpen(false);
-    showToast('success', 'Client Updated', `${updatedClient.name_en} has been updated successfully`);
+  const handleSaveEdit = useCallback(async (updatedClient: Client) => {
+    try {
+      const updatedClients = clients.map((c) =>
+        c.id === updatedClient.id ? updatedClient : c
+      );
+      setClients(updatedClients);
+      setSelectedClient(updatedClient);
+      setIsEditModalOpen(false);
+    } catch (err: any) {
+      showToast('error', 'Save Failed', err.message || 'Failed to update client');
+    }
   }, [clients, setClients, setSelectedClient]);
 
   const handleViewDuplicate = useCallback(() => {
@@ -160,32 +181,102 @@ export function Clients() {
     }
   }, [duplicateWarning]);
 
-  const handleAddContactToDuplicate = useCallback(() => {
+  const handleAddContactToDuplicate = useCallback(async () => {
     if (!duplicateWarning || !newContactForDuplicate.name.trim() || !validateMobile(newContactForDuplicate.mobile)) {
       showToast('error', 'Validation Error', 'Valid name and mobile required');
       return;
     }
-    const updatedClients = clients.map((c) => {
-      if (c.id === duplicateWarning.client.id) {
-        const updated = { ...c };
-        if (!updated.departments) updated.departments = [];
-        if (!updated.departments.includes(currentDepartment)) {
-          updated.departments.push(currentDepartment);
+    
+    try {
+      const updatedClients = clients.map((c) => {
+        if (c.id === duplicateWarning.client.id) {
+          const updated = { ...c };
+          if (!updated.departments) updated.departments = [];
+          if (!updated.departments.includes(currentDepartment)) {
+            updated.departments.push(currentDepartment);
+          }
+          if (!updated.contactPersons) updated.contactPersons = [];
+          updated.contactPersons.push({ 
+            ...newContactForDuplicate, 
+            id: String(Date.now()), 
+            department: currentDepartment 
+          });
+          updated.contacts = updated.contactPersons.length;
+          return updated;
         }
-        if (!updated.contactPersons) updated.contactPersons = [];
-        updated.contactPersons.push({ ...newContactForDuplicate, id: Date.now().toString(), department: currentDepartment });
-        updated.contacts = updated.contactPersons.length;
-        return updated;
-      }
-      return c;
-    });
-    setClients(updatedClients);
-    setSelectedClient(updatedClients.find((c) => c.id === duplicateWarning.client.id) || null);
-    setIsAddModalOpen(false);
-    setNewContactForDuplicate({ name: "", position: "", mobile: "", email: "" });
-    setDuplicateWarning(null);
-    showToast('success', 'Contact Added', `New contact added to ${duplicateWarning.client.name_en}`);
+        return c;
+      });
+      setClients(updatedClients);
+      setSelectedClient(updatedClients.find((c) => c.id === duplicateWarning.client.id) || null);
+      setIsAddModalOpen(false);
+      setNewContactForDuplicate({ name: "", position: "", mobile: "", email: "" });
+      setDuplicateWarning(null);
+    } catch (err: any) {
+      showToast('error', 'Save Failed', err.message || 'Failed to add contact');
+    }
   }, [clients, duplicateWarning, newContactForDuplicate, setClients, setSelectedClient, currentDepartment]);
+
+  // ═══════════════════════════════════════
+  // 🎯 CONDITIONAL RETURNS (AFTER ALL HOOKS)
+  // ═══════════════════════════════════════
+  
+  if (!canRead) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">🔒</div>
+          <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+            Access Denied
+          </h2>
+          <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            You don't have permission to view clients. Please contact your administrator.
+          </p>
+          <div className={`text-xs p-3 rounded ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}>
+            <strong>Required Permission:</strong> <code>client:read</code>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-pulse">⏳</div>
+          <p className={`text-lg ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            Loading clients from database...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+            Failed to Load Clients
+          </h2>
+          <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            {error}
+          </p>
+          <button
+            onClick={refresh}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            🔄 Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════
+  // 🎯 MAIN RENDER
+  // ═══════════════════════════════════════
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 p-3 lg:p-6 h-auto lg:h-[calc(100vh-140px)]">
@@ -232,7 +323,7 @@ export function Clients() {
         />
       </div>
 
-      {/* 🔑 ADD CLIENT MODAL - فقط در صورت دسترسی رندر میشه */}
+      {/* 🔑 ADD CLIENT MODAL */}
       {canCreate && (
         <ClientForm
           isOpen={isAddModalOpen}
@@ -247,7 +338,7 @@ export function Clients() {
         />
       )}
 
-      {/* 🔑 EDIT CLIENT MODAL - فقط در صورت دسترسی رندر میشه */}
+      {/* 🔑 EDIT CLIENT MODAL */}
       {canUpdate && (
         <ClientEditModal
           isOpen={isEditModalOpen}

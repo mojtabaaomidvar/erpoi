@@ -1,49 +1,88 @@
 // src/shared/authorization/hooks/usePermissionMapping.ts
 
-import { useMemo } from 'react';
-import { usePermission } from './usePermission';
-import { permissionMappingService } from '../services/PermissionMappingService';
-import type { Permission, EntityType } from '../types';
-import type { UIElement, UIElementType } from '../types/PermissionMapping';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { getDB } from '@shared/database';
+import { uiElementRegistry } from '../uiElements/registry';
+import '@shared/authorization/uiElements';
+import type { Permission, EntityType, Role } from '../types';
+import type { DBPermissionMapping, DBUIElement } from '@shared/database/types';
+
+import { ROLES, hasPermission } from '../roles';
+import { useAuth } from '@features/auth/hooks/useAuth';
 
 export function usePermissionMapping() {
-  const { can, role } = usePermission();
+  const { user } = useAuth();
+  const role = (user?.role || 'viewer') as Role;
+  
+  // 🔧 FIX: customPermissions رو مستقیم از user object بگیر
+  const customPermissions = (user as any)?.customPermissions || [];
 
-  // 🎯 گرفتن تمام permission های فعال کاربر
-  const activePermissions = useMemo(() => {
-    const allPermissions: Permission[] = [];
-    const entities: EntityType[] = ['client', 'contract', 'invoice', 'inspection', 'inspector', 'report', 'audit_log', 'setting', 'user', 'notification'];
-    const actions = ['create', 'read', 'update', 'delete', 'export', 'import', 'approve', 'reject', 'assign', 'manage', 'view_all', 'view_own'];
-    
-    entities.forEach(entity => {
-      actions.forEach(action => {
-        const permission = `${entity}:${action}` as Permission;
-        if (can(permission)) {
-          allPermissions.push(permission);
-        }
-      });
+  const can = useCallback((permission: Permission): boolean => {
+    if (customPermissions.includes(permission)) return true;
+    return hasPermission(role, permission);
+  }, [role, customPermissions]);
+
+  const [mappings, setMappings] = useState<Map<string, DBPermissionMapping>>(new Map());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadFromDB = async () => {
+      try {
+        setLoading(true);
+        const db = await getDB();
+
+        const allMappings = await db.getAllPermissionMappings();
+        const map = new Map<string, DBPermissionMapping>(
+          allMappings.map((m: DBPermissionMapping) => [m.permission, m])
+        );
+        setMappings(map);
+      } catch (error) {
+        console.error('[usePermissionMapping] Failed to load:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFromDB();
+  }, []);
+
+  const uiElements = useMemo((): DBUIElement[] => {
+    return uiElementRegistry.getAllElements().map(el => ({
+      ...el,
+      module: el.module || 'unknown',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })) as DBUIElement[];
+  }, []);
+
+  const activePermissions = useMemo((): Permission[] => {
+    const permissions = new Set<string>();
+
+    // 1. از mappings واقعی (که کاربر ساخته)
+    mappings.forEach((_, permission) => {
+      permissions.add(permission);
     });
-    
-    return allPermissions;
-  }, [can]);
 
-  // 🎯 محاسبه access profile - 🔧 FIX: حذف Date.now()
+    // 2. 🔧 FIX: از custom permissions کاربر با type annotation
+    customPermissions.forEach((p: string) => permissions.add(p));
+
+    return Array.from(permissions).sort() as Permission[];
+  }, [mappings, customPermissions]);
+
   const accessProfile = useMemo(() => {
     const allowedElements = new Set<string>();
     const deniedElements = new Set<string>();
 
-    activePermissions.forEach(permission => {
-      const mapping = permissionMappingService.getMapping(permission);
+    activePermissions.forEach((permission: Permission) => {
+      const mapping = mappings.get(permission);
       if (mapping) {
         mapping.allowedElements.forEach(el => allowedElements.add(el));
         mapping.deniedElements?.forEach(el => deniedElements.add(el));
       }
     });
 
-    // Remove denied from allowed
     deniedElements.forEach(el => allowedElements.delete(el));
 
-    // 🔧 FIX: استفاده از ID ثابت به جای Date.now()
     const profileId = activePermissions.sort().join('_') || 'empty';
 
     return {
@@ -54,48 +93,58 @@ export function usePermissionMapping() {
       allowedElements: Array.from(allowedElements),
       deniedElements: Array.from(deniedElements),
     };
-  }, [activePermissions]);
+  }, [activePermissions, mappings]);
 
-  // 🎯 چک کردن دسترسی به یه UI Element
-  const canAccessElement = useMemo(() => {
-    return (elementId: string): boolean => {
-      return accessProfile.allowedElements.includes(elementId) &&
-             !accessProfile.deniedElements.includes(elementId);
-    };
+  const canAccessElement = useCallback((elementId: string): boolean => {
+    return accessProfile.allowedElements.includes(elementId) &&
+           !accessProfile.deniedElements.includes(elementId);
   }, [accessProfile]);
 
-  // 🎯 گرفتن UI Elements مجاز بر اساس entity
-  const getAllowedElementsByEntity = useMemo(() => {
-    return (entity: EntityType): UIElement[] => {
-      const elements = permissionMappingService.getElementsByEntity(entity);
-      return elements.filter(el => canAccessElement(el.id));
-    };
-  }, [canAccessElement]);
+  const getAllowedElementsByEntity = useCallback((entity: EntityType): DBUIElement[] => {
+    return uiElements.filter(el => el.entity === entity && canAccessElement(el.id));
+  }, [uiElements, canAccessElement]);
 
-  // 🎯 گرفتن UI Elements مجاز بر اساس module
-  const getAllowedElementsByModule = useMemo(() => {
-    return (module: string): UIElement[] => {
-      const elements = permissionMappingService.getElementsByModule(module);
-      return elements.filter(el => canAccessElement(el.id));
-    };
-  }, [canAccessElement]);
+  const getAllowedElementsByModule = useCallback((module: string): DBUIElement[] => {
+    return uiElements.filter(el => el.module === module && canAccessElement(el.id));
+  }, [uiElements, canAccessElement]);
 
-  // 🎯 گرفتن UI Elements مجاز بر اساس type
-  const getAllowedElementsByType = useMemo(() => {
-    return (type: UIElementType): UIElement[] => {
-      const elements = permissionMappingService.getElementsByType(type);
-      return elements.filter(el => canAccessElement(el.id));
-    };
-  }, [canAccessElement]);
+  const getAllowedElementsByType = useCallback((type: string): DBUIElement[] => {
+    return uiElements.filter(el => el.type === type && canAccessElement(el.id));
+  }, [uiElements, canAccessElement]);
+
+  const registry = useMemo(() => {
+    const elements: Record<string, DBUIElement> = {};
+    const byEntity: Record<string, string[]> = {};
+    const byModule: Record<string, string[]> = {};
+    const byType: Record<string, string[]> = {};
+
+    uiElements.forEach(el => {
+      elements[el.id] = el;
+
+      if (!byEntity[el.entity]) byEntity[el.entity] = [];
+      byEntity[el.entity].push(el.id);
+
+      if (!byModule[el.module]) byModule[el.module] = [];
+      byModule[el.module].push(el.id);
+
+      if (!byType[el.type]) byType[el.type] = [];
+      byType[el.type].push(el.id);
+    });
+
+    return { elements, byEntity, byModule, byType };
+  }, [uiElements]);
 
   return {
     role,
+    loading,
     activePermissions,
     accessProfile,
     canAccessElement,
     getAllowedElementsByEntity,
     getAllowedElementsByModule,
     getAllowedElementsByType,
-    registry: permissionMappingService.getRegistry(),
+    registry,
+    mappings,
+    uiElements,
   };
 }

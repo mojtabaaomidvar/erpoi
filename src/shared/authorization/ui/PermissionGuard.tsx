@@ -1,7 +1,7 @@
 // src/shared/authorization/ui/PermissionGuard.tsx
+
 import { ReactNode } from 'react';
-import { usePermission } from '../hooks/usePermission';
-import { permissionMappingService } from '../services/PermissionMappingService';
+import { usePermissionMapping } from '../hooks/usePermissionMapping';
 
 interface PermissionGuardProps {
   elementId: string;
@@ -10,19 +10,14 @@ interface PermissionGuardProps {
 }
 
 export function PermissionGuard({ elementId, children, fallback = null }: PermissionGuardProps) {
-  const { can } = usePermission();
-  const mapping = permissionMappingService.getRegistry();
-  
-  // چک می‌کنه آیا کاربر به این element دسترسی داره یا نه
-  const hasAccess = Object.entries(mapping.elements).some(([id]) => {
-    if (id !== elementId) return false;
-    // چک کن آیا کاربر permission ای داره که این element رو allowed کرده
-    const allMappings = permissionMappingService.getAllMappings();
-    return allMappings.some(m => {
-      const permission = m.permission;
-      return can(permission) && m.allowedElements.includes(elementId);
-    });
-  });
+  const { canAccessElement, loading } = usePermissionMapping();
+
+  // 🔧 FIX: اگه هنوز loading هست، children رو نشون بده
+  if (loading) {
+    return <>{children}</>;
+  }
+
+  const hasAccess = canAccessElement(elementId);
 
   if (!hasAccess) return <>{fallback}</>;
   return <>{children}</>;

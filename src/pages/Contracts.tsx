@@ -1,6 +1,6 @@
 // src/pages/Contracts.tsx
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button, Badge, Modal } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { exportToExcel } from "@shared/lib/exportToExcel";
@@ -25,12 +25,13 @@ import { ContractDetails } from "@features/contract-management/ui/ContractDetail
 import { ContractForm } from "@features/contract-management/ui/ContractForm";
 
 export function Contracts() {
+  // ═══════════════════════════════════════
+  // 🎯 ALL HOOKS AT THE TOP
+  // ═══════════════════════════════════════
+  
   const { isDark } = useTheme();
-
-  // 🔐 RBAC: گرفتن permission های کاربر
   const { can } = usePermission();
 
-  // 🔐 RBAC: محاسبه دسترسی‌ها
   const canCreate = can('contract:create');
   const canUpdate = can('contract:update');
   const canDelete = can('contract:delete');
@@ -38,11 +39,13 @@ export function Contracts() {
   const canRead = can('contract:read');
   const canApprove = can('contract:approve');
 
-  // 🔑 استفاده از hook سفارشی برای state management
   const {
     contracts,
     setContracts,
     clients,
+    loading,
+    error,
+    refresh,
     searchQuery,
     setSearchQuery,
     selectedContract,
@@ -58,105 +61,98 @@ export function Contracts() {
     baseContracts,
     filterCounts,
     filteredContracts,
-    currentDepartment,  // 🏢 دپارتمان داینامیک از useAuth
+    currentDepartment,
   } = useContracts();
 
-  // 🔑 Local state برای مودال‌ها
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [userRole, setUserRole] = useState<"admin"|"user">("admin");
   
-  // مودال قراردادهای قبلی مشتری
   const [isClientContractsOpen, setIsClientContractsOpen] = useState(false);
   const [clientContractsList, setClientContractsList] = useState<Contract[]>([]);
   const [selectedClientForView, setSelectedClientForView] = useState<any>(null);
   const [viewFilterType, setViewFilterType] = useState<"ALL"|"CONTRACT"|"WORK_ORDER">("ALL");
   const [viewFilterStatus, setViewFilterStatus] = useState<string>("ALL");
   
-  // مودال تایید تکمیل
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
   const [contractToComplete, setContractToComplete] = useState<Contract | null>(null);
   const [completeReason, setCompleteReason] = useState("");
 
-  // 🔑 بازیابی داده‌ها از localStorage وقتی از Clients برمی‌گردیم
   useEffect(() => {
     const returnData = localStorage.getItem("returnToContract");
     if (returnData && isAddModalOpen) {
-      const data = JSON.parse(returnData);
-      // داده‌ها در ContractForm مدیریت می‌شن
       localStorage.removeItem("returnToContract");
     }
   }, [isAddModalOpen]);
 
-  // 🔐 RBAC: چک کردن permission قبل از ایجاد
-  const handleAddClick = () => {
+  // ═══════════════════════════════════════
+  // 🎯 ALL useCallback/useMemo HOOKS
+  // ═══════════════════════════════════════
+
+  const handleAddClick = useCallback(() => {
     if (!canCreate) {
       showToast('error', 'Access Denied', 'You do not have permission to create contracts');
       return;
     }
     setIsAddModalOpen(true);
-  };
+  }, [canCreate]);
 
-  const handleAddSave = (formData: any) => {
-    const client = clients.find((c: any) => c.id === formData.client_id);
-    const newContract: Contract = {
-      id: `ct${Date.now()}`,
-      contract_no: formData.contract_no,
-      external_contract_no: formData.external_contract_no,
-      source_type: formData.source_type,
-      source_ref: formData.source_ref,
-      source_file: formData.source_file,
-      source_file_object: formData.source_file_object,
-      source_letter_date: formData.source_letter_date,
-      source_letter_image: formData.source_letter_image,
-      source_letter_image_object: formData.source_letter_image_object,
-      source_letter_image_preview: formData.source_letter_image_preview,
-      source_email_from: formData.source_email_from,
-      source_email_date: formData.source_email_date,
-      client_id: formData.client_id,
-      client_name: client?.name_en || "N/A",
-      contract_title: formData.contract_title,
-      start_date: formData.start_date,
-      end_date: formData.end_date,
-      total_value: formData.total_value,
-      invoiced: 0,
-      currency: formData.currency,
-      status: formData.status,
-      type: formData.type,
-      tariffs: formData.tariffs.length,
-      contract_count: formData.contract_count,
-      tariffLines: formData.tariffs,
-      department: currentDepartment,  // 🏢 دپارتمان داینامیک
-      description: formData.description,
-      financial_terms: {
-        adjustment: formData.adjustment,
-        contract_modification: formData.contract_modification,
-        guarantee: formData.guarantee,
-        good_performance_percentage: formData.good_performance_percentage,
-        insurance_deduction_percentage: formData.insurance_deduction_percentage,
-        attachments: formData.attachments.map((att: any) => ({
-          ...att,
-          file_object: undefined,
-        })),
-      },
-      service_description: formData.service_description,
-    };
+  const handleAddSave = useCallback(async (formData: any) => {
+    try {
+      const client = clients.find((c: any) => c.id === formData.client_id);
+      const newContract: Contract = {
+        id: `ct${Date.now()}`,
+        contract_no: formData.contract_no,
+        external_contract_no: formData.external_contract_no,
+        source_type: formData.source_type,
+        source_ref: formData.source_ref,
+        source_file: formData.source_file,
+        source_file_object: formData.source_file_object,
+        source_letter_date: formData.source_letter_date,
+        source_letter_image: formData.source_letter_image,
+        source_letter_image_object: formData.source_letter_image_object,
+        source_letter_image_preview: formData.source_letter_image_preview,
+        source_email_from: formData.source_email_from,
+        source_email_date: formData.source_email_date,
+        client_id: formData.client_id,
+        client_name: client?.name_en || "N/A",
+        contract_title: formData.contract_title,
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        total_value: formData.total_value,
+        invoiced: 0,
+        currency: formData.currency,
+        status: formData.status,
+        type: formData.type,
+        tariffs: formData.tariffs.length,
+        contract_count: formData.contract_count,
+        tariffLines: formData.tariffs,
+        department: currentDepartment,
+        description: formData.description,
+        financial_terms: {
+          adjustment: formData.adjustment,
+          contract_modification: formData.contract_modification,
+          guarantee: formData.guarantee,
+          good_performance_percentage: formData.good_performance_percentage,
+          insurance_deduction_percentage: formData.insurance_deduction_percentage,
+          attachments: formData.attachments.map((att: any) => ({
+            ...att,
+            file_object: undefined,
+          })),
+        },
+        service_description: formData.service_description,
+      };
 
-    setContracts([newContract, ...contracts]);
-    setSelectedContract(newContract);
-    setIsDetailsOpen(true);
-    showToast('success', 'Contract Created', `Contract ${newContract.contract_no} has been created`);
-
-    // اضافه کردن ایمیل به لیست ایمیل‌های مشتری
-    if (formData.source_type === "EMAIL" && formData.source_email_from && formData.client_id) {
-      // این قسمت نیاز به اصلاح داره چون setClients دیگه از useContracts نمیاد
-      // باید از useClients مستقیم استفاده بشه یا یه hook جداگانه
+      await setContracts([newContract, ...contracts]);
+      setSelectedContract(newContract);
+      setIsDetailsOpen(true);
+    } catch (err: any) {
+      showToast('error', 'Save Failed', err.message || 'Failed to create contract');
     }
-  };
+  }, [clients, contracts, setContracts, setSelectedContract, currentDepartment]);
 
-  // 🔐 RBAC: چک کردن permission قبل از ویرایش
-  const handleEditClick = () => {
+  const handleEditClick = useCallback(() => {
     if (!canUpdate) {
       showToast('error', 'Access Denied', 'You do not have permission to edit contracts');
       return;
@@ -164,22 +160,24 @@ export function Contracts() {
     if (!selectedContract) return;
     setEditingContract(selectedContract);
     setIsEditModalOpen(true);
-  };
+  }, [selectedContract, canUpdate]);
 
-  const handleEditSave = (formData: any) => {
+  const handleEditSave = useCallback(async (formData: any) => {
     if (!editingContract) return;
-    const updatedContracts = contracts.map((c) =>
-      c.id === editingContract.id ? { ...c, ...formData } : c
-    );
-    setContracts(updatedContracts);
-    setSelectedContract({ ...editingContract, ...formData });
-    setIsEditModalOpen(false);
-    setEditingContract(null);
-    showToast('success', 'Contract Updated', `Contract ${editingContract.contract_no} has been updated`);
-  };
+    try {
+      const updatedContracts = contracts.map((c) =>
+        c.id === editingContract.id ? { ...c, ...formData } : c
+      );
+      await setContracts(updatedContracts);
+      setSelectedContract({ ...editingContract, ...formData });
+      setIsEditModalOpen(false);
+      setEditingContract(null);
+    } catch (err: any) {
+      showToast('error', 'Save Failed', err.message || 'Failed to update contract');
+    }
+  }, [editingContract, contracts, setContracts, setSelectedContract]);
 
-  // 🔐 RBAC: چک کردن permission + confirm dialog قبل از export
-  const handleExportToExcel = async () => {
+  const handleExportToExcel = useCallback(async () => {
     if (!canExport) {
       showToast('error', 'Access Denied', 'You do not have permission to export contracts');
       return;
@@ -208,10 +206,9 @@ export function Contracts() {
     const today = new Date().toISOString().split("T")[0];
     exportToExcel(dataToExport, `${filterName}_Contracts_${today}`, "Contracts");
     showToast('success', 'Export Successful', `${filteredContracts.length} contracts exported to Excel`);
-  };
+  }, [filteredContracts, typeFilter, canExport]);
 
-  // 🔐 RBAC: چک کردن permission قبل از تکمیل
-  const handleRequestComplete = (contract: Contract) => {
+  const handleRequestComplete = useCallback((contract: Contract) => {
     if (!canUpdate) {
       showToast('error', 'Access Denied', 'You do not have permission to complete contracts');
       return;
@@ -219,31 +216,34 @@ export function Contracts() {
     setContractToComplete(contract);
     setCompleteReason("");
     setConfirmCompleteOpen(true);
-  };
+  }, [canUpdate]);
 
-  const handleConfirmComplete = () => {
+  const handleConfirmComplete = useCallback(async () => {
     if (!contractToComplete) return;
-    const updatedContracts = contracts.map((c) =>
-      c.id === contractToComplete.id ? { ...c, status: "COMPLETED" as const } : c
-    );
-    setContracts(updatedContracts);
-    if (selectedContract?.id === contractToComplete.id) {
-      setSelectedContract({ ...contractToComplete, status: "COMPLETED" });
+    try {
+      const updatedContracts = contracts.map((c) =>
+        c.id === contractToComplete.id ? { ...c, status: "COMPLETED" as const } : c
+      );
+      await setContracts(updatedContracts);
+      if (selectedContract?.id === contractToComplete.id) {
+        setSelectedContract({ ...contractToComplete, status: "COMPLETED" });
+      }
+      setConfirmCompleteOpen(false);
+      setContractToComplete(null);
+      setCompleteReason("");
+    } catch (err: any) {
+      showToast('error', 'Update Failed', err.message || 'Failed to complete contract');
     }
-    setConfirmCompleteOpen(false);
-    setContractToComplete(null);
-    setCompleteReason("");
-    showToast('success', 'Contract Completed', `Contract ${contractToComplete.contract_no} has been marked as completed`);
-  };
+  }, [contractToComplete, contracts, setContracts, selectedContract, setSelectedContract]);
 
-  const handleNavigateToClients = () => {
+  const handleNavigateToClients = useCallback(() => {
     localStorage.setItem("returnToContract",
       JSON.stringify({ returnTo: "contracts" })
     );
     window.dispatchEvent(new CustomEvent("navigateToClients", { detail: { returnTo: "contracts" } }));
-  };
+  }, []);
 
-  const handleViewClientContracts = (clientId: string) => {
+  const handleViewClientContracts = useCallback((clientId: string) => {
     const existingContracts = contracts.filter(
       (c) => c.client_id === clientId && c.department === currentDepartment
     );
@@ -253,7 +253,7 @@ export function Contracts() {
     setViewFilterStatus("ALL");
     setViewFilterType("ALL");
     setIsClientContractsOpen(true);
-  };
+  }, [contracts, clients, currentDepartment]);
 
   const filteredClientContracts = useMemo(() => {
     let result = clientContractsList;
@@ -272,6 +272,49 @@ export function Contracts() {
     const statuses = new Set(clientContractsList.map((c) => c.status));
     return Array.from(statuses);
   }, [clientContractsList]);
+
+  // ═══════════════════════════════════════
+  // 🎯 CONDITIONAL RETURNS (AFTER ALL HOOKS)
+  // ═══════════════════════════════════════
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-pulse">⏳</div>
+          <p className={`text-lg ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            Loading contracts from database...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+            Failed to Load Contracts
+          </h2>
+          <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            {error}
+          </p>
+          <button
+            onClick={refresh}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            🔄 Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════
+  // 🎯 MAIN RENDER
+  // ═══════════════════════════════════════
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 p-3 lg:p-6 h-auto lg:h-[calc(100vh-140px)]">
@@ -317,38 +360,38 @@ export function Contracts() {
       </div>
 
       {/* 🔑 ADD CONTRACT MODAL */}
-		{canCreate && (
-		  <ContractForm
-			isOpen={isAddModalOpen}
-			onClose={() => setIsAddModalOpen(false)}
-			onSave={handleAddSave}
-			mode="add"
-			typeFilter={typeFilter}
-			contracts={contracts}
-			generateContractNo={(type, contracts) => generateContractNo(type, contracts, currentDepartment)}
-			onNavigateToClients={handleNavigateToClients}
-			canCreate={canCreate}     // ✅ اضافه کن
-		  />
-		)}
+      {canCreate && (
+        <ContractForm
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onSave={handleAddSave}
+          mode="add"
+          typeFilter={typeFilter}
+          contracts={contracts}
+          generateContractNo={(type, contracts) => generateContractNo(type, contracts, currentDepartment)}
+          onNavigateToClients={handleNavigateToClients}
+          canCreate={canCreate}
+        />
+      )}
 
-		{/* 🔑 EDIT CONTRACT MODAL */}
-		{canUpdate && (
-		  <ContractForm
-			isOpen={isEditModalOpen}
-			onClose={() => {
-			  setIsEditModalOpen(false);
-			  setEditingContract(null);
-			}}
-			onSave={handleEditSave}
-			initialData={editingContract || undefined}
-			mode="edit"
-			typeFilter={typeFilter}
-			contracts={contracts}
-			generateContractNo={(type, contracts) => generateContractNo(type, contracts, currentDepartment)}
-			onNavigateToClients={handleNavigateToClients}
-			canUpdate={canUpdate}     // ✅ اضافه کن
-		  />
-		)}
+      {/* 🔑 EDIT CONTRACT MODAL */}
+      {canUpdate && (
+        <ContractForm
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingContract(null);
+          }}
+          onSave={handleEditSave}
+          initialData={editingContract || undefined}
+          mode="edit"
+          typeFilter={typeFilter}
+          contracts={contracts}
+          generateContractNo={(type, contracts) => generateContractNo(type, contracts, currentDepartment)}
+          onNavigateToClients={handleNavigateToClients}
+          canUpdate={canUpdate}
+        />
+      )}
 
       {/* 🔑 MODAL نمایش قراردادهای قبلی مشتری */}
       <Modal

@@ -2,13 +2,44 @@
 
 import { useState } from 'react';
 import { Permission } from '../types';
-import { PERMISSION_GROUPS, getPermissionLabel, getPermissionDescription } from '../permissions';
+import { ENTITIES, ENTITY_GROUPS, DEFAULT_ACTIONS } from '../permissions';
 
 interface Props {
   selectedPermissions: Permission[];
   onChange: (permissions: Permission[]) => void;
   readonly?: boolean;
 }
+
+type PermissionGroup = {
+  label: string;
+  icon: string;
+  permissions: Permission[];
+};
+
+const PERMISSION_GROUPS: Record<string, PermissionGroup> =
+  Object.fromEntries(
+    ENTITIES.map(entity => [
+      entity,
+      {
+        label: ENTITY_GROUPS[entity].label,
+        icon: ENTITY_GROUPS[entity].icon,
+        permissions: DEFAULT_ACTIONS.map(
+          action => `${entity}:${action}` as Permission
+        ),
+      },
+    ])
+  );
+
+const getPermissionLabel = (permission: Permission): string => {
+  const [, action] = permission.split(':');
+  return action
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+};
+
+const getPermissionDescription = (permission: Permission): string => {
+  return permission;
+};
 
 export function PermissionSelector({ selectedPermissions, onChange, readonly = false }: Props) {
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -49,7 +80,9 @@ export function PermissionSelector({ selectedPermissions, onChange, readonly = f
     <div className="space-y-2 max-h-[400px] overflow-y-auto">
       {Object.entries(PERMISSION_GROUPS).map(([entity, group]) => {
         const isExpanded = expandedGroups.includes(entity);
-        const grantedCount = group.permissions.filter(p => selectedPermissions.includes(p)).length;
+        const grantedCount = group.permissions.filter((p: Permission) =>
+		  selectedPermissions.includes(p)
+		).length;
         const isFullAccess = grantedCount === group.permissions.length;
 
         return (

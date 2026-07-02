@@ -1,13 +1,31 @@
 // src/shared/authorization/components/PermissionMatrix.tsx
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Role, Permission } from '../types';
 import { ROLES } from '../roles';
-import { PERMISSION_GROUPS } from '../permissions';
+import { ENTITIES, ENTITY_GROUPS, DEFAULT_ACTIONS } from '../permissions';
 
+type PermissionGroup = {
+  label: string;
+  icon: string;
+  permissions: string[];
+};
+
+const permissionGroups: Record<string, PermissionGroup> =
+  Object.fromEntries(
+    ENTITIES.map(entity => [
+      entity,
+      {
+        label: ENTITY_GROUPS[entity].label,
+        icon: ENTITY_GROUPS[entity].icon,
+        permissions: DEFAULT_ACTIONS.map(action => `${entity}:${action}`),
+      },
+    ])
+  );
+  
 export function PermissionMatrix() {
   const roles = Object.values(ROLES);
   const [expandedEntities, setExpandedEntities] = useState<string[]>(
-    Object.keys(PERMISSION_GROUPS)
+	Object.keys(permissionGroups)
   );
 
   const toggleEntity = (entity: string) => {
@@ -16,7 +34,7 @@ export function PermissionMatrix() {
     );
   };
 
-  const expandAll = () => setExpandedEntities(Object.keys(PERMISSION_GROUPS));
+  const expandAll = () => setExpandedEntities(Object.keys(permissionGroups));
   const collapseAll = () => setExpandedEntities([]);
 
   return (
@@ -59,10 +77,10 @@ export function PermissionMatrix() {
             </tr>
           </thead>
           <tbody>
-            {Object.entries(PERMISSION_GROUPS).map(([entity, group]) => {
+            {Object.entries(permissionGroups).map(([entity, group]) => {
               const isExpanded = expandedEntities.includes(entity);
               return (
-                <>
+                <React.Fragment key={entity}>
                   <tr
                     key={`header-${entity}`}
                     className="bg-slate-100 dark:bg-slate-900 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
@@ -106,7 +124,7 @@ export function PermissionMatrix() {
                         })}
                       </tr>
                     ))}
-                </>
+                </React.Fragment>
               );
             })}
           </tbody>

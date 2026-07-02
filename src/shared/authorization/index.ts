@@ -1,55 +1,35 @@
 // src/shared/authorization/index.ts
 
-// Types
-export type { 
-  EntityType, 
-  ActionType, 
-  Permission, 
-  Role, 
-  RoleInfo, 
-  UserRole 
+export type {
+  User,
+  Role,
+  UserRole,
+  RoleInfo,
+  Permission,
+  EntityType,
+  ActionType,
+  UserStatus,
+  UserFormData,
 } from './types';
 
-// Permissions
-export { 
-  ALL_PERMISSIONS, 
-  PERMISSION_GROUPS, 
-  parsePermission, 
-  formatPermission 
+export { ROLES, getRolePermissions, hasPermission, hasAnyPermission, hasAllPermissions } from './roles';
+export {
+  ENTITIES,
+  DEFAULT_ACTIONS,
+  ENTITY_GROUPS,
 } from './permissions';
 
-// Roles
-export { 
-  ROLES, 
-  getRolePermissions, 
-  hasPermission, 
-  hasAnyPermission, 
-  hasAllPermissions,
-  CURRENT_USER,
-  setUserRole,
-  getUserRole,
-} from './roles';
+export type {
+  EntityType as PermissionEntityType,
+} from './permissions';
 
-// Hooks
-export { usePermission } from './hooks/usePermission';
 export { useRole } from './hooks/useRole';
+export { usePermission } from './hooks/usePermission';
+export { useEntityAccess } from './hooks/useEntityAccess';
 
-// Services
+export { RoleGuard } from './components/RoleGuard';
+export { RoleManager } from './components/RoleManager';
+export { PermissionExplorer } from './components/PermissionExplorer';
+
+export { roleService } from './services/RoleService';
 export { userService } from './services/UserService';
-
-// Components
-export { 
-  PermissionGuard, 
-  CanCreate, 
-  CanEdit, 
-  CanDelete, 
-  CanExport 
-} from './components/PermissionGuard';
-export { UserForm } from './components/UserForm';
-
-export { 
-  RoleGuard, 
-  AdminOnly, 
-  ManagerOrAbove, 
-  InspectorOnly 
-} from './components/RoleGuard';

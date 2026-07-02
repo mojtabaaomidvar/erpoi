@@ -48,11 +48,20 @@ export interface DBUIElement {
   module: string;
   description?: string;
   component?: string;
+  clickable?: boolean;
 }
 
 export interface DBSettings {
   key: string;
   value: any;
+  updatedAt: string;
+}
+
+export interface DBDepartment {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
   updatedAt: string;
 }
 

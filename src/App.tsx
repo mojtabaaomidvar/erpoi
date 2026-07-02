@@ -12,11 +12,12 @@ import { Billing } from "@pages/Billing";
 import { Reports } from "@pages/Reports";
 import { Settings } from "@pages/Settings";
 import { useAuth } from "@features/auth/hooks/useAuth";
-import { PermissionManager } from "@shared/authorization/ui/PermissionManager";
+// 🔧 FIX: جایگزینی PermissionManager با UserManagement
+import { UserManagement } from "@shared/authorization/ui/UserManagement";
 import { LoginPage } from "@features/auth/ui/LoginPage";
-import { ConfirmDialogProvider } from "@shared/ui/ConfirmDialog";  // ✅ اضافه شد
-// import { ToastContainer } from "@shared/ui/ToastContainer";  // ✅ اضافه شد
+import { ConfirmDialogProvider } from "@shared/ui/ConfirmDialog";
 
+// 🔧 FIX: تغییر 'permission-manager' به 'user-management'
 const meta: Record<ViewKey, { title: string; subtitle: string }> = {
   dashboard: { title: "Operations Dashboard", subtitle: "Live overview of inspections, revenue, and inspector workload" },
   clients: { title: "Client Registry", subtitle: "Legal entities and individuals under management" },
@@ -26,8 +27,8 @@ const meta: Record<ViewKey, { title: string; subtitle: string }> = {
   billing: { title: "Billing & Invoices", subtitle: "Financial records tied to completed inspections" },
   reports: { title: "Reports & Analytics", subtitle: "Performance, quality, and financial intelligence" },
   audit: { title: "Audit Log", subtitle: "System activity tracking and compliance records" },
-  settings: { title: "Settings", subtitle: "Manage roles, users, and permissions" },
-  'permission-manager': { title: "Permission Manager", subtitle: "Manage UI element access for each permission" },
+  settings: { title: "Settings", subtitle: "Application preferences and configuration" },
+  'user-management': { title: "User Management", subtitle: "Manage users, roles, and permissions" },
 };
 
 function AppContent() {
@@ -100,14 +101,14 @@ function AppContent() {
           {view === "billing" && <Billing />}
           {view === "reports" && <Reports />}
           {view === "settings" && <Settings />}
-          {view === "permission-manager" && <PermissionManager />}
+          {/* 🔧 FIX: جایگزینی PermissionManager با UserManagement */}
+          {view === "user-management" && <UserManagement />}
         </div>
       </main>
     </div>
   );
 }
 
-// 🔐 FIX: اضافه کردن ConfirmDialogProvider و ToastContainer
 export default function App() {
   return (
     <ThemeProvider>

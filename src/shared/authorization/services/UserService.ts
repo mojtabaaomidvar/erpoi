@@ -1,81 +1,16 @@
 // src/shared/authorization/services/UserService.ts
 
-import { User, UserFormData, UserStatus, Role, Permission } from '../types';
-import { eventBus } from '@infra/events';
-import { db } from '@shared/database';
+import { User, UserFormData, UserStatus, Permission } from '../types';
+import { getDB } from '@shared/database';
 import type { DBUser } from '@shared/database/types';
-
-const STORAGE_KEY = 'ics_users';
-
-// Default preferences
-const DEFAULT_PREFERENCES = {
-  theme: 'light' as const,
-  language: 'en' as const,
-  notifications: {
-    email: true,
-    inApp: true,
-    contractExpiry: true,
-    invoiceDue: true,
-    inspectionAssigned: true,
-  },
-  timezone: 'Asia/Tehran',
-  dateFormat: 'jalaali' as const,
-};
-
-// Initial users (با department IDs)
-const INITIAL_USERS: User[] = [
-  {
-    id: 'user_001',
-    username: 'admin',
-    email: 'admin@ics.com',
-    fullName: 'Ali Rezai',
-    role: 'admin',
-    department: 'it',
-    status: 'active',
-    phone: '+98 912 345 6789',
-    preferences: DEFAULT_PREFERENCES,
-    customPermissions: [],
-    createdAt: new Date('2024-01-01'),
-    lastLogin: new Date(),
-  },
-  {
-    id: 'user_002',
-    username: 'sara.m',
-    email: 'sara.m@ics.com',
-    fullName: 'Sara Mohammadi',
-    role: 'manager',
-    department: 'oi',
-    status: 'active',
-    phone: '+98 912 234 5678',
-    preferences: DEFAULT_PREFERENCES,
-    customPermissions: [],
-    createdAt: new Date('2024-01-15'),
-    lastLogin: new Date(),
-  },
-  {
-    id: 'user_003',
-    username: 'reza.h',
-    email: 'reza.h@ics.com',
-    fullName: 'Reza Hosseini',
-    role: 'inspector',
-    department: 'oi',
-    status: 'active',
-    phone: '+98 912 123 4567',
-    preferences: DEFAULT_PREFERENCES,
-    customPermissions: [],
-    createdAt: new Date('2024-02-01'),
-  },
-];
+import { eventBus } from '@infra/events';
 
 class UserService {
   private static instance: UserService;
-  private users: User[] = [];
+  private users: Map<string, User> = new Map();
   private initialized: boolean = false;
 
   private constructor() {
-    // 🔧 FIX: Load sync از localStorage برای backward compatibility
-    this.loadFromStorage();
-    // 🎯 Initialize DB در پس‌زمینه
     this.initializeDB();
   }
 
@@ -86,414 +21,134 @@ class UserService {
     return UserService.instance;
   }
 
-  // 🎯 Initialize DB از localStorage
   private async initializeDB() {
     if (this.initialized) return;
     
     try {
+      const db = await getDB();
       const dbUsers = await db.getAllUsers();
       
-      // اگه DB خالیه، از localStorage یا defaults پر کن
-      if (dbUsers.length === 0) {
-        for (const user of this.users) {
-          await db.createUser({
-            username: user.username,
-            email: user.email,
-            fullName: user.fullName,
-            password: (user as any).password || 'password123',
-            role: user.role,
-            department: user.department || '',
-            status: user.status,
-            customPermissions: user.customPermissions,
-          });
-        }
-      } else {
-        // اگه DB داده داره، از DB بخون
-        this.users = dbUsers.map(u => this.dbUserToUser(u));
-        this.saveToStorage(); // Sync با localStorage
+      this.users.clear();
+      for (const dbUser of dbUsers) {
+        const user = this.dbUserToUser(dbUser);
+        this.users.set(user.id, user);
       }
       
       this.initialized = true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('[UserService] Failed to initialize DB:', error);
     }
   }
 
-  // 🔧 Helper: تبدیل DBUser به User
   private dbUserToUser(dbUser: DBUser): User {
     return {
       id: dbUser.id,
       username: dbUser.username,
       email: dbUser.email,
       fullName: dbUser.fullName,
-      role: dbUser.role as Role,
-      department: dbUser.department || '',
-      status: dbUser.status,
-      preferences: DEFAULT_PREFERENCES,
-      customPermissions: (dbUser.customPermissions || []) as Permission[],
-      createdAt: new Date(dbUser.createdAt),
+      role: dbUser.role,
+      department: dbUser.department,
+      status: dbUser.status as UserStatus,
+      customPermissions: dbUser.customPermissions || [],
+      createdAt: dbUser.createdAt,
+      updatedAt: dbUser.updatedAt,
     };
   }
 
-  // ═══════════════════════════════════════
-  // 🔍 Query Methods
-  // ═══════════════════════════════════════
-
-  getAll(): User[] {
-    return [...this.users];
+  async getAllUsers(): Promise<User[]> {
+    await this.initializeDB();
+    return Array.from(this.users.values());
   }
 
-  getById(id: string): User | undefined {
-    return this.users.find(u => u.id === id);
+  async getUserById(id: string): Promise<User | undefined> {
+    await this.initializeDB();
+    return this.users.get(id);
   }
 
-  getByUsername(username: string): User | undefined {
-    return this.users.find(u => u.username === username);
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    await this.initializeDB();
+    return Array.from(this.users.values()).find(u => u.username === username);
   }
 
-  getByEmail(email: string): User | undefined {
-    return this.users.find(u => u.email === email);
+  async createUser(formData: UserFormData): Promise<User> {
+    const db = await getDB();
+    
+    const dbUser = await db.createUser({
+      username: formData.username,
+      email: formData.email,
+      fullName: formData.fullName,
+      password: formData.password || '',
+      role: formData.role,
+      department: formData.department || '',
+      status: formData.status || 'active',
+      customPermissions: formData.customPermissions || [],
+    });
+
+    const user = this.dbUserToUser(dbUser);
+    this.users.set(user.id, user);
+
+    eventBus.publish({
+      type: 'user.created' as any,
+      payload: { userId: user.id, username: user.username },
+      timestamp: new Date(),
+      eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      source: 'user-management',
+    });
+
+    return user;
   }
 
-  getByRole(role: Role): User[] {
-    return this.users.filter(u => u.role === role);
-  }
-
-  getByStatus(status: UserStatus): User[] {
-    return this.users.filter(u => u.status === status);
-  }
-
-  getByDepartment(department: string): User[] {
-    return this.users.filter(u => u.department === department);
-  }
-
-  // ═══════════════════════════════════════
-  // ✏️ Mutation Methods
-  // ═══════════════════════════════════════
-
-  create(formData: UserFormData): User {
-    // Check for duplicates
-    if (this.getByUsername(formData.username)) {
-      throw new Error('Username already exists');
-    }
-    if (this.getByEmail(formData.email)) {
-      throw new Error('Email already exists');
-    }
-
-    const newUser: User = {
-      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  async updateUser(id: string, formData: Partial<UserFormData>): Promise<User> {
+    const db = await getDB();
+    
+    const dbUser = await db.updateUser(id, {
       username: formData.username,
       email: formData.email,
       fullName: formData.fullName,
       role: formData.role,
       department: formData.department,
-      phone: formData.phone,
-      status: formData.status || 'active',
-      preferences: { ...DEFAULT_PREFERENCES, ...formData.preferences },
-      customPermissions: formData.customPermissions || [],
-      createdAt: new Date(),
-    };
+      status: formData.status,
+      customPermissions: formData.customPermissions,
+    });
 
-    this.users.push(newUser);
-    this.saveToStorage();
+    const user = this.dbUserToUser(dbUser);
+    this.users.set(user.id, user);
 
-    // 🎯 Save به DB
-    db.createUser({
-      username: newUser.username,
-      email: newUser.email,
-      fullName: newUser.fullName,
-      password: (formData as any).password || 'password123',
-      role: newUser.role,
-      department: newUser.department || '',
-      status: newUser.status,
-      customPermissions: newUser.customPermissions,
-    }).catch(err => console.error('[UserService] Failed to save to DB:', err));
-
-    // ✅ Publish Event
     eventBus.publish({
-      type: 'user.created',
-      payload: {
-        userId: newUser.id,
-        username: newUser.username,
-        fullName: newUser.fullName,
-        email: newUser.email,
-        role: newUser.role,
-        department: newUser.department || '',
-      },
+      type: 'user.updated' as any,
+      payload: { userId: user.id, username: user.username },
       timestamp: new Date(),
       eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       source: 'user-management',
     });
 
-    return newUser;
+    return user;
   }
 
-  update(id: string, formData: Partial<UserFormData>): User {
-    const userIndex = this.users.findIndex(u => u.id === id);
-    if (userIndex === -1) {
-      throw new Error('User not found');
-    }
-
-    if (formData.username && this.getByUsername(formData.username)?.id !== id) {
-      throw new Error('Username already exists');
-    }
-    if (formData.email && this.getByEmail(formData.email)?.id !== id) {
-      throw new Error('Email already exists');
-    }
-
-    const oldUser = { ...this.users[userIndex] };
-
-    const updatedUser: User = {
-      ...this.users[userIndex],
-      ...formData,
-      preferences: formData.preferences
-        ? { ...this.users[userIndex].preferences, ...formData.preferences }
-        : this.users[userIndex].preferences,
-    };
-
-    this.users[userIndex] = updatedUser;
-    this.saveToStorage();
-
-    // 🎯 Update در DB
-    db.updateUser(id, {
-      username: updatedUser.username,
-      email: updatedUser.email,
-      fullName: updatedUser.fullName,
-      role: updatedUser.role,
-      department: updatedUser.department,
-      status: updatedUser.status,
-      customPermissions: updatedUser.customPermissions,
-    }).catch(err => console.error('[UserService] Failed to update DB:', err));
+  async deleteUser(id: string): Promise<void> {
+    const db = await getDB();
+    await db.deleteUser(id);
+    this.users.delete(id);
 
     eventBus.publish({
-      type: 'user.updated',
-      payload: {
-        userId: id,
-        username: updatedUser.username,
-        fullName: updatedUser.fullName,
-        changes: this.getChanges(oldUser, updatedUser),
-      },
-      timestamp: new Date(),
-      eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      source: 'user-management',
-    });
-
-    return updatedUser;
-  }
-
-  updateStatus(id: string, status: UserStatus): User {
-    const user = this.getById(id);
-    if (!user) throw new Error('User not found');
-
-    const oldStatus = user.status;
-    const updatedUser = this.update(id, { status });
-
-    eventBus.publish({
-      type: 'user.status.changed',
-      payload: {
-        userId: id,
-        username: updatedUser.username,
-        fullName: updatedUser.fullName,
-        oldStatus,
-        newStatus: status,
-      },
-      timestamp: new Date(),
-      eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      source: 'user-management',
-    });
-
-    return updatedUser;
-  }
-
-  updatePreferences(id: string, preferences: Partial<User['preferences']>): User {
-    const user = this.getById(id);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    return this.update(id, {
-      preferences: { ...user.preferences, ...preferences },
-    });
-  }
-
-  updateCustomPermissions(id: string, permissions: Permission[]): User {
-    const user = this.getById(id);
-    if (!user) throw new Error('User not found');
-
-    const oldPermissions = [...(user.customPermissions || [])];
-    const updatedUser = this.update(id, { customPermissions: permissions });
-
-    eventBus.publish({
-      type: 'user.permissions.changed',
-      payload: {
-        userId: id,
-        username: updatedUser.username,
-        fullName: updatedUser.fullName,
-        added: permissions.filter(p => !oldPermissions.includes(p)),
-        removed: oldPermissions.filter(p => !permissions.includes(p)),
-        total: permissions.length,
-      },
-      timestamp: new Date(),
-      eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      source: 'user-management',
-    });
-
-    return updatedUser;
-  }
-
-  delete(id: string): void {
-    const user = this.getById(id);
-    if (!user) throw new Error('User not found');
-
-    this.users = this.users.filter(u => u.id !== id);
-    this.saveToStorage();
-
-    // 🎯 Delete از DB
-    db.deleteUser(id).catch(err => console.error('[UserService] Failed to delete from DB:', err));
-
-    eventBus.publish({
-      type: 'user.deleted',
-      payload: {
-        userId: id,
-        username: user.username,
-        fullName: user.fullName,
-        role: user.role,
-        department: user.department,
-      },
+      type: 'user.deleted' as any,
+      payload: { userId: id },
       timestamp: new Date(),
       eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       source: 'user-management',
     });
   }
 
-  resetPassword(id: string, newPassword: string): void {
-    const user = this.getById(id);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    // 🎯 Update password در DB
-    db.updateUser(id, { password: newPassword }).catch(err => 
-      console.error('[UserService] Failed to reset password in DB:', err)
-    );
-
-    eventBus.publish({
-      type: 'user.password.reset',
-      payload: {
-        userId: id,
-        username: user.username,
-        fullName: user.fullName,
-      },
-      timestamp: new Date(),
-      eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      source: 'user-management',
-    });
+  async changePassword(id: string, newPassword: string): Promise<void> {
+    const db = await getDB();
+    await db.updateUser(id, { password: newPassword });
   }
 
-  // ═══════════════════════════════════════
-  // 📊 Stats & Helpers
-  // ═══════════════════════════════════════
-
-  getStats() {
-    return {
-      total: this.users.length,
-      active: this.users.filter(u => u.status === 'active').length,
-      inactive: this.users.filter(u => u.status === 'inactive').length,
-      suspended: this.users.filter(u => u.status === 'suspended').length,
-      byRole: this.users.reduce((acc, user) => {
-        acc[user.role] = (acc[user.role] || 0) + 1;
-        return acc;
-      }, {} as Record<Role, number>),
-      byDepartment: this.users.reduce((acc, user) => {
-        if (user.department) {
-          acc[user.department] = (acc[user.department] || 0) + 1;
-        }
-        return acc;
-      }, {} as Record<string, number>),
-    };
-  }
-
-  private getChanges(oldUser: User, newUser: User): Record<string, { before: any; after: any }> {
-    const changes: Record<string, { before: any; after: any }> = {};
-    const fields: (keyof User)[] = ['username', 'email', 'fullName', 'role', 'department', 'status', 'phone'];
-
-    fields.forEach(field => {
-      const oldVal = oldUser[field];
-      const newVal = newUser[field];
-      const oldStr = JSON.stringify(oldVal);
-      const newStr = JSON.stringify(newVal);
-
-      if (oldStr !== newStr) {
-        changes[field] = { before: oldVal, after: newVal };
-      }
-    });
-
-    if (JSON.stringify(oldUser.preferences) !== JSON.stringify(newUser.preferences)) {
-      changes.preferences = { before: oldUser.preferences, after: newUser.preferences };
-    }
-
-    if (JSON.stringify(oldUser.customPermissions) !== JSON.stringify(newUser.customPermissions)) {
-      changes.customPermissions = {
-        before: oldUser.customPermissions || [],
-        after: newUser.customPermissions || [],
-      };
-    }
-
-    return changes;
-  }
-
-  // ═══════════════════════════════════════
-  // 💾 Storage Methods (localStorage برای backward compatibility)
-  // ═══════════════════════════════════════
-
-  private loadFromStorage(): void {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        this.users = parsed.map((u: any) => ({
-          ...u,
-          createdAt: new Date(u.createdAt),
-          lastLogin: u.lastLogin ? new Date(u.lastLogin) : undefined,
-          customPermissions: u.customPermissions || [],
-        }));
-      } else {
-        this.users = INITIAL_USERS;
-        this.saveToStorage();
-      }
-    } catch (error) {
-      console.error('[UserService] Failed to load:', error);
-      this.users = INITIAL_USERS;
-    }
-  }
-
-  private saveToStorage(): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.users));
-    } catch (error) {
-      console.error('[UserService] Failed to save:', error);
-    }
-  }
-
-  // 🎯 Reset به defaults
   async resetToDefaults(): Promise<void> {
-    this.users = INITIAL_USERS;
-    this.saveToStorage();
-    
-    // Reset در DB
-    await db.users.clear();
-    for (const user of INITIAL_USERS) {
-      await db.createUser({
-        username: user.username,
-        email: user.email,
-        fullName: user.fullName,
-        password: (user as any).password || 'password123',
-        role: user.role,
-        department: user.department || '',
-        status: user.status,
-        customPermissions: user.customPermissions,
-      });
-    }
+    const db = await getDB();
+    await db.reset();
+    this.users.clear();
+    await this.initializeDB();
   }
 }
 
