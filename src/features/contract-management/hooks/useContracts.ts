@@ -1,50 +1,37 @@
 // src/features/contract-management/hooks/useContracts.ts
-// 🔐 RBAC + 🏢 Department-aware + 💾 Database-backed
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Contract, Client } from '@entities/contract/types';
 
 import { usePermission } from '@shared/authorization/hooks/usePermission';
 import { useAuth } from '@features/auth/hooks/useAuth';
-import { getDepartmentName } from '@shared/authorization/departments';
 
-// 💾 Database Services
 import { contractService } from '../services/ContractService';
 import { clientService } from '@features/client-management/services/ClientService';
 import type { DBContract, DBClient } from '@shared/database/types';
 
 type ContractStatusFilter = 'ALL' | 'ACTIVE' | 'NOT_STARTED' | 'NEEDS_REVIEW' | 'COMPLETED';
 
-// 🔧 Helper: تبدیل DBContract به Contract type
-const dbContractToContract = (dbContract: DBContract): Contract => {
-  return {
-    ...dbContract,
-  } as Contract;
-};
-
-// 🔧 Helper: تبدیل DBClient به Client type
-const dbClientToClient = (dbClient: DBClient): Client => {
-  return {
-    ...dbClient,
-  } as Client;
-};
+const dbContractToContract = (dbContract: DBContract): Contract => ({ ...dbContract } as Contract);
+const dbClientToClient = (dbClient: DBClient): Client => ({ ...dbClient } as Client);
 
 export function useContracts() {
   const { can } = usePermission();
-  
   const { user } = useAuth();
-  const currentDepartment = getDepartmentName(user?.department || 'general');
+  
+  // 🔧 FIX: استفاده از department ID (نه نام)
+  const userDepartmentId = user?.department || '';
 
+  // 🔐 RBAC: اضافه کردن canRead
+  const canRead = can('contract:read');
   const canViewAllContracts = can('contract:view_all');
   const canViewOwnContracts = can('contract:view_own');
 
-  // 💾 State
   const [contracts, setContractsState] = useState<Contract[]>([]);
   const [clients, setClientsState] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 🎯 UI State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'CONTRACT' | 'WORK_ORDER'>('ALL');
@@ -52,27 +39,16 @@ export function useContracts() {
   const [sortBy, setSortBy] = useState<'date' | 'value' | 'status'>('date');
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-  // ═══════════════════════════════════════
-  // 💾 Load Data from Database
-  // ═══════════════════════════════════════
-
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-
-      // Load contracts and clients in parallel
       const [dbContracts, dbClients] = await Promise.all([
         contractService.getAll(),
         clientService.getAll(),
       ]);
-
-      // Convert to app types
-      const appContracts = dbContracts.map(dbContractToContract);
-      const appClients = dbClients.map(dbClientToClient);
-
-      setContractsState(appContracts);
-      setClientsState(appClients);
+      setContractsState(dbContracts.map(dbContractToContract));
+      setClientsState(dbClients.map(dbClientToClient));
     } catch (err: any) {
       console.error('[useContracts] Failed to load data:', err);
       setError(err.message || 'Failed to load data');
@@ -81,53 +57,30 @@ export function useContracts() {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // ═══════════════════════════════════════
-  // ✏️ Mutation Methods (Wrapper برای Service)
-  // ═══════════════════════════════════════
+  useEffect(() => { loadData(); }, [loadData]);
 
   const setContracts = useCallback(async (
     action: Contract[] | ((prev: Contract[]) => Contract[])
   ) => {
     try {
-      // اگه function باشه، apply کن
-      const newContracts = typeof action === 'function' 
-        ? action(contracts) 
-        : action;
-
-      // Detect changes
+      const newContracts = typeof action === 'function' ? action(contracts) : action;
       const currentIds = new Set(contracts.map(c => c.id));
       const newIds = new Set(newContracts.map(c => c.id));
 
-      // Find new contracts
-      const addedContracts = newContracts.filter(c => !currentIds.has(c.id));
-      for (const contract of addedContracts) {
+      for (const contract of newContracts.filter(c => !currentIds.has(c.id))) {
         await contractService.create(contract as any);
       }
-
-      // Find deleted contracts
-      const deletedContracts = contracts.filter(c => !newIds.has(c.id));
-      for (const contract of deletedContracts) {
-        try {
-          await contractService.delete(contract.id);
-        } catch (err: any) {
+      for (const contract of contracts.filter(c => !newIds.has(c.id))) {
+        try { await contractService.delete(contract.id); } catch (err: any) {
           console.error('[useContracts] Failed to delete contract:', err);
         }
       }
-
-      // Find updated contracts
-      const updatedContracts = newContracts.filter(c => {
+      for (const contract of newContracts.filter(c => {
         const prev = contracts.find(pc => pc.id === c.id);
         return prev && JSON.stringify(prev) !== JSON.stringify(c);
-      });
-      for (const contract of updatedContracts) {
+      })) {
         await contractService.update(contract.id, contract as any);
       }
-
-      // Reload data
       await loadData();
     } catch (err: any) {
       console.error('[useContracts] Failed to update contracts:', err);
@@ -136,27 +89,39 @@ export function useContracts() {
   }, [contracts, loadData]);
 
   // ═══════════════════════════════════════
-  // 🔐 RBAC: فیلتر قراردادها بر اساس دپارتمان و permission
+  // 🔐 RBAC: فیلتر قراردادها
   // ═══════════════════════════════════════
 
   const accessibleContracts = useMemo(() => {
+    // 🔧 FIX: view_all → همه قراردادها
     if (canViewAllContracts) {
       return contracts;
     }
-    if (canViewOwnContracts) {
-      return contracts.filter(contract => {
+    
+    // 🔧 FIX: view_own یا read → فقط قراردادهای دپارتمان خودش
+    if (canViewOwnContracts || canRead) {
+      if (!userDepartmentId) {
+        console.warn('[useContracts] ⚠️ User has no department, showing no contracts');
+        return [];
+      }
+      
+      const filtered = contracts.filter(contract => {
         const client = clients.find(c => c.id === contract.client_id);
         if (!client) return false;
         const clientDepartments = (client as any).departments || [];
-        return clientDepartments.includes(currentDepartment);
+        // 🔧 FIX: مقایسه با ID (نه نام)
+        return clientDepartments.includes(userDepartmentId);
       });
+      
+      console.log(`[useContracts] 🏢 User department: ${userDepartmentId}, filtered contracts: ${filtered.length}/${contracts.length}`);
+      return filtered;
     }
+    
     return [];
-  }, [contracts, clients, canViewAllContracts, canViewOwnContracts, currentDepartment]);
+  }, [contracts, clients, canViewAllContracts, canViewOwnContracts, canRead, userDepartmentId]);
 
   const baseContracts = accessibleContracts;
 
-  // 🔐 RBAC: filterCounts فقط برای قراردادهای قابل دسترسی
   const filterCounts = useMemo(() => ({
     ALL: accessibleContracts.length,
     ACTIVE: accessibleContracts.filter(c => c.status === 'ACTIVE').length,
@@ -165,7 +130,6 @@ export function useContracts() {
     COMPLETED: accessibleContracts.filter(c => c.status === 'COMPLETED').length,
   }), [accessibleContracts]);
 
-  // 🔐 RBAC: filteredContracts فقط از قراردادهای قابل دسترسی
   const filteredContracts = useMemo(() => {
     let result = accessibleContracts;
 
@@ -224,6 +188,6 @@ export function useContracts() {
     baseContracts,
     filterCounts,
     filteredContracts,
-    currentDepartment,
+    currentDepartment: userDepartmentId,
   };
 }

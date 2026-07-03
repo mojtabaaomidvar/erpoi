@@ -1,4 +1,5 @@
 // src/App.tsx
+
 import { useState, useEffect, useCallback } from "react";
 import { ThemeProvider, useTheme } from "@app/providers/ThemeProvider";
 import { Header } from "@widgets/layout/Header";
@@ -12,12 +13,12 @@ import { Billing } from "@pages/Billing";
 import { Reports } from "@pages/Reports";
 import { Settings } from "@pages/Settings";
 import { useAuth } from "@features/auth/hooks/useAuth";
-// 🔧 FIX: جایگزینی PermissionManager با UserManagement
 import { UserManagement } from "@shared/authorization/ui/UserManagement";
 import { LoginPage } from "@features/auth/ui/LoginPage";
 import { ConfirmDialogProvider } from "@shared/ui/ConfirmDialog";
+import { ToastProvider } from "@shared/ui/ToastContainer";
 
-// 🔧 FIX: تغییر 'permission-manager' به 'user-management'
+
 const meta: Record<ViewKey, { title: string; subtitle: string }> = {
   dashboard: { title: "Operations Dashboard", subtitle: "Live overview of inspections, revenue, and inspector workload" },
   clients: { title: "Client Registry", subtitle: "Legal entities and individuals under management" },
@@ -112,9 +113,11 @@ function AppContent() {
 export default function App() {
   return (
     <ThemeProvider>
-      <ConfirmDialogProvider>
-        <AppContent />
-      </ConfirmDialogProvider>
+      <ToastProvider>
+        <ConfirmDialogProvider>
+          <AppContent />
+        </ConfirmDialogProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

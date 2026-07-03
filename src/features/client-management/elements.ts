@@ -2,31 +2,42 @@
 
 export const clientElements = {
   ClientList: {
-    card_total: 'Total Clients Card',
-    card_legal: 'Legal Clients Card',
-    card_individual: 'Individual Clients Card',
+    list_item_view: 'View Client List',
+    list_item_click: 'Click Client Item',
+    search_box: 'Search Box',
+    sort_select: 'Sort Dropdown',
+    filter_type: 'Type Filter Tabs',
+	total_agreement_badge: 'Total Agreement(s) of Client',
     btn_add: 'Add Client Button',
     btn_export: 'Export Clients Button',
-    list_item: 'View Client List',           // 🔧 فقط دیدن لیست
-    list_item_click: 'Click Client Item',    // 🔧 کلیک روی آیتم (جدید)
   },
   ClientDetails: {
     btn_edit: 'Edit Client Button',
     btn_delete: 'Delete Client Button',
-    stat_contracts: 'Client Contracts Stat',
-    stat_total_value: 'Client Total Value Stat',
-    stat_invoiced: 'Client Invoiced Stat',
-    stat_not_invoiced: 'Client Not Invoiced Stat',
+    emails_dropdown: 'Emails Dropdown',
+    contacts_dropdown: 'Contact Persons Dropdown', 
+    agreements_section: 'Agreements Section',
+	stat_agreements: 'Total Agreements Card',
+    stat_value_agreements: 'Total Value Card',
+    stat_invoiced: 'Invoiced Works Card',
+    stat_uninvoiced: 'Not Invoiced Works Card',
+    agreements_tabs: 'Agreements Filter Tabs',
+    contract_item: 'Contract Item in List',
+    agreement_value: 'Contract Value Display',
+    agreement_progress_work: 'Work Progress Bar',
+    agreement_progress_invoice: 'Invoice Progress Bar',
+    contract_dates: 'Contract Dates Display',
   },
-  ClientForm: {
-    modal_add: 'Add Client Modal',
-    field_national_id: 'National ID Field',
-    field_phone: 'Phone Field',
-    field_email: 'Email Field',
-    field_address: 'Address Field',
-  },
-  ClientEditModal: {
-    modal_edit: 'Edit Client Modal',
+
+  ContractDetailsModal: {
+    contract_value: 'Total Value Display',
+    contract_progress_work: 'Work Progress Card',
+    contract_progress_invoice: 'Invoice Progress Card',
+    time_remaining: 'Time Remaining Card',
+    tariffs_section: 'Tariffs Section',
+    tariffs_table: 'Tariffs Table',
+    tariffs_financial: 'Tariffs Financial Columns',
+    tariffs_totals: 'Tariffs Totals',
   },
 };
 

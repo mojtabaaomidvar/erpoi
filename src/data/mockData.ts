@@ -97,10 +97,10 @@ export const clients: Client[] = [
     economic_code:"411444444444",
     address_en:"Tehran, Valiasr St., Above Vanak Sq.",
     address_fa:"تهران، خیابان ولیعصر، بالاتر از میدان ونک",
-    departments: ["oi"],
+    departments: ["it"],
     contactPersons: [
-      { id:"cp10", name:"Kian Rahimi", position:"CEO", mobile:"09121119999", email:"k.rahimi@sunair.io", department:"oi"},
-      { id:"cp11", name:"Shiva Rostami", position:"Technical Lead", mobile:"09122223344", email:"s.rostami@sunair.io", department:"oi"},
+      { id:"cp10", name:"Kian Rahimi", position:"CEO", mobile:"09121119999", email:"k.rahimi@sunair.io", department:"it"},
+      { id:"cp11", name:"Shiva Rostami", position:"Technical Lead", mobile:"09122223344", email:"s.rostami@sunair.io", department:"it"},
     ],
   },
   {
@@ -347,7 +347,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"CONTRACT",
     tariffs: 4,
-    department:"oi",
+    department:"it",
   },
   {
     id:"ct5",
@@ -411,7 +411,7 @@ export const contracts: Contract[] = [
     status:"ACTIVE",
     type:"CONTRACT",
     tariffs: 7,
-    department:"oi",
+    department:"it",
   },
   {
     id:"ct9",
@@ -475,7 +475,7 @@ export const contracts: Contract[] = [
     status:"COMPLETED",
     type:"WORK_ORDER",
     tariffs: 2,
-    department:"oi",
+    department:"it",
   },
   {
     id:"ct13",

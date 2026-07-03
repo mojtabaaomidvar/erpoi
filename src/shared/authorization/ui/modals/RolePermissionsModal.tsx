@@ -26,10 +26,10 @@ export function RolePermissionsModal({ role, onClose, onSave }: RolePermissionsM
           <div className="flex items-center justify-between">
             <div>
               <h2 className={`text-lg font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                🔐 Assign Permissions to Role
+                📦 Edit Batch Permissions
               </h2>
               <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                {role.displayName} ({role.name})
+                Batch: <strong>{role.displayName}</strong> ({role.name})
               </p>
             </div>
             <button onClick={onClose} className={`text-2xl ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>×</button>
@@ -40,7 +40,7 @@ export function RolePermissionsModal({ role, onClose, onSave }: RolePermissionsM
           {role.isSystem && (
             <div className={`p-3 rounded-lg border ${isDark ? 'border-amber-700 bg-amber-900/20' : 'border-amber-200 bg-amber-50'}`}>
               <p className={`text-xs ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>
-                ⚠️ This is a <strong>system role</strong>. Changes will affect all users with this role.
+                ⚠️ This is a <strong>system batch permission</strong>. Changes will affect all users assigned to this batch.
               </p>
             </div>
           )}
@@ -48,7 +48,7 @@ export function RolePermissionsModal({ role, onClose, onSave }: RolePermissionsM
           <PermissionSelector
             selectedPermissions={permissions}
             onChange={setPermissions}
-            label="Role Permissions"
+            label="Permissions in this Batch"
           />
 
           <div className={`flex gap-3 pt-4 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
@@ -62,7 +62,7 @@ export function RolePermissionsModal({ role, onClose, onSave }: RolePermissionsM
               onClick={handleSave}
               className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
             >
-              Save Permissions
+              Save Batch Permissions
             </button>
           </div>
         </div>

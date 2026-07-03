@@ -32,7 +32,7 @@ export function RoleModal({ role, onClose, onSave }: RoleModalProps) {
         <div className={`px-5 py-3 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
           <div className="flex items-center justify-between">
             <h2 className={`text-base font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-              {role ? '✏️ Edit Role' : '➕ Create Role'}
+              {role ? '✏️ Edit Batch Permission' : '➕ Create Batch Permission'}
             </h2>
             <button onClick={onClose} className={`text-xl ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>×</button>
           </div>
@@ -50,12 +50,13 @@ export function RoleModal({ role, onClose, onSave }: RoleModalProps) {
                 value={formData.displayName}
                 onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
                 required
+                placeholder="e.g., Manager, Viewer"
                 className={`w-full px-3 py-1.5 rounded border text-sm ${isDark ? 'border-slate-600 bg-slate-700 text-slate-100' : 'border-slate-300 bg-white'}`}
               />
             </div>
             <div>
               <label className={`block text-xs font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                Technical Name *
+                Batch ID *
               </label>
               <input
                 type="text"
@@ -63,8 +64,12 @@ export function RoleModal({ role, onClose, onSave }: RoleModalProps) {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
                 required
                 disabled={role?.isSystem}
+                placeholder="e.g., manager, viewer"
                 className={`w-full px-3 py-1.5 rounded border text-sm font-mono ${isDark ? 'border-slate-600 bg-slate-700 text-slate-100' : 'border-slate-300 bg-white'} ${role?.isSystem ? 'opacity-50' : ''}`}
               />
+              <p className={`text-[10px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Unique identifier (lowercase, no spaces)
+              </p>
             </div>
           </div>
 
@@ -77,6 +82,7 @@ export function RoleModal({ role, onClose, onSave }: RoleModalProps) {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={2}
+              placeholder="What permissions does this batch include?"
               className={`w-full px-3 py-1.5 rounded border text-sm ${isDark ? 'border-slate-600 bg-slate-700 text-slate-100' : 'border-slate-300 bg-white'}`}
             />
           </div>
@@ -85,7 +91,7 @@ export function RoleModal({ role, onClose, onSave }: RoleModalProps) {
           <PermissionSelector
             selectedPermissions={formData.permissions}
             onChange={(permissions) => setFormData({ ...formData, permissions })}
-            label="Permissions"
+            label="Permissions in this Batch"
           />
 
           {/* Buttons */}
@@ -101,7 +107,7 @@ export function RoleModal({ role, onClose, onSave }: RoleModalProps) {
               type="submit"
               className="flex-1 px-3 py-1.5 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700"
             >
-              {role ? 'Update' : 'Create'}
+              {role ? 'Update Batch' : 'Create Batch'}
             </button>
           </div>
         </form>

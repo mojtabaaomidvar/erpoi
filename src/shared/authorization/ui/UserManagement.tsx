@@ -18,7 +18,7 @@ type Tab = 'users' | 'roles' | 'departments' | 'permissions';
 
 const tabs: Array<{ key: Tab; label: string; icon: string; description: string }> = [
   { key: 'users', label: 'Users', icon: '👤', description: 'Manage user accounts and access' },
-  { key: 'roles', label: 'Roles', icon: '🎭', description: 'Define roles and assign permissions' },
+  { key: 'roles', label: 'Batch Permissions', icon: '📦', description: 'Define roles and assign permissions' },
   { key: 'departments', label: 'Departments', icon: '🏢', description: 'Manage organizational departments' },
   { key: 'permissions', label: 'Permissions', icon: '🔐', description: 'Define which UI elements each permission can access' },
 ];
@@ -171,15 +171,15 @@ export function UserManagement() {
     setShowRoleModal(true);
   };
 
-  const handleDeleteRole = async (role: DBRole) => {
+    const handleDeleteRole = async (role: DBRole) => {
     if (role.isSystem) {
-      showToast('error', 'Cannot Delete', 'System roles cannot be deleted');
+      showToast('error', 'Cannot Delete', 'System batch permissions cannot be deleted');
       return;
     }
 
     const confirmed = await confirmDialog({
-      title: 'Delete Role',
-      message: `Are you sure you want to delete "${role.displayName}"?`,
+      title: 'Delete Batch Permission',
+      message: `Are you sure you want to delete batch permission "${role.displayName}"?\n\nUsers assigned to this batch will lose these permissions.`,
       confirmText: 'Delete',
       variant: 'danger',
     });
@@ -190,7 +190,7 @@ export function UserManagement() {
       const db = await getDB();
       await db.deleteRole(role.id);
       setRoles(prev => prev.filter(r => r.id !== role.id));
-      showToast('success', 'Deleted', `Role "${role.displayName}" deleted`);
+      showToast('success', 'Deleted', `Batch permission "${role.displayName}" deleted`);
     } catch (error: any) {
       showToast('error', 'Delete Failed', error.message);
     }
@@ -203,7 +203,7 @@ export function UserManagement() {
       if (editingRole) {
         const updated = await db.updateRole(editingRole.id, formData);
         setRoles(prev => prev.map(r => r.id === updated.id ? updated : r));
-        showToast('success', 'Updated', `Role "${updated.displayName}" updated`);
+        showToast('success', 'Updated', `Batch permission "${updated.displayName}" updated`);
       } else {
         const created = await db.createRole({
           name: formData.name,
@@ -213,7 +213,7 @@ export function UserManagement() {
           isSystem: false,
         });
         setRoles(prev => [...prev, created]);
-        showToast('success', 'Created', `Role "${created.displayName}" created`);
+        showToast('success', 'Created', `Batch permission "${created.displayName}" created`);
       }
       setShowRoleModal(false);
       setEditingRole(null);
@@ -347,14 +347,14 @@ export function UserManagement() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex items-start justify-between flex-wrap gap-4">
-        <div>
-          <h1 className={`text-3xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-            🛡️ User Management
-          </h1>
-          <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-            {currentTab.description}
-          </p>
-        </div>
+        <div className="mb-6">
+		  <h1 className={`text-3xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+			{activeTab === 'users' && '👥 Users'}
+			{activeTab === 'roles' && '📦 Batch Permissions'}
+			{activeTab === 'departments' && '🏢 Departments'}
+			{activeTab === 'permissions' && '🔐 Permission Manager'}
+		  </h1>
+		</div>
       </div>
 
       <div className={`flex gap-1 p-1 rounded-lg w-fit ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
@@ -397,7 +397,7 @@ export function UserManagement() {
               <thead className={isDark ? 'bg-slate-800/50' : 'bg-slate-50'}>
                 <tr>
                   <th className={`px-4 py-3 text-left text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>User</th>
-                  <th className={`px-4 py-3 text-left text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Role</th>
+                  <th className={`px-4 py-3 text-left text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Batch Permission</th>
                   <th className={`px-4 py-3 text-left text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Department</th>
                   <th className={`px-4 py-3 text-left text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Custom Perms</th>
                   <th className={`px-4 py-3 text-right text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Actions</th>
@@ -490,7 +490,7 @@ export function UserManagement() {
           <div className="flex justify-between items-center">
             <div>
               <h2 className={`text-xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                Roles ({roles.length})
+                📦 Batch Permissions ({roles.length})
               </h2>
             </div>
             <button
@@ -498,7 +498,7 @@ export function UserManagement() {
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
             >
               <span>➕</span>
-              <span>New Role</span>
+              <span>New Batch Permission</span>
             </button>
           </div>
 
@@ -529,7 +529,7 @@ export function UserManagement() {
                 </div>
 
                 <div className={`text-xs mb-3 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  <strong>{role.permissions.length}</strong> permissions
+                  <strong>{role.permissions.length}</strong> permissions in this batch
                 </div>
 
                 <div className="flex flex-wrap gap-1 mb-3 max-h-20 overflow-y-auto">
@@ -557,7 +557,7 @@ export function UserManagement() {
                       isDark ? 'bg-cyan-900/30 text-cyan-300 hover:bg-cyan-900/50' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
                     }`}
                   >
-                    🔐 Permissions
+                    🔐 Edit Permissions
                   </button>
                   <button
                     onClick={() => handleEditRole(role)}

@@ -3,16 +3,9 @@
 import { Button, Badge, Avatar } from '@design-system';
 import { useTheme } from '@app/providers/ThemeProvider';
 import { PermissionGuard } from '@shared/authorization/ui/PermissionGuard';
+import { usePermissionMapping } from '@shared/authorization/hooks/usePermissionMapping';
+import { showToast } from '@shared/ui/ToastContainer';
 import type { Client, Contract } from '@entities/contract/types';
-import { formatCurrency } from '@shared/lib/formatters';
-import {
-  calculateDaysProgress,
-  calculateDaysLeft,
-  getDaysUntilStart,
-  getContractFinancialStatus,
-  isExpiringSoon,
-  getDaysProgressColor,
-} from '@entities/contract/services/contractCalculations';
 
 interface ClientListProps {
   clients: Client[];
@@ -54,138 +47,182 @@ export function ClientList({
   canRead = true,
 }: ClientListProps) {
   const { isDark } = useTheme();
+  
+  const { canAccessElement } = usePermissionMapping();
 
   const handleClientClick = (client: Client) => {
-    if (!canRead) return;
+    if (!canRead) {
+      showToast('error', 'Access Denied', 'You do not have permission to view clients');
+      return;
+    }
+    
+    if (!canAccessElement('client_list_item_click')) {
+      showToast('error', 'Access Denied', 'You do not have permission to view client details');
+      return;
+    }
+    
     setSelectedClient(client);
   };
+  
+  // 🔗 دسترسی‌های جداگانه برای هر بخش
+  const canFilterType = canAccessElement('client_filter_type');
+  const canSearch = canAccessElement('client_search_box');
+  const canSort = canAccessElement('client_sort_select');
+  const canShowAgreementBadge = canAccessElement('client_total_agreement_badge');
 
   return (
     <div className={`col-span-1 lg:col-span-4 relative flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out max-h-[50vh] lg:max-h-none ${
       isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200/70'}`}>
       
-      {/* Header */}
-      <div className={`relative z-10 border-b px-4 py-4 space-y-3 ${
-        isDark ? 'border-slate-700 bg-slate-800/50' : 'border-slate-100 bg-slate-50/50'}`}>
-        
-        {/* Search & Sort */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>🔍</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by Name, ..."
-              className="w-full rounded-lg py-2 pl-9 pr-8 text-sm input-themed"
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')} 
-                className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-          
-          <div className="relative">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'name' | 'contracts' | 'value')}
-              className={`appearance-none text-xs rounded-md border pl-2 pr-6 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer ${
-                isDark ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
-            >
-              <option value="name">Name (A-Z)</option>
-              <PermissionGuard elementId="client_stat_contracts" fallback={null}>
-                <option value="contracts">Most Contracts</option>
-              </PermissionGuard>
-              <PermissionGuard elementId="client_stat_total_value" fallback={null}>
-                <option value="value">Highest Value</option>
-              </PermissionGuard>
-            </select>
-            <span className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>▼</span>
-          </div>
-        </div>
-
-        {/* Filter Tabs */}
-        <div className={`flex gap-1 rounded-lg border p-0.5 text-xs ${
-          isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}>
-          {(['ALL', 'LEGAL', 'INDIVIDUAL'] as const).map((t) => {
-            const count = t === 'ALL' ? clientCounts.total : t === 'LEGAL' ? clientCounts.legal : clientCounts.individual;
-            return (
-              <button
-                key={t}
-                onClick={() => setFilter(t)}
-                className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-all ${
-                  filter === t
-                    ? (isDark 
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30 border border-indigo-500'
-                        : 'bg-indigo-50 text-indigo-700 border border-indigo-200')
-                    : (isDark 
-                        ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50')
-                }`}
-              >
-                {t === 'ALL' ? `All (${count})` : t === 'LEGAL' ? `🏢 Legal (${count})` : `👤 Individual (${count})`}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Client List */}
-      <div className="flex-1 overflow-y-auto pb-24">
-        {filteredClients.length === 0 ? (
+      {/* 🔗 client_list_item_view */}
+      <PermissionGuard 
+        elementId="client_list_item_view" 
+        fallback={
           <div className="p-8 text-center">
-            <div className="text-4xl mb-2">🔍</div>
-            <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>No clients found</p>
+            <div className="text-4xl mb-2">🔒</div>
+            <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              You don't have permission to view clients
+            </p>
           </div>
-        ) : (
-          filteredClients.map((client) => (
-            <div
-              key={client.id}
-              onClick={() => handleClientClick(client)}
-              className={`flex items-center gap-3 px-4 py-3 border-b transition-colors ${
-                canRead ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
-              } ${
-                isDark ? 'border-slate-700' : 'border-slate-100'
-              } ${
-                selectedClient?.id === client.id
-                  ? (isDark ? 'bg-indigo-900/30 border-l-4 border-l-indigo-400' : 'bg-indigo-50 border-l-4 border-l-indigo-500')
-                  : (isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50')
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-lg overflow-hidden border-2 shrink-0 ${
-                isDark ? 'border-slate-600 bg-slate-800' : 'border-slate-200 bg-slate-50'
-              } flex items-center justify-center`}>
-                <Avatar name={client.name_en} gradient={client.logoColor} size="md"/>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className={`text-sm font-medium truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{client.name_en}</div>
-                <div className={`text-xs truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`} dir="rtl">{client.name_fa}</div>
-                <div className="flex items-center gap-2 mt-1">
-                  {filter === 'ALL' && (
-                    <Badge tone={client.type === 'LEGAL' ? 'indigo' : 'violet'}>
-                      {client.type === 'LEGAL' ? 'Legal' : 'Individual'}
-                    </Badge>
-                  )}
-                  <PermissionGuard elementId="client_stat_contracts" fallback={null}>
-                    {(() => {
-                      const realCount = contracts.filter(c => c.client_id === client.id).length;
-                      return (
-                        <Badge tone="slate" className="font-semibold text-[10px]">
-                          {realCount} {realCount === 1 ? 'Agreement' : 'Agreements'}
-                        </Badge>
-                      );
-                    })()}
-                  </PermissionGuard>
-                </div>
-              </div>
+        }
+      >
+        <div className={`relative z-10 border-b px-4 py-4 space-y-3 ${
+          isDark ? 'border-slate-700 bg-slate-800/50' : 'border-slate-100 bg-slate-50/50'}`}>
+          
+          {/* 🔗 client_search_box + client_sort_select */}
+          <div className="flex items-center gap-3">
+            {/* 🔗 client_search_box */}
+            <div className={`relative flex-1 ${!canSearch ? 'opacity-50 pointer-events-none' : ''}`}>
+              <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>🔍</span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by Name, ..."
+                disabled={!canSearch}
+                className={`w-full rounded-lg py-2 pl-9 pr-8 text-sm input-themed ${
+                  !canSearch ? 'cursor-not-allowed' : ''
+                }`}
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')} 
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  ✕
+                </button>
+              )}
             </div>
-          ))
-        )}
-      </div>
+            
+            {/* 🔗 client_sort_select */}
+            <div className={`relative ${!canSort ? 'opacity-50 pointer-events-none' : ''}`}>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'name' | 'contracts' | 'value')}
+                disabled={!canSort}
+                className={`appearance-none text-xs rounded-md border pl-2 pr-6 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer ${
+                  isDark ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                } ${!canSort ? 'cursor-not-allowed opacity-60' : ''}`}
+              >
+                <option value="name">Name (A-Z)</option>
+                <PermissionGuard elementId="client_stat_contracts" fallback={null}>
+                  <option value="contracts">Most Contracts</option>
+                </PermissionGuard>
+                <PermissionGuard elementId="client_stat_total_value" fallback={null}>
+                  <option value="value">Highest Value</option>
+                </PermissionGuard>
+              </select>
+              <span className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>▼</span>
+            </div>
+          </div>
+
+          {/* 🔗 client_filter_type */}
+          <div className={`flex gap-1 rounded-lg border p-0.5 text-xs ${
+            isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
+          } ${!canFilterType ? 'opacity-50 pointer-events-none' : ''}`}>
+            {(['ALL', 'LEGAL', 'INDIVIDUAL'] as const).map((t) => {
+              const count = t === 'ALL' ? clientCounts.total : t === 'LEGAL' ? clientCounts.legal : clientCounts.individual;
+              return (
+                <button
+                  key={t}
+                  onClick={() => setFilter(t)}
+                  disabled={!canFilterType}
+                  className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-all ${
+                    filter === t
+                      ? (isDark 
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30 border border-indigo-500'
+                          : 'bg-indigo-50 text-indigo-700 border border-indigo-200')
+                      : (isDark 
+                          ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                          : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50')
+                  } ${!canFilterType ? 'cursor-not-allowed' : ''}`}
+                >
+                  {/* 🔧 FIX: اگه دسترسی نداره، count رو نشون نده */}
+                  {t === 'ALL' ? (canFilterType ? `All (${count})` : 'All') : 
+                   t === 'LEGAL' ? (canFilterType ? `🏢 Legal (${count})` : '🏢 Legal') : 
+                   (canFilterType ? `👤 Individual (${count})` : '👤 Individual')}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Client List */}
+        <div className="flex-1 overflow-y-auto pb-24">
+          {filteredClients.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="text-4xl mb-2">🔍</div>
+              <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>No clients found</p>
+            </div>
+          ) : (
+            filteredClients.map((client) => {
+              const canClick = canAccessElement('client_list_item_click');
+              
+              return (
+                <div
+                  key={client.id}
+                  onClick={() => handleClientClick(client)}
+                  className={`flex items-center gap-3 px-4 py-3 border-b transition-colors ${
+                    canClick ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
+                  } ${
+                    isDark ? 'border-slate-700' : 'border-slate-100'
+                  } ${
+                    selectedClient?.id === client.id
+                      ? (isDark ? 'bg-indigo-900/30 border-l-4 border-l-indigo-400' : 'bg-indigo-50 border-l-4 border-l-indigo-500')
+                      : (isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50')
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-lg overflow-hidden border-2 shrink-0 ${
+                    isDark ? 'border-slate-600 bg-slate-800' : 'border-slate-200 bg-slate-50'
+                  } flex items-center justify-center`}>
+                    <Avatar name={client.name_en} gradient={client.logoColor} size="md"/>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm font-medium truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{client.name_en}</div>
+                    <div className={`text-xs truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`} dir="rtl">{client.name_fa}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      {filter === 'ALL' && (
+                        <Badge tone={client.type === 'LEGAL' ? 'indigo' : 'violet'}>
+                          {client.type === 'LEGAL' ? 'Legal' : 'Individual'}
+                        </Badge>
+                      )}
+                      {/* 🔗 client_total_agreement_badge */}
+                      {canShowAgreementBadge && (() => {
+                        const realCount = contracts.filter(c => c.client_id === client.id).length;
+                        return (
+                          <Badge tone="slate" className="font-semibold text-[10px]">
+                            {realCount} {realCount === 1 ? 'Agreement' : 'Agreements'}
+                          </Badge>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </PermissionGuard>
 
       {/* Gradient Fade */}
       <div className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t pointer-events-none z-10 ${
@@ -195,6 +232,7 @@ export function ClientList({
       
       {/* Action Buttons */}
       <div className="absolute bottom-5 left-0 right-0 px-4 z-20 flex gap-2">
+        {/* 🔗 client_btn_add */}
         <PermissionGuard elementId="client_btn_add" fallback={null}>
           <Button 
             variant="primary"
@@ -209,6 +247,7 @@ export function ClientList({
           </Button>
         </PermissionGuard>
 
+        {/* 🔗 client_btn_export */}
         <PermissionGuard elementId="client_btn_export" fallback={null}>
           <Button
             variant="secondary"

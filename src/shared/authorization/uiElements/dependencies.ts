@@ -1,91 +1,84 @@
 // src/shared/authorization/uiElements/dependencies.ts
 
-/**
- * 🎯 Dependency Tree
- * 
- * منطق جدید:
- * - list_item → فقط دیدن لیست
- * - list_item_click → کلیک روی آیتم (نیاز به list_item)
- * - جزئیات/ویرایش/حذف → نیاز به list_item_click
- */
-
 export const elementDependencies: Record<string, string[]> = {
   // ═══════════════════════════════════════
   // 👤 Client Dependencies
   // ═══════════════════════════════════════
+  // List
+  'client_list_item_click': ['client_list_item_view'],
+  'client_search_box': ['client_list_item_view'],
+  'client_sort_select': ['client_list_item_view'],
+  'client_filter_type': ['client_list_item_view'],
+  'client_total_agreement_badge': ['client_list_item_view'],
+  'client_btn_add': ['client_list_item_view'],
+  'client_btn_export': ['client_list_item_view'],
   
-  // Cards - نیاز به دیدن لیست
-  'client_card_total': ['client_list_item'],
-  'client_card_legal': ['client_list_item'],
-  'client_card_individual': ['client_list_item'],
+  // Details
+  'client_btn_edit': ['client_list_item_click'],
+  'client_btn_delete': ['client_list_item_click'],
+  'client_emails_dropdown': ['client_list_item_click'],
+  'client_contacts_dropdown': ['client_list_item_click'],
+  'client_agreements_section': ['client_list_item_click'],
+  'client_stat_agreements': ['client_agreements_section'],          //بعدا باید اصلاح شود
+  'client_stat_value_agreements': ['client_agreements_section'],    //بعدا باید اصلاح شود
+  'client_stat_invoiced': ['client_agreements_section'],
+  'client_stat_uninvoiced': ['client_agreements_section'],
+  'client_agreements_tabs': ['client_agreements_section'],
+  'client_contract_item': ['client_agreements_section'],
+  'client_agreement_value': ['client_contract_item'],
+  'client_agreement_progress_work': ['client_contract_item'],
+  'client_agreement_progress_invoice': ['client_contract_item'],
+  'client_contract_dates': ['client_contract_item'],
   
-  // 🔧 FIX: list_item_click نیاز به list_item داره
-  'client_list_item_click': ['client_list_item'],
-  
-  // Buttons - 🔧 FIX: نیاز به list_item_click (نه list_item)
-  'client_btn_add': ['client_list_item'],           // Add نیاز به دیدن لیست داره
-  'client_btn_export': ['client_list_item'],        // Export نیاز به دیدن لیست
-  'client_btn_edit': ['client_list_item_click'],    // 🔧 Edit نیاز به کلیک
-  'client_btn_delete': ['client_list_item_click'],  // 🔧 Delete نیاز به کلیک
-  
-  // Modals - 🔧 FIX: نیاز به button مربوطه
-  'client_modal_add': ['client_btn_add'],
-  'client_modal_edit': ['client_btn_edit'],
-  
-  // Form Fields - نیاز به modal
-  'client_field_national_id': ['client_modal_add'],
-  'client_field_phone': ['client_modal_add'],
-  'client_field_email': ['client_modal_add'],
-  'client_field_address': ['client_modal_add'],
-  
-  // 🔧 FIX: Stats - نیاز به list_item_click (دیدن جزئیات)
-  'client_stat_contracts': ['client_list_item_click'],
-  'client_stat_total_value': ['client_list_item_click'],
-  'client_stat_invoiced': ['client_list_item_click'],
-  'client_stat_not_invoiced': ['client_list_item_click'],
+  // ContractDetailsModal (در client module)
+  'client_time_remaining': ['client_contract_item'],
+  'client_tariffs_section': ['client_contract_item'],
+  'client_tariffs_table': ['client_tariffs_section'],
+  'client_tariffs_financial': ['client_tariffs_table'],
+  'client_tariffs_totals': ['client_tariffs_financial'],
   
   // ═══════════════════════════════════════
   // 📄 Contract Dependencies
   // ═══════════════════════════════════════
   
-  // Cards
-  'contract_card_total': ['contract_list_item'],
-  'contract_card_active': ['contract_list_item'],
-  'contract_card_expiring': ['contract_list_item'],
+  // 🔹 ContractList
+  'contract_list_item_click': ['contract_list_item_view'],
+  'contract_search_box': ['contract_list_item_view'],
+  'contract_sort_select': ['contract_list_item_view'],
+  'contract_filter_type': ['contract_list_item_view'],
+  'contract_filter_status': ['contract_list_item_view'],
+  'contract_status_badge': ['contract_list_item_view'],
+  'contract_list_value': ['contract_list_item_view'],
+  'contract_progress_bar': ['contract_list_item_view'],
+  'contract_contract_dates': ['contract_list_item_view'],
   
-  // 🔧 FIX: list_item_click
-  'contract_list_item_click': ['contract_list_item'],
-  'contract_list_value': ['contract_list_item'],
+  // 🔹 ContractDetails - Header Buttons
+  'contract_btn_edit': ['contract_list_item_click'],
+  'contract_btn_delete': ['contract_list_item_click'],
+  'contract_btn_approve': ['contract_list_item_click'],
+  'contract_btn_close': ['contract_list_item_click'],
   
-  // Buttons
-  'contract_btn_add': ['contract_list_item'],
-  'contract_btn_export': ['contract_list_item'],
-  'contract_btn_edit': ['contract_list_item_click'],     // 🔧
-  'contract_btn_delete': ['contract_list_item_click'],   // 🔧
-  'contract_btn_approve': ['contract_list_item_click'],  // 🔧
+  // 🔹 ContractDetails - Info Section
+  'contract_info_section': ['contract_list_item_click'],
+  'info_start_date': ['contract_list_item_click'],
+  'info_end_date': ['contract_list_item_click'],
+	
+  // 🔹 ContractDetails - Stats Cards
+  'contract_stat_total_value': ['contract_info_section'],
+  'contract_stat_performed_work': ['contract_info_section'],
+  'contract_stat_invoiced': ['contract_info_section'],
+  'contract_stat_not_invoiced': ['contract_info_section'],
   
-  // Modals
-  'contract_modal_add': ['contract_btn_add'],
-  'contract_modal_edit': ['contract_btn_edit'],
+  // 🔹 ContractDetails - Progress Bars
+  'contract_progress_work': ['contract_info_section'],
+  'contract_progress_invoice': ['contract_info_section'],
+  'contract_progress_time': ['contract_info_section'],
   
-  // Form Fields
-  'contract_field_total_value': ['contract_modal_add'],
-  'contract_field_currency': ['contract_modal_add'],
-  'contract_field_tariffs': ['contract_modal_add'],
-  'contract_field_financial_terms': ['contract_modal_add'],
+  // 🔹 ContractDetails - Reminder
+  'contract_reminder_section': ['contract_info_section'],
   
-  // Progress Bars - 🔧 FIX: نیاز به list_item_click
-  'contract_progress_work': ['contract_list_item_click'],
-  'contract_progress_invoice': ['contract_list_item_click'],
-  'contract_progress_time': ['contract_list_item_click'],
-  
-  // Stats - 🔧 FIX: نیاز به list_item_click
-  'contract_stat_total_value': ['contract_list_item_click'],
-  'contract_stat_invoiced': ['contract_list_item_click'],
-  'contract_stat_not_invoiced': ['contract_list_item_click'],
-  
-  // Tables
-  'contract_table_tariffs': ['contract_list_item_click'],
+  // 🔹 ContractDetails - Tariffs
+  'contract_table_tariffs': ['contract_info_section'],
   
   // ═══════════════════════════════════════
   // 💵 Invoice Dependencies
@@ -116,27 +109,31 @@ export const elementDependencies: Record<string, string[]> = {
   'dashboard_chart_revenue': [],
   'dashboard_chart_inspections': [],
 };
-
 /**
- * 🎯 گرفتن همه dependencies یه element (recursive)
+ * 🔗 گرفتن تمام dependencies زنجیره‌ای (recursive)
+ * مثال: client_btn_edit → client_list_item_click → client_list_item
  */
-export function getAllDependencies(elementId: string, visited: Set<string> = new Set()): string[] {
+export function getAllDependenciesChain(elementId: string, visited: Set<string> = new Set()): string[] {
   if (visited.has(elementId)) return [];
   visited.add(elementId);
-  
   const directDeps: string[] = elementDependencies[elementId] || [];
   const allDeps: string[] = [...directDeps];
-  
   directDeps.forEach((dep: string) => {
-    allDeps.push(...getAllDependencies(dep, visited));
+    allDeps.push(...getAllDependenciesChain(dep, visited));
   });
-  
   return [...new Set(allDeps)];
 }
 
-/**
- * 🎯 گرفتن همه children یه element (reverse dependencies)
- */
+export function checkDependenciesChain(elementId: string, allowedElements: string[]): {
+  satisfied: boolean;
+  missing: string[];
+  chain: string[];
+} {
+  const chain = getAllDependenciesChain(elementId);
+  const missing = chain.filter(dep => !allowedElements.includes(dep));
+  return { satisfied: missing.length === 0, missing, chain };
+}
+
 export function getAllChildren(elementId: string, allElements: string[]): string[] {
   return allElements.filter((el: string) => {
     const deps: string[] = elementDependencies[el] || [];
@@ -144,18 +141,22 @@ export function getAllChildren(elementId: string, allElements: string[]): string
   });
 }
 
-/**
- * 🎯 چک کردن اگه dependencies فعال هستن
- */
+export function getAllChildrenChain(elementId: string, allElements: string[], visited: Set<string> = new Set()): string[] {
+  if (visited.has(elementId)) return [];
+  visited.add(elementId);
+  const directChildren = getAllChildren(elementId, allElements);
+  const allChildren: string[] = [...directChildren];
+  directChildren.forEach(child => {
+    allChildren.push(...getAllChildrenChain(child, allElements, visited));
+  });
+  return [...new Set(allChildren)];
+}
+
 export function checkDependencies(elementId: string, allowedElements: string[]): {
   satisfied: boolean;
   missing: string[];
 } {
   const deps: string[] = elementDependencies[elementId] || [];
   const missing: string[] = deps.filter((dep: string) => !allowedElements.includes(dep));
-  
-  return {
-    satisfied: missing.length === 0,
-    missing,
-  };
+  return { satisfied: missing.length === 0, missing };
 }

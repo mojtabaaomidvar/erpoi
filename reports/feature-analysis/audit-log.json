@@ -1,0 +1,13 @@
+{
+    "feature": "audit-log",
+    "files": 8,
+    "components": 7,
+    "hooks": 25,
+    "pages": 0,
+    "imports": 16,
+    "exports": 17,
+    "largestComponent": "src/features/audit-log/ui/AuditLogDetailModal.tsx",
+    "largestComponentLines": 351,
+    "health": 90,
+    "recommendations": []
+}

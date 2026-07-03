@@ -3,6 +3,9 @@
 import { useMemo } from 'react';
 import { Button, Badge, Card, Modal } from '@design-system';
 import { useTheme } from '@app/providers/ThemeProvider';
+import { usePermission } from '@shared/authorization/hooks/usePermission';
+import { usePermissionMapping } from '@shared/authorization/hooks/usePermissionMapping';
+import { PermissionGuard } from '@shared/authorization/ui/PermissionGuard';
 import type { Contract, TariffLine } from '@entities/contract/types';
 import { contractTariffs } from '@data/mockData';
 import { formatCurrency } from '@shared/lib/formatters';
@@ -14,9 +17,6 @@ import {
   getProgressBgClass,
   isExpiringSoon,
 } from '@entities/contract/services/contractCalculations';
-
-// 🔐 RBAC Imports
-import { usePermission } from '@shared/authorization/hooks/usePermission';
 
 interface ContractDetailsModalProps {
   isOpen: boolean;
@@ -30,12 +30,12 @@ export function ContractDetailsModal({
   contract,
 }: ContractDetailsModalProps) {
   const { isDark } = useTheme();
-  
-  // 🔐 RBAC: چک کردن دسترسی‌ها
   const { can, canAny } = usePermission();
+  const { canAccessElement } = usePermissionMapping();
+
   const canViewContract = canAny(['contract:read', 'contract:view_all', 'contract:view_own']);
   const canViewInvoices = canAny(['invoice:read', 'invoice:view_all', 'invoice:view_own']);
-  const canViewTariffs = can('contract:read'); // tariff بخشی از قرارداد هست
+  const canViewTariffs = can('contract:read');
 
   const tariffs = useMemo(() => {
     if (!contract) return [];
@@ -56,7 +56,7 @@ export function ContractDetailsModal({
     if (!contract) return 0;
     return calculateInvoiceProgress(contract);
   }, [contract]);
-  
+
   const expiringInfo = useMemo(() => {
     if (!contract) return { expiring: false, daysLeft: 0 };
     return isExpiringSoon(contract);
@@ -64,15 +64,9 @@ export function ContractDetailsModal({
 
   if (!contract) return null;
 
-  // 🔐 RBAC: اگر دسترسی به قرارداد نداره، پیام Access Denied نشون بده
   if (!canViewContract) {
     return (
-      <Modal
-        isOpen={isOpen}
-        onClose={onClose}
-        title="Access Denied"
-        size="md"
-      >
+      <Modal isOpen={isOpen} onClose={onClose} title="Access Denied" size="md">
         <div className="text-center py-8">
           <div className="text-6xl mb-4">🚫</div>
           <h3 className={`text-lg font-bold mb-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
@@ -90,12 +84,7 @@ export function ContractDetailsModal({
   }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Contract Details"
-      size="lg"
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title="Contract Details" size="lg">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between">
@@ -104,9 +93,7 @@ export function ContractDetailsModal({
               <Badge tone={contract.type === 'CONTRACT' ? 'indigo' : 'amber'}>
                 {contract.type}
               </Badge>
-              <Badge
-                tone={contract.status === 'ACTIVE' ? 'emerald' : 'slate'}
-              >
+              <Badge tone={contract.status === 'ACTIVE' ? 'emerald' : 'slate'}>
                 {contract.status}
               </Badge>
               {expiringInfo.expiring && (
@@ -116,36 +103,20 @@ export function ContractDetailsModal({
                 </Badge>
               )}
             </div>
-            <h2
-              className={`text-lg font-bold ${
-                isDark ? 'text-slate-100' : 'text-slate-900'
-              }`}
-            >
+            <h2 className={`text-lg font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
               {contract.contract_title}
             </h2>
-            <div
-              className={`text-sm mt-1 ${
-                isDark ? 'text-slate-300' : 'text-slate-600'
-              }`}
-            >
+            <div className={`text-sm mt-1 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               {contract.contract_no} • {contract.client_name}
             </div>
           </div>
-          {/* 🔐 RBAC: Total Value فقط با دسترسی مالی */}
-          {canViewInvoices && (
+          {/* 🔗 client_contract_value */}
+          {canAccessElement('client_contract_value') && canViewInvoices && (
             <div className="text-right">
-              <div
-                className={`text-xs ${
-                  isDark ? 'text-slate-300' : 'text-slate-600'
-                }`}
-              >
+              <div className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                 Total Value
               </div>
-              <div
-                className={`text-xl font-bold ${
-                  isDark ? 'text-slate-100' : 'text-slate-900'
-                }`}
-              >
+              <div className={`text-xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                 {formatCurrency(contract.total_value)}
               </div>
             </div>
@@ -154,52 +125,34 @@ export function ContractDetailsModal({
 
         {/* Progress Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* 🔐 RBAC: Work Progress - همیشه نمایش داده میشه (بخش قرارداد) */}
-          <Card className="p-4 card-3d">
-            <div
-              className={`text-xs mb-1 ${
-                isDark ? 'text-slate-300' : 'text-slate-600'
-              }`}
-            >
-              Performed Work Progress
-            </div>
-            <div
-              className={`text-lg font-bold ${getProgressTextClass(workProgress, isDark)}`}
-            >
-              {workProgress.toFixed(2)}%
-            </div>
-            <div
-              className={`mt-2 h-1.5 rounded-full overflow-hidden ${
-                isDark ? 'bg-slate-700' : 'bg-slate-200'
-              }`}
-            >
-              <div
-                className={`h-full rounded-full ${getProgressBgClass(workProgress, isDark)}`}
-                style={{ width: `${Math.min(workProgress, 100)}%` }}
-              />
-            </div>
-          </Card>
-
-          {/* 🔐 RBAC: Invoice Progress - فقط با دسترسی مالی */}
-          {canViewInvoices ? (
+          {/* 🔗 client_contract_progress_work */}
+          {canAccessElement('client_contract_progress_work') && (
             <Card className="p-4 card-3d">
-              <div
-                className={`text-xs mb-1 ${
-                  isDark ? 'text-slate-300' : 'text-slate-600'
-                }`}
-              >
+              <div className={`text-xs mb-1 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                Performed Work Progress
+              </div>
+              <div className={`text-lg font-bold ${getProgressTextClass(workProgress, isDark)}`}>
+                {workProgress.toFixed(2)}%
+              </div>
+              <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
+                <div
+                  className={`h-full rounded-full ${getProgressBgClass(workProgress, isDark)}`}
+                  style={{ width: `${Math.min(workProgress, 100)}%` }}
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* 🔗 client_contract_progress_invoice */}
+          {canAccessElement('client_contract_progress_invoice') ? (
+            <Card className="p-4 card-3d">
+              <div className={`text-xs mb-1 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                 Invoice Progress of Performed Works
               </div>
-              <div
-                className={`text-lg font-bold ${getProgressTextClass(invoiceProgress, isDark)}`}
-              >
+              <div className={`text-lg font-bold ${getProgressTextClass(invoiceProgress, isDark)}`}>
                 {invoiceProgress.toFixed(2)}%
               </div>
-              <div
-                className={`mt-2 h-1.5 rounded-full overflow-hidden ${
-                  isDark ? 'bg-slate-700' : 'bg-slate-200'
-                }`}
-              >
+              <div className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
                 <div
                   className={`h-full rounded-full ${getProgressBgClass(invoiceProgress, isDark)}`}
                   style={{ width: `${Math.min(invoiceProgress, 100)}%` }}
@@ -208,157 +161,113 @@ export function ContractDetailsModal({
             </Card>
           ) : (
             <Card className="p-4 card-3d opacity-50">
-              <div
-                className={`text-xs mb-1 ${
-                  isDark ? 'text-slate-300' : 'text-slate-600'
-                }`}
-              >
+              <div className={`text-xs mb-1 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                 Invoice Progress
               </div>
               <div className={`text-lg font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 🔒 Locked
               </div>
               <div className={`text-xs mt-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                Need invoice:read permission
+                Need permission
               </div>
             </Card>
           )}
 
-          {/* Time Remaining - همیشه نمایش داده میشه */}
-          <Card className={`p-4 border ${
-            expiringInfo.expiring
-              ? isDark
-                ? 'bg-rose-950/30 border-rose-700 animate-pulse shadow-lg shadow-rose-500/20'
-                : 'bg-rose-50 border-rose-300 animate-pulse shadow-lg shadow-rose-500/20'
-              : isDark
-                ? 'bg-slate-800/50 border-slate-700'
-                : 'bg-white border-slate-200'
-          }`}>
-            <div className={`text-xs mb-1 ${
+          {/* 🔗 client_time_remaining */}
+          {canAccessElement('client_time_remaining') && (
+            <Card className={`p-4 border ${
               expiringInfo.expiring
-                ? isDark ? 'text-rose-300' : 'text-rose-700'
-                : isDark ? 'text-slate-300' : 'text-slate-600'
+                ? isDark
+                  ? 'bg-rose-950/30 border-rose-700 animate-pulse shadow-lg shadow-rose-500/20'
+                  : 'bg-rose-50 border-rose-300 animate-pulse shadow-lg shadow-rose-500/20'
+                : isDark
+                  ? 'bg-slate-800/50 border-slate-700'
+                  : 'bg-white border-slate-200'
             }`}>
-              {expiringInfo.expiring ? '⚠️ Time Remaining' : 'Time Remaining'}
-            </div>
-            {daysLeft < 0 ? (
-              <div className={`text-lg font-bold ${
+              <div className={`text-xs mb-1 ${
                 expiringInfo.expiring
-                  ? isDark ? 'text-rose-400' : 'text-rose-600'
-                  : 'text-rose-600'
+                  ? isDark ? 'text-rose-300' : 'text-rose-700'
+                  : isDark ? 'text-slate-300' : 'text-slate-600'
               }`}>
-                {Math.abs(daysLeft)} days overdue
+                {expiringInfo.expiring ? '⚠️ Time Remaining' : 'Time Remaining'}
               </div>
-            ) : daysLeft === 0 ? (
-              <div className={`text-lg font-bold ${
-                expiringInfo.expiring
-                  ? isDark ? 'text-rose-400' : 'text-rose-600'
-                  : 'text-amber-600'
-              }`}>
-                Today (Expires)
-              </div>
-            ) : (
-              <div className={`text-lg font-bold ${
-                expiringInfo.expiring
-                  ? isDark ? 'text-rose-400' : 'text-rose-600'
-                  : 'text-emerald-600'
-              }`}>
-                {daysLeft} days remaining
-              </div>
-            )}
-          </Card>
+              {daysLeft < 0 ? (
+                <div className={`text-lg font-bold ${
+                  expiringInfo.expiring
+                    ? isDark ? 'text-rose-400' : 'text-rose-600'
+                    : 'text-rose-600'
+                }`}>
+                  {Math.abs(daysLeft)} days overdue
+                </div>
+              ) : daysLeft === 0 ? (
+                <div className={`text-lg font-bold ${
+                  expiringInfo.expiring
+                    ? isDark ? 'text-rose-400' : 'text-rose-600'
+                    : 'text-amber-600'
+                }`}>
+                  Today (Expires)
+                </div>
+              ) : (
+                <div className={`text-lg font-bold ${
+                  expiringInfo.expiring
+                    ? isDark ? 'text-rose-400' : 'text-rose-600'
+                    : 'text-emerald-600'
+                }`}>
+                  {daysLeft} days remaining
+                </div>
+              )}
+            </Card>
+          )}
         </div>
 
-        {canViewTariffs ? (
+        {/* 🔗 client_tariffs_section */}
+        {canAccessElement('client_tariffs_section') && canViewTariffs ? (
           <div>
-            <h3
-              className={`text-sm font-semibold mb-3 ${
-                isDark ? 'text-slate-100' : 'text-slate-900'
-              }`}
-            >
+            <h3 className={`text-sm font-semibold mb-3 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
               Details
             </h3>
             {tariffs.length === 0 ? (
-              <div
-                className={`text-center py-8 text-sm ${
-                  isDark ? 'text-slate-500' : 'text-slate-400'
-                }`}
-              >
+              <div className={`text-center py-8 text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                 No tariff lines defined for this contract
               </div>
             ) : (
-              <div
-                className={`overflow-x-auto rounded-lg border ${
-                  isDark ? 'border-slate-700' : 'border-slate-200'
-                }`}
-              >
+              <div className={`overflow-x-auto rounded-lg border ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
                 <table className="w-full text-left text-xs">
-                  <thead
-                    className={`${
-                      isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-50 text-slate-500'
-                    } text-[10px] uppercase tracking-wide`}
-                  >
+                  <thead className={`${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-50 text-slate-500'} text-[10px] uppercase tracking-wide`}>
                     <tr>
                       <th className="px-3 py-2 font-medium">Description</th>
                       <th className="px-3 py-2 font-medium">Unit</th>
                       <th className="px-3 py-2 font-medium text-right">Rate</th>
-                      <th className="px-3 py-2 font-medium text-center">
-                        Total Performed Work
-                      </th>
-                      {/* 🔐 RBAC: ستون‌های مالی فقط با invoice:read */}
-                      {canViewInvoices && (
+                      <th className="px-3 py-2 font-medium text-center">Total Performed Work</th>
+                      {/* 🔗 client_tariffs_financial */}
+                      {canAccessElement('client_tariffs_financial') && canViewInvoices && (
                         <>
-                          <th className="px-3 py-2 font-medium text-right">
-                            Total Value of Performed Works
-                          </th>
-                          <th className="px-3 py-2 font-medium text-right">
-                            Total Invoiced
-                          </th>
+                          <th className="px-3 py-2 font-medium text-right">Total Value of Performed Works</th>
+                          <th className="px-3 py-2 font-medium text-right">Total Invoiced</th>
                         </>
                       )}
                     </tr>
                   </thead>
-                  <tbody
-                    className={
-                      isDark ? 'divide-y divide-slate-700' : 'divide-y divide-slate-100'
-                    }
-                  >
+                  <tbody className={isDark ? 'divide-y divide-slate-700' : 'divide-y divide-slate-100'}>
                     {tariffs.map((tariff) => {
                       const consumed = tariff.consumed_quantity ?? 0;
                       const progress = consumed;
-                      const value =
-                        consumed *
-                        (typeof tariff.rate === 'string'
-                          ? Number(tariff.rate.replace(/,/g, '')) || 0
-                          : tariff.rate || 0);
+                      const value = consumed * (typeof tariff.rate === 'string' ? Number(tariff.rate.replace(/,/g, '')) || 0 : tariff.rate || 0);
                       const invoiced = (tariff as any).invoiced || 0;
                       return (
-                        <tr
-                          key={tariff.id}
-                          className={
-                            isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50/60'
-                          }
-                        >
-                          <td
-                            className={`px-3 py-2 font-medium ${
-                              isDark ? 'text-slate-200' : 'text-slate-800'
-                            }`}
-                          >
+                        <tr key={tariff.id} className={isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50/60'}>
+                          <td className={`px-3 py-2 font-medium ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                             {tariff.description}
                           </td>
                           <td className="px-3 py-2">
-                            <Badge tone="indigo">
-                              {tariff.unit.replace('_', ' ')}
-                            </Badge>
+                            <Badge tone="indigo">{tariff.unit.replace('_', ' ')}</Badge>
                           </td>
                           <td className="px-3 py-2 text-right font-mono">
                             {formatCurrency(tariff.rate, contract.currency)}
                           </td>
-                          <td className="px-3 py-2 text-center font-mono">
-                            {progress}
-                          </td>
-                          {/* 🔐 RBAC: ستون‌های مالی فقط با invoice:read */}
-                          {canViewInvoices && (
+                          <td className="px-3 py-2 text-center font-mono">{progress}</td>
+                          {/*  client_tariffs_financial */}
+                          {canAccessElement('client_tariffs_financial') && canViewInvoices && (
                             <>
                               <td className="px-3 py-2 text-right font-mono font-semibold">
                                 {formatCurrency(value, contract.currency)}
@@ -372,51 +281,26 @@ export function ContractDetailsModal({
                       );
                     })}
                   </tbody>
-                  <tfoot
-                    className={
-                      isDark
-                        ? 'bg-slate-800 border-t-2 border-slate-600'
-                        : 'bg-slate-100 border-t-2 border-slate-300'
-                    }
-                  >
+                  <tfoot className={isDark ? 'bg-slate-800 border-t-2 border-slate-600' : 'bg-slate-100 border-t-2 border-slate-300'}>
                     <tr>
-                      <td
-                        colSpan={canViewInvoices ? 3 : 3}
-                        className={`px-3 py-2.5 text-sm font-bold text-left uppercase tracking-wider ${
-                          isDark ? 'text-slate-200' : 'text-slate-700'
-                        }`}
-                      >
+                      <td colSpan={canAccessElement('client_tariffs_financial') && canViewInvoices ? 3 : 3} className={`px-3 py-2.5 text-sm font-bold text-left uppercase tracking-wider ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                         💰 Total
                       </td>
-                      <td
-                        className={`px-3 py-2.5 text-center font-mono font-bold ${
-                          isDark ? 'text-slate-100' : 'text-slate-900'
-                        }`}
-                      ></td>
-                      {/* 🔐 RBAC: Totals فقط با invoice:read */}
-                      {canViewInvoices && (
+                      <td className={`px-3 py-2.5 text-center font-mono font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}></td>
+                      {/* 🔗 client_tariffs_totals */}
+                      {canAccessElement('client_tariffs_totals') && canViewInvoices && (
                         <>
                           <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-700">
                             {formatCurrency(
                               tariffs.reduce(
-                                (sum, t) =>
-                                  sum +
-                                  (t.consumed_quantity || 0) *
-                                    (typeof t.rate === 'string'
-                                      ? Number(t.rate.replace(/,/g, '')) || 0
-                                      : t.rate || 0),
+                                (sum, t) => sum + (t.consumed_quantity || 0) * (typeof t.rate === 'string' ? Number(t.rate.replace(/,/g, '')) || 0 : t.rate || 0),
                                 0
                               ),
                               contract.currency
                             )}
                           </td>
                           <td className="px-3 py-2.5 text-right font-mono font-bold text-indigo-700">
-                            {formatCurrency(
-                              tariffs.reduce(
-                                (sum, t) => sum + ((t as any).invoiced || 0),
-                                0
-                              )
-                            )}
+                            {formatCurrency(tariffs.reduce((sum, t) => sum + ((t as any).invoiced || 0), 0))}
                           </td>
                         </>
                       )}
@@ -427,11 +311,7 @@ export function ContractDetailsModal({
             )}
           </div>
         ) : (
-          <div
-            className={`rounded-lg border-2 border-dashed p-8 text-center ${
-              isDark ? 'border-slate-700 bg-slate-800/30' : 'border-slate-300 bg-slate-50'
-            }`}
-          >
+          <div className={`rounded-lg border-2 border-dashed p-8 text-center ${isDark ? 'border-slate-700 bg-slate-800/30' : 'border-slate-300 bg-slate-50'}`}>
             <div className="text-4xl mb-3">🔒</div>
             <h4 className={`text-sm font-semibold mb-2 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
               Tariff Details Locked

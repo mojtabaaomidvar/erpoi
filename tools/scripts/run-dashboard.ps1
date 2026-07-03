@@ -1,0 +1,1 @@
+node tools/dashboard/assets/js/dashboard.js

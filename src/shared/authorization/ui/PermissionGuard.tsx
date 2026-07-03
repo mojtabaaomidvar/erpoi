@@ -12,12 +12,13 @@ interface PermissionGuardProps {
 export function PermissionGuard({ elementId, children, fallback = null }: PermissionGuardProps) {
   const { canAccessElement, loading } = usePermissionMapping();
 
-  // 🔧 FIX: اگه هنوز loading هست، children رو نشون بده
   if (loading) {
-    return <>{children}</>;
+    return <>{fallback}</>;
   }
 
   const hasAccess = canAccessElement(elementId);
+  
+  console.log(`[PermissionGuard] elementId: ${elementId}, hasAccess: ${hasAccess}`);
 
   if (!hasAccess) return <>{fallback}</>;
   return <>{children}</>;

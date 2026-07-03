@@ -7,30 +7,45 @@ import '@shared/authorization/uiElements';
 import type { Permission, EntityType, Role } from '../types';
 import type { DBPermissionMapping, DBUIElement } from '@shared/database/types';
 
-import { ROLES, hasPermission } from '../roles';
 import { useAuth } from '@features/auth/hooks/useAuth';
+import { checkDependenciesChain } from '../uiElements/dependencies';
 
 export function usePermissionMapping() {
   const { user } = useAuth();
   const role = (user?.role || 'viewer') as Role;
   
-  // 🔧 FIX: customPermissions رو مستقیم از user object بگیر
+  const isAdmin = role === 'admin' || user?.role === 'admin';
   const customPermissions = (user as any)?.customPermissions || [];
-
-  const can = useCallback((permission: Permission): boolean => {
-    if (customPermissions.includes(permission)) return true;
-    return hasPermission(role, permission);
-  }, [role, customPermissions]);
 
   const [mappings, setMappings] = useState<Map<string, DBPermissionMapping>>(new Map());
   const [loading, setLoading] = useState(true);
+
+  // 🔧 FIX: گرفتن permissions واقعی کاربر از role (Batch Permission)
+  const rolePermissions = useMemo((): string[] => {
+    if (isAdmin) return ['*:*'];
+    
+    try {
+      const rolesJson = localStorage.getItem('ics_db_roles');
+      if (!rolesJson) return [];
+      
+      const roles = JSON.parse(rolesJson);
+      const userRole = roles.find((r: any) => r.name === role);
+      
+      if (userRole && userRole.permissions) {
+        return userRole.permissions;
+      }
+    } catch (error) {
+      console.error('[usePermissionMapping] Failed to read role permissions:', error);
+    }
+    
+    return [];
+  }, [role, isAdmin]);
 
   useEffect(() => {
     const loadFromDB = async () => {
       try {
         setLoading(true);
         const db = await getDB();
-
         const allMappings = await db.getAllPermissionMappings();
         const map = new Map<string, DBPermissionMapping>(
           allMappings.map((m: DBPermissionMapping) => [m.permission, m])
@@ -55,20 +70,26 @@ export function usePermissionMapping() {
     })) as DBUIElement[];
   }, []);
 
+  // 🔧 FIX: فقط permissions واقعی کاربر (نه همه mappings!)
   const activePermissions = useMemo((): Permission[] => {
     const permissions = new Set<string>();
-
-    // 1. از mappings واقعی (که کاربر ساخته)
-    mappings.forEach((_, permission) => {
-      permissions.add(permission);
-    });
-
-    // 2. 🔧 FIX: از custom permissions کاربر با type annotation
-    customPermissions.forEach((p: string) => permissions.add(p));
-
+    
+    // ۱. Admin همه چیز دارد
+    if (isAdmin || rolePermissions.includes('*:*')) {
+      // همه mappings را اضافه کن
+      mappings.forEach((_, permission) => permissions.add(permission));
+    } else {
+      // ۲. Permissions از Batch Permission (role)
+      rolePermissions.forEach((p: string) => permissions.add(p));
+      
+      // ۳. Permissions از User (customPermissions) - مستقل!
+      customPermissions.forEach((p: string) => permissions.add(p));
+    }
+    
     return Array.from(permissions).sort() as Permission[];
-  }, [mappings, customPermissions]);
+  }, [isAdmin, rolePermissions, customPermissions, mappings]);
 
+  // 🔧 FIX: ساخت accessProfile با permissions واقعی
   const accessProfile = useMemo(() => {
     const allowedElements = new Set<string>();
     const deniedElements = new Set<string>();
@@ -81,7 +102,15 @@ export function usePermissionMapping() {
       }
     });
 
+    // حذف denied از allowed
     deniedElements.forEach(el => allowedElements.delete(el));
+
+    // 🔧 FIX: فیلتر dependencies
+    const allowedArray = Array.from(allowedElements);
+    const filteredAllowed = allowedArray.filter(elementId => {
+      const { satisfied } = checkDependenciesChain(elementId, allowedArray);
+      return satisfied;
+    });
 
     const profileId = activePermissions.sort().join('_') || 'empty';
 
@@ -90,15 +119,17 @@ export function usePermissionMapping() {
       name: 'Dynamic Profile',
       description: `Profile with ${activePermissions.length} permissions`,
       permissions: activePermissions,
-      allowedElements: Array.from(allowedElements),
+      allowedElements: filteredAllowed,
       deniedElements: Array.from(deniedElements),
     };
   }, [activePermissions, mappings]);
 
   const canAccessElement = useCallback((elementId: string): boolean => {
+    if (isAdmin) return true;
+    
     return accessProfile.allowedElements.includes(elementId) &&
            !accessProfile.deniedElements.includes(elementId);
-  }, [accessProfile]);
+  }, [accessProfile, isAdmin]);
 
   const getAllowedElementsByEntity = useCallback((entity: EntityType): DBUIElement[] => {
     return uiElements.filter(el => el.entity === entity && canAccessElement(el.id));
@@ -120,13 +151,10 @@ export function usePermissionMapping() {
 
     uiElements.forEach(el => {
       elements[el.id] = el;
-
       if (!byEntity[el.entity]) byEntity[el.entity] = [];
       byEntity[el.entity].push(el.id);
-
       if (!byModule[el.module]) byModule[el.module] = [];
       byModule[el.module].push(el.id);
-
       if (!byType[el.type]) byType[el.type] = [];
       byType[el.type].push(el.id);
     });
@@ -136,6 +164,7 @@ export function usePermissionMapping() {
 
   return {
     role,
+    isAdmin,
     loading,
     activePermissions,
     accessProfile,

@@ -1,0 +1,13 @@
+{
+    "mode":"deep",
+
+    "include":[
+        "src"
+    ],
+
+    "exclude":[
+        "dist",
+        "reports",
+        "node_modules"
+    ]
+}

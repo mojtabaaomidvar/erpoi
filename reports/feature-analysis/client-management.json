@@ -1,0 +1,15 @@
+{
+    "feature": "client-management",
+    "files": 9,
+    "components": 17,
+    "hooks": 97,
+    "pages": 0,
+    "imports": 51,
+    "exports": 11,
+    "largestComponent": "src/features/client-management/ui/ClientForm.tsx",
+    "largestComponentLines": 833,
+    "health": 70,
+    "recommendations": [
+        "Split largest component."
+    ]
+}

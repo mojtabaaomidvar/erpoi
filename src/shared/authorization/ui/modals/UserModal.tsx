@@ -25,9 +25,6 @@ export function UserModal({ user, roles, onClose, onSave }: UserModalProps) {
     status: user?.status || 'active',
   });
 
-  // 🔧 FIX: حذف showNewRole و newRoleName
-  const roleOptions = roles.map(r => r.name);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
@@ -104,10 +101,10 @@ export function UserModal({ user, roles, onClose, onSave }: UserModalProps) {
             </div>
           )}
 
-          {/* 🔧 FIX: Role ساده - بدون دکمه ➕ */}
+          {/* 🔧 FIX: Batch Permission - با displayName */}
           <div>
             <label className={`block text-xs font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              Role *
+              📦 Batch Permission *
             </label>
             <select
               value={formData.role}
@@ -115,9 +112,16 @@ export function UserModal({ user, roles, onClose, onSave }: UserModalProps) {
               required
               className={`w-full px-3 py-1.5 rounded border text-sm ${isDark ? 'border-slate-600 bg-slate-700 text-slate-100' : 'border-slate-300 bg-white'}`}
             >
-              <option value="">Select role...</option>
-              {roleOptions.map(r => <option key={r} value={r}>{r}</option>)}
+              <option value="">Select a batch permission...</option>
+              {roles.map(r => (
+                <option key={r.id} value={r.name}>
+                  {r.displayName} {r.isSystem ? '(System)' : ''}
+                </option>
+              ))}
             </select>
+            <p className={`text-[10px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              This batch determines the user's default permissions
+            </p>
           </div>
 
           {/* Department */}
