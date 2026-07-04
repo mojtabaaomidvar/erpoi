@@ -1,38 +1,51 @@
 // src/shared/authorization/hooks/usePermission.ts
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { Permission } from '../types';
 import { useAuth } from '@features/auth/hooks/useAuth';
+import { supabase } from '@shared/database/supabase';
 
 export function usePermission() {
   const { user } = useAuth();
   const role = user?.role || 'viewer';
   const isAdmin = role === 'admin';
 
-  // 🔐 customPermissions کاربر
+  // 🔐 customPermissions کاربر (از session)
   const customPermissions = useMemo((): string[] => {
     return (user as any)?.customPermissions || [];
   }, [user]);
 
-  // 🔐  rolePermissions از Batch Permission (از localStorage)
-  const rolePermissions = useMemo((): string[] => {
-    if (isAdmin) return ['*:*'];
-    
-    try {
-      const rolesJson = localStorage.getItem('ics_db_roles');
-      if (!rolesJson) return [];
-      
-      const roles = JSON.parse(rolesJson);
-      const dbRole = roles.find((r: any) => r.name === role);
-      
-      if (dbRole && dbRole.permissions) {
-        return dbRole.permissions;
+  // 🔧 NEW: rolePermissions از Supabase
+  const [rolePermissions, setRolePermissions] = useState<string[]>([]);
+
+  useEffect(() => {
+    const loadRolePermissions = async () => {
+      if (isAdmin) {
+        setRolePermissions(['*:*']);
+        return;
       }
-    } catch (error) {
-      console.error('[usePermission] Failed to read roles:', error);
-    }
-    
-    return [];
+
+      try {
+        const { data, error } = await supabase
+          .from('roles')
+          .select('permissions')
+          .eq('name', role)
+          .single();
+
+        if (error) {
+          console.warn('[usePermission] Role not found:', role);
+          setRolePermissions([]);
+          return;
+        }
+
+        setRolePermissions(data?.permissions || []);
+      } catch (error) {
+        console.error('[usePermission] Failed to load role permissions:', error);
+        setRolePermissions([]);
+      }
+    };
+
+    loadRolePermissions();
   }, [role, isAdmin]);
 
   // 🔐 ترکیب همه permission ها
@@ -55,7 +68,7 @@ export function usePermission() {
     if (allPermissions.includes(`${entity}:*`)) return true;
     if (allPermissions.includes('*:*')) return true;
     
-    // چک کردن entity-level (مثلاً can('client') true برمی‌گرداند اگه کاربر هر دسترسی client:* داشته باشه)
+    // چک کردن entity-level
     if (!perm.includes(':')) {
       return allPermissions.some(p => p.startsWith(`${perm}:`));
     }
@@ -75,11 +88,10 @@ export function usePermission() {
     return !can(permission);
   }, [can]);
 
-  // 🔐 تابع چک کردن دسترسی به entity - حالا allPermissions را چک می‌کند
+  // 🔐 تابع چک کردن دسترسی به entity
   const canAccessEntity = useCallback((entity: string): boolean => {
     if (isAdmin) return true;
     
-    // 🔧 چک کردن در allPermissions (شامل customPermissions + rolePermissions)
     return allPermissions.some((perm: string) => {
       const permEntity = perm.split(':')[0];
       return permEntity === entity;

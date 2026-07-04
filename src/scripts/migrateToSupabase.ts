@@ -7,20 +7,26 @@ import {
   contractTariffs as mockTariffs,
 } from '@data/mockData';
 
-// ═══════════════════════════════════════
-// 🎯 Helper Functions
-// ═══════════════════════════════════════
-
 function generateId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 async function clearTable(tableName: string): Promise<void> {
-  const { error } = await supabase.from(tableName).delete().neq('created_at', '1970-01-01');
-  if (error) {
-    console.error(`❌ Failed to clear ${tableName}:`, error);
-  } else {
-    console.log(`✅ Cleared ${tableName}`);
+  try {
+    const { error } = await supabase.from(tableName).delete().neq('created_at', '1970-01-01');
+    
+    if (error) {
+      if (tableName === 'permission_mappings') {
+        await supabase.from(tableName).delete().neq('permission', 'is.null');
+        console.log(`✅ Cleared ${tableName}`);
+      } else {
+        console.warn(`⚠️ Could not clear ${tableName}:`, error.message);
+      }
+    } else {
+      console.log(`✅ Cleared ${tableName}`);
+    }
+  } catch (e: any) {
+    console.warn(`⚠️ Error clearing ${tableName}: ${e.message}`);
   }
 }
 
@@ -28,8 +34,8 @@ async function clearExistingData(): Promise<void> {
   console.log('🧹 Clearing existing data...');
   
   const tables = [
-    'invoices', 'ncrs', 'inspections', 'tariff_lines', 'contracts', 'clients',
-    'inspectors', 'permission_mappings', 'roles', 'users', 'departments', 'settings'
+    'tariff_lines', 'contracts', 'clients',
+    'permission_mappings', 'users', 'roles', 'departments'
   ];
 
   for (const table of tables) {
@@ -37,16 +43,12 @@ async function clearExistingData(): Promise<void> {
   }
 }
 
-// ═══════════════════════════════════════
-// 🌱 Seed Functions
-// ═══════════════════════════════════════
-
 async function seedDepartments(): Promise<void> {
   console.log('🏢 Seeding departments...');
   
   const departments = [
     { id: 'it', name: 'IT Department', description: 'Information Technology' },
-    { id: 'oi', name: 'Offshore & Inspection', description: 'Offshore and Inspection Department' },
+    { id: 'oi', name: 'Offshore & Inspection', description: 'Offshore and Inspection' },
     { id: 'hr', name: 'Human Resources', description: 'HR Department' },
     { id: 'finance', name: 'Finance', description: 'Finance Department' },
   ];
@@ -60,14 +62,14 @@ async function seedDepartments(): Promise<void> {
 }
 
 async function seedRoles(): Promise<void> {
-  console.log('👑 Seeding roles...');
+  console.log('👑 Seeding roles (Batch Permissions)...');
   
   const roles = [
     {
       id: 'role_admin',
       name: 'admin',
       display_name: 'Administrator',
-      description: 'Full system access - cannot be deleted',
+      description: 'Full system access',
       permissions: ['*:*'],
       is_system: true,
     },
@@ -75,16 +77,24 @@ async function seedRoles(): Promise<void> {
       id: 'role_manager',
       name: 'manager',
       display_name: 'Manager',
-      description: 'Department manager with limited access',
-      permissions: [],
+      description: 'Department manager with client and contract access',
+      permissions: ['client:read', 'client:view_own', 'client:create', 'client:update', 'contract:read', 'contract:view_own'],
       is_system: false,
     },
     {
       id: 'role_viewer',
       name: 'viewer',
       display_name: 'Viewer',
-      description: 'Read-only access',
-      permissions: [],
+      description: 'Read-only access to clients',
+      permissions: ['client:read', 'client:view_own'],
+      is_system: false,
+    },
+    {
+      id: 'role_inspector',
+      name: 'inspector',
+      display_name: 'Inspector',
+      description: 'Inspector with limited access',
+      permissions: ['client:read', 'client:view_own', 'contract:read', 'contract:view_own'],
       is_system: false,
     },
   ];
@@ -162,9 +172,14 @@ async function seedClients(): Promise<void> {
     }
   }
 
-  if (clients.length === 0) {
-    clients = mockClients;
+  if (clients.length === 0 && Array.isArray(mockClients) && mockClients.length > 0) {
+    clients = [...mockClients];
     console.log(`📦 Using ${clients.length} clients from mockData`);
+  }
+
+  if (!Array.isArray(clients)) {
+    console.error('❌ clients is not an array');
+    clients = [];
   }
 
   const formattedClients = clients.map(c => ({
@@ -183,6 +198,11 @@ async function seedClients(): Promise<void> {
     contact_persons: c.contactPersons || c.contact_persons || [],
     logo_color: c.logoColor || c.logo_color || null,
   }));
+
+  if (formattedClients.length === 0) {
+    console.log('⚠️ No clients to seed');
+    return;
+  }
 
   const { error } = await supabase.from('clients').insert(formattedClients);
   if (error) {
@@ -207,9 +227,14 @@ async function seedContracts(): Promise<void> {
     }
   }
 
-  if (contracts.length === 0) {
-    contracts = mockContracts;
+  if (contracts.length === 0 && Array.isArray(mockContracts) && mockContracts.length > 0) {
+    contracts = [...mockContracts];
     console.log(`📦 Using ${contracts.length} contracts from mockData`);
+  }
+
+  if (!Array.isArray(contracts)) {
+    console.error('❌ contracts is not an array');
+    contracts = [];
   }
 
   const formattedContracts = contracts.map(c => ({
@@ -225,6 +250,11 @@ async function seedContracts(): Promise<void> {
     end_date: c.end_date || null,
     tariffs: c.tariffs || 0,
   }));
+
+  if (formattedContracts.length === 0) {
+    console.log('⚠️ No contracts to seed');
+    return;
+  }
 
   const { error } = await supabase.from('contracts').insert(formattedContracts);
   if (error) {
@@ -249,9 +279,14 @@ async function seedTariffLines(): Promise<void> {
     }
   }
 
-  if (tariffs.length === 0) {
-    tariffs = mockTariffs;
+  if (tariffs.length === 0 && Array.isArray(mockTariffs) && mockTariffs.length > 0) {
+    tariffs = [...mockTariffs];
     console.log(`📦 Using ${tariffs.length} tariff lines from mockData`);
+  }
+
+  if (!Array.isArray(tariffs)) {
+    console.error('❌ tariffs is not an array');
+    tariffs = [];
   }
 
   const formattedTariffs = tariffs.map(t => ({
@@ -264,6 +299,11 @@ async function seedTariffLines(): Promise<void> {
     invoiced: t.invoiced || 0,
   }));
 
+  if (formattedTariffs.length === 0) {
+    console.log('⚠️ No tariff lines to seed');
+    return;
+  }
+
   const { error } = await supabase.from('tariff_lines').insert(formattedTariffs);
   if (error) {
     console.error('❌ Failed to seed tariff lines:', error);
@@ -275,44 +315,62 @@ async function seedTariffLines(): Promise<void> {
 async function seedPermissionMappings(): Promise<void> {
   console.log('🔐 Seeding permission mappings...');
   
-  const mappingsJson = localStorage.getItem('ics_db_permissionMappings');
-  if (!mappingsJson) {
-    console.log('📦 No permission mappings in localStorage, skipping');
-    return;
-  }
+  const mappings = [
+    {
+      permission: 'client:read',
+      allowed_elements: ['client_list_item_view', 'client_list_item_click', 'client_search_box', 'client_sort_select', 'client_filter_type', 'client_stat_agreements', 'client_agreements_section', 'client_agreements_tabs', 'client_contract_item', 'client_contract_dates'],
+    },
+    {
+      permission: 'client:create',
+      allowed_elements: ['client_btn_add', 'client_emails_dropdown', 'client_contacts_dropdown'],
+    },
+    {
+      permission: 'client:update',
+      allowed_elements: ['client_btn_edit', 'client_emails_dropdown', 'client_contacts_dropdown'],
+    },
+    {
+      permission: 'client:delete',
+      allowed_elements: ['client_btn_delete'],
+    },
+    {
+      permission: 'client:export',
+      allowed_elements: ['client_btn_export'],
+    },
+    {
+      permission: 'client:view_all',
+      allowed_elements: ['client_list_item_view', 'client_list_item_click', 'client_search_box', 'client_sort_select', 'client_filter_type', 'client_stat_agreements', 'client_agreements_section', 'client_agreements_tabs', 'client_contract_item', 'client_contract_dates', 'client_total_agreement_badge'],
+    },
+    {
+      permission: 'client:view_own',
+      allowed_elements: ['client_list_item_view', 'client_list_item_click', 'client_search_box', 'client_sort_select', 'client_filter_type', 'client_stat_agreements', 'client_agreements_section', 'client_agreements_tabs', 'client_contract_item', 'client_contract_dates'],
+    },
+    {
+      permission: 'contract:read',
+      allowed_elements: ['client_contract_value', 'client_contract_progress_work', 'client_contract_progress_invoice', 'client_time_remaining', 'client_tariffs_section', 'client_tariffs_table', 'client_tariffs_financial', 'client_tariffs_totals', 'client_agreement_value', 'client_agreement_progress_work', 'client_agreement_progress_invoice', 'client_stat_value_agreements', 'client_stat_invoiced', 'client_stat_uninvoiced', 'client_total_agreement_badge'],
+    },
+    {
+      permission: 'contract:view_all',
+      allowed_elements: ['client_contract_value', 'client_contract_progress_work', 'client_contract_progress_invoice', 'client_time_remaining', 'client_tariffs_section', 'client_tariffs_table', 'client_tariffs_financial', 'client_tariffs_totals'],
+    },
+    {
+      permission: 'contract:view_own',
+      allowed_elements: ['client_contract_value', 'client_contract_progress_work', 'client_contract_progress_invoice', 'client_time_remaining', 'client_tariffs_section', 'client_tariffs_table', 'client_tariffs_financial', 'client_tariffs_totals'],
+    },
+  ];
 
-  let mappings: any[] = [];
-  try {
-    mappings = JSON.parse(mappingsJson);
-    console.log(`📦 Found ${mappings.length} permission mappings`);
-  } catch (e) {
-    console.error('❌ Failed to parse mappings:', e);
-    return;
-  }
-
-  const formattedMappings = mappings.map(m => ({
-    permission: m.permission,
-    allowed_elements: m.allowedElements || m.allowed_elements || [],
-    denied_elements: m.deniedElements || m.denied_elements || [],
-  }));
-
-  const { error } = await supabase.from('permission_mappings').insert(formattedMappings);
+  const { error } = await supabase.from('permission_mappings').insert(mappings);
   if (error) {
     console.error('❌ Failed to seed permission mappings:', error);
   } else {
-    console.log(`✅ Seeded ${formattedMappings.length} permission mappings`);
+    console.log(`✅ Seeded ${mappings.length} permission mappings`);
   }
 }
-
-// ═══════════════════════════════════════
-// 🚀 Main Migration Function
-// ═══════════════════════════════════════
 
 export async function runMigration(): Promise<void> {
   console.log('🚀 Starting migration to Supabase...');
   console.log('⚠️  This will CLEAR all existing data in Supabase!');
   
-  const confirmed = confirm('Are you sure you want to proceed? This cannot be undone!');
+  const confirmed = confirm('Are you sure you want to proceed?');
   if (!confirmed) {
     console.log('❌ Migration cancelled');
     return;
@@ -334,16 +392,12 @@ export async function runMigration(): Promise<void> {
     console.log(`\n✅ Migration completed in ${duration}s`);
     console.log('🎉 All data has been transferred to Supabase!');
     
-    alert('✅ Migration completed successfully! Check console for details.');
+    alert('✅ Migration completed successfully!');
   } catch (error) {
     console.error('❌ Migration failed:', error);
-    alert('❌ Migration failed! Check console for details.');
+    alert('❌ Migration failed! Check console.');
   }
 }
-
-// ═══════════════════════════════════════
-// 🧪 Test Connection
-// ═══════════════════════════════════════
 
 export async function testSupabaseConnection(): Promise<boolean> {
   console.log('🔍 Testing Supabase connection...');
@@ -359,15 +413,11 @@ export async function testSupabaseConnection(): Promise<boolean> {
   return true;
 }
 
-// ═══════════════════════════════════════
-// 📊 Export for Console
-// ═══════════════════════════════════════
-
 if (typeof window !== 'undefined') {
   (window as any).migrateToSupabase = runMigration;
   (window as any).testSupabase = testSupabaseConnection;
   
   console.log('🔧 Migration tools available:');
-  console.log('  - window.migrateToSupabase() - Run full migration');
+  console.log('  - window.migrateToSupabase() - Run migration');
   console.log('  - window.testSupabase() - Test connection');
 }
