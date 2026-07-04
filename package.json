@@ -13,6 +13,7 @@
 		"check": "npm run typecheck && npm run lint && npm run build"
 	},
 	"dependencies": {
+		"@supabase/supabase-js": "^2.110.0",
 		"clsx": "2.1.1",
 		"date-fns": "^4.4.0",
 		"dexie": "^4.4.4",

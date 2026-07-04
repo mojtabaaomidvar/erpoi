@@ -1,12 +1,11 @@
 // src/shared/authorization/hooks/usePermissionMapping.ts
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { getDB } from '@shared/database';
+import { supabase } from '@shared/database/supabase';
 import { uiElementRegistry } from '../uiElements/registry';
 import '@shared/authorization/uiElements';
 import type { Permission, EntityType } from '../types';
 import type { DBPermissionMapping, DBUIElement } from '@shared/database/types';
-
 import { useAuth } from '@features/auth/hooks/useAuth';
 import { checkDependenciesChain } from '../uiElements/dependencies';
 
@@ -18,15 +17,27 @@ export function usePermissionMapping() {
   const [mappings, setMappings] = useState<Map<string, DBPermissionMapping>>(new Map());
   const [loading, setLoading] = useState(true);
 
-  // 🔧 Load mappings از دیتابیس
+  // 🔧 Load mappings از Supabase
   useEffect(() => {
     const loadFromDB = async () => {
       try {
         setLoading(true);
-        const db = await getDB();
-        const allMappings = await db.getAllPermissionMappings();
+        const { data, error } = await supabase
+          .from('permission_mappings')
+          .select('*');
+
+        if (error) {
+          console.error('[usePermissionMapping] Failed to load:', error);
+          return;
+        }
+
         const map = new Map<string, DBPermissionMapping>(
-          allMappings.map((m: DBPermissionMapping) => [m.permission, m])
+          (data || []).map((m: any) => [m.permission, {
+            permission: m.permission,
+            allowedElements: m.allowed_elements || [],
+            deniedElements: m.denied_elements || [],
+            updatedAt: m.updated_at,
+          }])
         );
         setMappings(map);
       } catch (error) {
@@ -49,13 +60,9 @@ export function usePermissionMapping() {
   }, []);
 
   // ═══════════════════════════════════════
-  // 🔐 ENTITY-LEVEL ACCESS (برای Sidebar و صفحات)
+  // 🔐 ENTITY-LEVEL ACCESS
   // ═══════════════════════════════════════
 
-  /**
-   * چک کردن دسترسی به یک entity
-   * مثال: canAccess('client') → true اگر کاربر هر دسترسی client:* داشته باشه
-   */
   const canAccess = useCallback((entity: string): boolean => {
     if (isAdmin) return true;
     return customPermissions.some((perm: string) => {
@@ -64,23 +71,16 @@ export function usePermissionMapping() {
     });
   }, [isAdmin, customPermissions]);
 
-  /**
-   * چک کردن دسترسی به چند entity (حداقل یکی true باشه)
-   */
   const canAccessAny = useCallback((entities: string[]): boolean => {
     return entities.some(entity => canAccess(entity));
   }, [canAccess]);
 
   // ═══════════════════════════════════════
-  // 🔐 ELEMENT-LEVEL ACCESS (برای دکمه‌ها و المان‌های خاص)
+  // 🔐 ELEMENT-LEVEL ACCESS
   // ═══════════════════════════════════════
 
-  /**
-   * محاسبه لیست element های مجاز بر اساس permission های کاربر
-   */
   const allowedElements = useMemo((): Set<string> => {
     if (isAdmin) {
-      // Admin همه element ها رو داره
       return new Set(uiElements.map(el => el.id));
     }
 
@@ -93,7 +93,6 @@ export function usePermissionMapping() {
       }
     });
 
-    // 🔧 فیلتر dependencies
     const allowedArray = Array.from(allowed);
     const filtered = allowedArray.filter(elementId => {
       const { satisfied } = checkDependenciesChain(elementId, allowedArray);
@@ -103,25 +102,15 @@ export function usePermissionMapping() {
     return new Set(filtered);
   }, [isAdmin, customPermissions, mappings, uiElements]);
 
-  /**
-   * چک کردن دسترسی به یک element خاص
-   * مثال: canAccessElement('client_btn_edit') → true اگر کاربر این element رو داشته باشه
-   */
   const canAccessElement = useCallback((elementId: string): boolean => {
     if (isAdmin) return true;
     return allowedElements.has(elementId);
   }, [isAdmin, allowedElements]);
 
-  /**
-   * چک کردن دسترسی به چند element (حداقل یکی true باشه)
-   */
   const canAccessAnyElement = useCallback((elementIds: string[]): boolean => {
     return elementIds.some(id => canAccessElement(id));
   }, [canAccessElement]);
 
-  /**
-   * چک کردن دسترسی به چند element (همه true باشن)
-   */
   const canAccessAllElements = useCallback((elementIds: string[]): boolean => {
     return elementIds.every(id => canAccessElement(id));
   }, [canAccessElement]);
@@ -142,27 +131,16 @@ export function usePermissionMapping() {
     return uiElements.filter(el => el.type === type && canAccessElement(el.id));
   }, [uiElements, canAccessElement]);
 
-  // ═══════════════════════════════════════
-  // 📤 EXPORT
-  // ═══════════════════════════════════════
-
   return {
-    // Entity-level
     canAccess,
     canAccessAny,
-    
-    // Element-level
     canAccessElement,
     canAccessAnyElement,
     canAccessAllElements,
     allowedElements,
-    
-    // Helper functions
     getAllowedElementsByEntity,
     getAllowedElementsByModule,
     getAllowedElementsByType,
-    
-    // State
     isAdmin,
     loading,
     customPermissions,

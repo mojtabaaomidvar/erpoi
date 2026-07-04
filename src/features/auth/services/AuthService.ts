@@ -1,7 +1,7 @@
 // src/features/auth/services/AuthService.ts
 
 import type { AuthSession, LoginCredentials, User } from '../types';
-import { userService } from '@shared/authorization/services/UserService';
+import { supabase } from '@shared/database/supabase';
 import { eventBus } from '@infra/events';
 import { showToast } from '@shared/ui/ToastContainer';
 
@@ -70,38 +70,18 @@ class AuthService {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
   }
 
-  updateCurrentUser(updatedUser: User) {
-    if (this.session && this.session.user.id === updatedUser.id) {
-      console.log('[AuthService] 🔄 Updating current user in session:', updatedUser.username);
-      
-      this.session = {
-        ...this.session,
-        user: {
-          ...this.session.user,
-          ...updatedUser,
-        },
-      };
-      
-      this.saveSession();
-      this.notifyListeners();
-      
-      console.log('[AuthService] ✅ Session updated successfully');
-    }
-  }
-  
   async login(credentials: LoginCredentials): Promise<User> {
     await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // 🔧 FIX: خواندن مستقیم از localStorage برای اطمینان از به‌روز بودن
-    const usersJson = localStorage.getItem('ics_db_users');
-    if (!usersJson) {
-      throw this.createError('INVALID_CREDENTIALS', 'No users in database');
-    }
-    
-    const users = JSON.parse(usersJson);
-    const dbUser = users.find((u: any) => u.username === credentials.username.trim());
-    
-    if (!dbUser) {
+
+    // 🔐 Query از Supabase
+    const { data: dbUser, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', credentials.username.trim())
+      .single();
+
+    if (error || !dbUser) {
+      console.error('[AuthService] Login error:', error);
       throw this.createError('INVALID_CREDENTIALS', 'Invalid username or password');
     }
 
@@ -113,17 +93,19 @@ class AuthService {
       throw this.createError('INVALID_CREDENTIALS', 'Password is required');
     }
 
-    // 🔧 NOTE: در این نسخه، password چک نمی‌شود (mock database)
-    
+    if (dbUser.password !== credentials.password) {
+      throw this.createError('INVALID_CREDENTIALS', 'Invalid username or password');
+    }
+
     const session: AuthSession = {
       user: {
         id: dbUser.id,
         username: dbUser.username,
         email: dbUser.email,
-        fullName: dbUser.fullName,
+        fullName: dbUser.full_name,
         role: dbUser.role,
         department: dbUser.department,
-        customPermissions: dbUser.customPermissions || [],
+        customPermissions: dbUser.custom_permissions || [],
       },
       token: this.generateToken(),
       refreshToken: this.generateToken(),
@@ -143,7 +125,7 @@ class AuthService {
       source: 'auth',
     });
 
-    showToast('success', 'Login Successful', `Welcome back, ${dbUser.fullName}!`);
+    showToast('success', 'Login Successful', `Welcome back, ${dbUser.full_name}!`);
     console.log('[AuthService] 🔐 User logged in:', session.user);
 
     return session.user;
@@ -164,6 +146,25 @@ class AuthService {
     });
 
     showToast('success', 'Logout Successful', 'You have been logged out');
+  }
+
+  updateCurrentUser(updatedUser: User) {
+    if (this.session && this.session.user.id === updatedUser.id) {
+      console.log('[AuthService] 🔄 Updating current user in session:', updatedUser.username);
+      
+      this.session = {
+        ...this.session,
+        user: {
+          ...this.session.user,
+          ...updatedUser,
+        },
+      };
+      
+      this.saveSession();
+      this.notifyListeners();
+      
+      console.log('[AuthService] ✅ Session updated successfully');
+    }
   }
 
   private createError(code: string, message: string): Error {
