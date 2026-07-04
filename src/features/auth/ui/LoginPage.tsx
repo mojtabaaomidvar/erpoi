@@ -125,7 +125,18 @@ export function LoginPage({ onForgotPassword }: Props) {
                 <p className="mt-1 text-xs text-red-400">{validationErrors.password}</p>
               )}
             </div>
-            
+
+            {import.meta.env.DEV && (
+              <button
+                onClick={async () => {
+                  const { runMigration } = await import('../../../scripts/migrateToSupabase');
+                  await runMigration();
+                }}
+                className="mt-4 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm"
+              >
+                🚀 Migrate to Supabase (Dev Only)
+              </button>
+            )}
 
             {/* Submit Button */}
             <button
