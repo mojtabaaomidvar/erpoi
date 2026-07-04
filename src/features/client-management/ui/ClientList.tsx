@@ -1,8 +1,8 @@
 // src/features/client-management/ui/ClientList.tsx
 
-import { Button, Badge, Avatar } from '@design-system';
+import { useMemo } from 'react';
+import { Avatar, Badge, Button } from '@design-system';
 import { useTheme } from '@app/providers/ThemeProvider';
-import { PermissionGuard } from '@shared/authorization/ui/PermissionGuard';
 import { usePermissionMapping } from '@shared/authorization/hooks/usePermissionMapping';
 import { showToast } from '@shared/ui/ToastContainer';
 import type { Client, Contract } from '@entities/contract/types';
@@ -16,15 +16,12 @@ interface ClientListProps {
   filter: 'ALL' | 'LEGAL' | 'INDIVIDUAL';
   setFilter: (filter: 'ALL' | 'LEGAL' | 'INDIVIDUAL') => void;
   clientCounts: { total: number; legal: number; individual: number };
-  sortBy: 'name' | 'contracts' | 'value';
-  setSortBy: (sort: 'name' | 'contracts' | 'value') => void;
+  sortBy: 'name' | 'contracts' | 'value' | 'recent';
+  setSortBy: (sort: 'name' | 'contracts' | 'value' | 'recent') => void;
   selectedClient: Client | null;
   setSelectedClient: (client: Client | null) => void;
   onAddClick: () => void;
   onExport: () => void;
-  canCreate?: boolean;
-  canExport?: boolean;
-  canRead?: boolean;
 }
 
 export function ClientList({
@@ -42,226 +39,333 @@ export function ClientList({
   setSelectedClient,
   onAddClick,
   onExport,
-  canCreate = true,
-  canExport = true,
-  canRead = true,
 }: ClientListProps) {
   const { isDark } = useTheme();
-  
   const { canAccessElement } = usePermissionMapping();
 
-  const handleClientClick = (client: Client) => {
-    if (!canRead) {
-      showToast('error', 'Access Denied', 'You do not have permission to view clients');
-      return;
+  // 🔐 چک کردن دسترسی‌ها
+  const canClickItem = canAccessElement('client_list_item_click');
+  const canSearch = canAccessElement('client_search_box');
+  const canSort = canAccessElement('client_sort_select');
+  const canFilterType = canAccessElement('client_filter_type');
+  const canTotalBadge = canAccessElement('client_total_agreement_badge');
+  const canAdd = canAccessElement('client_btn_add');
+  const canExport = canAccessElement('client_btn_export');
+
+  const sortedClients = useMemo(() => {
+    const sorted = [...filteredClients];
+    switch (sortBy) {
+      case 'name':
+        return sorted.sort((a, b) => a.name_en.localeCompare(b.name_en));
+      case 'contracts':
+        return sorted.sort((a, b) => b.contracts - a.contracts);
+      case 'value':
+        return sorted.sort((a, b) => {
+          const valueA = contracts.filter(c => c.client_id === a.id).reduce((sum, c) => sum + c.total_value, 0);
+          const valueB = contracts.filter(c => c.client_id === b.id).reduce((sum, c) => sum + c.total_value, 0);
+          return valueB - valueA;
+        });
+      case 'recent':
+        return sorted.sort((a, b) => {
+          const dateA = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
+          const dateB = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+      default:
+        return sorted;
     }
-    
-    if (!canAccessElement('client_list_item_click')) {
+  }, [filteredClients, sortBy, contracts]);
+
+  const handleClientClick = (client: Client) => {
+    if (!canClickItem) {
       showToast('error', 'Access Denied', 'You do not have permission to view client details');
       return;
     }
-    
     setSelectedClient(client);
   };
-  
-  // 🔗 دسترسی‌های جداگانه برای هر بخش
-  const canFilterType = canAccessElement('client_filter_type');
-  const canSearch = canAccessElement('client_search_box');
-  const canSort = canAccessElement('client_sort_select');
-  const canShowAgreementBadge = canAccessElement('client_total_agreement_badge');
 
   return (
-    <div className={`col-span-1 lg:col-span-4 relative flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out max-h-[50vh] lg:max-h-none ${
-      isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200/70'}`}>
-      
-      {/* 🔗 client_list_item_view */}
-      <PermissionGuard 
-        elementId="client_list_item_view" 
-        fallback={
-          <div className="p-8 text-center">
-            <div className="text-4xl mb-2">🔒</div>
-            <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              You don't have permission to view clients
+    <div className={`col-span-1 lg:col-span-4 flex flex-col rounded-2xl overflow-hidden transition-all duration-300 ${
+      isDark 
+        ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-700/50 shadow-2xl shadow-black/30' 
+        : 'bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/70 shadow-xl shadow-slate-200/50'
+    }`}>
+      {/* Header با Gradient */}
+      <div className={`relative px-5 py-4 border-b ${
+        isDark 
+          ? 'border-slate-700/50 bg-gradient-to-r from-indigo-900/30 via-slate-900 to-violet-900/30' 
+          : 'border-slate-200/70 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50'
+      }`}>
+        {/* Pattern Background */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='${isDark ? '%23ffffff' : '%23000000'}' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+        }} />
+        
+        <div className="relative flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${
+              isDark 
+                ? 'bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/30' 
+                : 'bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20'
+            }`}>
+              👥
+            </div>
+            <div>
+              <h2 className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                Clients
+              </h2>
+            </div>
+          </div>
+          
+          <div className="flex gap-1.5">
+            {canExport && (
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={onExport} 
+                title="Export to Excel"
+                className="transition-all hover:scale-105 shadow-md shadow-slate-700/50"
+              >
+                📊
+              </Button>
+            )}
+            {canAdd && (
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={onAddClick} 
+                title="Add Client"
+                className="transition-all hover:scale-105 shadow-md shadow-slate-700/50"
+              >
+                ➕
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Search */}
+        {canSearch && (
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="🔍 Search clients..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-full rounded-xl px-4 py-2.5 text-sm transition-all focus:ring-2 ${
+                isDark 
+                  ? 'bg-slate-800/50 border border-slate-700/50 text-slate-100 placeholder-slate-500 focus:ring-indigo-500/50 focus:border-indigo-500/50' 
+                  : 'bg-white/70 border border-slate-200/70 text-slate-900 placeholder-slate-400 focus:ring-indigo-500/30 focus:border-indigo-300 shadow-sm'
+              }`}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Filter Tabs */}
+      {canFilterType && (
+        <div className={`px-4 py-2.5 border-b ${
+          isDark ? 'border-slate-700/50 bg-slate-900/30' : 'border-slate-200/70 bg-slate-50/50'
+        }`}>
+          <div className="flex gap-1.5">
+            {(['ALL', 'LEGAL', 'INDIVIDUAL'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                  filter === f
+                    ? isDark
+                      ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/30'
+                      : 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/20'
+                    : isDark
+                      ? 'bg-slate-800/50 text-slate-400 hover:bg-slate-700/50 hover:text-slate-200'
+                      : 'bg-white/70 text-slate-600 hover:bg-slate-100 hover:text-slate-900 shadow-sm'
+                }`}
+              >
+                {f === 'ALL' ? `All (${clientCounts.total})` : f === 'LEGAL' ? `🏢 Legal (${clientCounts.legal})` : `👤 Individual (${clientCounts.individual})`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Sort */}
+      {canSort && (
+        <div className={`px-4 py-2 border-b ${
+          isDark ? 'border-slate-700/50' : 'border-slate-200/70'
+        }`}>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className={`w-full rounded-lg px-3 py-1.5 text-[11px] transition-all focus:ring-2 ${
+              isDark 
+                ? 'bg-slate-800/50 border border-slate-700/50 text-slate-300 focus:ring-indigo-500/50' 
+                : 'bg-white/70 border border-slate-200/70 text-slate-700 focus:ring-indigo-500/30 shadow-sm'
+            }`}
+          >
+            <option value="name">🔤 Sort by Name</option>
+            <option value="contracts">📄 Sort by Contracts</option>
+            <option value="value">💰 Sort by Value</option>
+            <option value="recent">🕐 Sort by Recent</option>
+          </select>
+        </div>
+      )}
+
+      {/* Client List */}
+      <div className="flex-1 overflow-y-auto">
+        {sortedClients.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${
+              isDark ? 'bg-slate-800/50' : 'bg-slate-100'
+            }`}>
+              🔍
+            </div>
+            <p className={`text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+              No clients found
+            </p>
+            <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+              Try adjusting your search or filters
             </p>
           </div>
-        }
-      >
-        <div className={`relative z-10 border-b px-4 py-4 space-y-3 ${
-          isDark ? 'border-slate-700 bg-slate-800/50' : 'border-slate-100 bg-slate-50/50'}`}>
-          
-          {/* 🔗 client_search_box + client_sort_select */}
-          <div className="flex items-center gap-3">
-            {/* 🔗 client_search_box */}
-            <div className={`relative flex-1 ${!canSearch ? 'opacity-50 pointer-events-none' : ''}`}>
-              <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>🔍</span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by Name, ..."
-                disabled={!canSearch}
-                className={`w-full rounded-lg py-2 pl-9 pr-8 text-sm input-themed ${
-                  !canSearch ? 'cursor-not-allowed' : ''
-                }`}
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery('')} 
-                  className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-            
-            {/* 🔗 client_sort_select */}
-            <div className={`relative ${!canSort ? 'opacity-50 pointer-events-none' : ''}`}>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'name' | 'contracts' | 'value')}
-                disabled={!canSort}
-                className={`appearance-none text-xs rounded-md border pl-2 pr-6 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer ${
-                  isDark ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                } ${!canSort ? 'cursor-not-allowed opacity-60' : ''}`}
-              >
-                <option value="name">Name (A-Z)</option>
-                <PermissionGuard elementId="client_stat_contracts" fallback={null}>
-                  <option value="contracts">Most Contracts</option>
-                </PermissionGuard>
-                <PermissionGuard elementId="client_stat_total_value" fallback={null}>
-                  <option value="value">Highest Value</option>
-                </PermissionGuard>
-              </select>
-              <span className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>▼</span>
-            </div>
-          </div>
-
-          {/* 🔗 client_filter_type */}
-          <div className={`flex gap-1 rounded-lg border p-0.5 text-xs ${
-            isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
-          } ${!canFilterType ? 'opacity-50 pointer-events-none' : ''}`}>
-            {(['ALL', 'LEGAL', 'INDIVIDUAL'] as const).map((t) => {
-              const count = t === 'ALL' ? clientCounts.total : t === 'LEGAL' ? clientCounts.legal : clientCounts.individual;
+        ) : (
+          <div className="p-2 space-y-1.5">
+            {sortedClients.map((client) => {
+              const isSelected = selectedClient?.id === client.id;
+              const clientContracts = contracts.filter(c => c.client_id === client.id);
+              const totalValue = clientContracts.reduce((sum, c) => sum + c.total_value, 0);
+              
               return (
                 <button
-                  key={t}
-                  onClick={() => setFilter(t)}
-                  disabled={!canFilterType}
-                  className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-all ${
-                    filter === t
-                      ? (isDark 
-                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30 border border-indigo-500'
-                          : 'bg-indigo-50 text-indigo-700 border border-indigo-200')
-                      : (isDark 
-                          ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                          : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50')
-                  } ${!canFilterType ? 'cursor-not-allowed' : ''}`}
+                  key={client.id}
+                  onClick={() => handleClientClick(client)}
+                  disabled={!canClickItem}
+                  className={`group relative w-full text-left rounded-xl p-3 transition-all duration-200 ${
+                    !canClickItem 
+                      ? 'cursor-not-allowed opacity-60' 
+                      : 'cursor-pointer'
+                  } ${
+                    isSelected
+                      ? isDark
+                        ? 'bg-gradient-to-r from-indigo-900/50 to-violet-900/50 border border-indigo-500/50 shadow-lg shadow-indigo-500/20'
+                        : 'bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-300/50 shadow-lg shadow-indigo-500/10'
+                      : isDark
+                        ? 'bg-slate-800/30 border border-transparent hover:bg-slate-800/60 hover:border-slate-700/50 hover:shadow-md'
+                        : 'bg-white/50 border border-transparent hover:bg-white hover:border-slate-200/70 hover:shadow-md'
+                  }`}
                 >
-                  {/* 🔧 FIX: اگه دسترسی نداره، count رو نشون نده */}
-                  {t === 'ALL' ? (canFilterType ? `All (${count})` : 'All') : 
-                   t === 'LEGAL' ? (canFilterType ? `🏢 Legal (${count})` : '🏢 Legal') : 
-                   (canFilterType ? `👤 Individual (${count})` : '👤 Individual')}
+                  {/* Selection Indicator */}
+                  {isSelected && (
+                    <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full ${
+                      isDark ? 'bg-indigo-500' : 'bg-indigo-500'
+                    }`} />
+                  )}
+
+                  <div className="flex items-start gap-3">
+                    {/* Avatar */}
+                    <div className="relative">
+                      <Avatar name={client.name_en} gradient={client.logoColor} size="md" />
+                      {/* Status Dot */}
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 ${
+                        isDark ? 'border-slate-900' : 'border-white'
+                      } ${
+                        client.contracts > 0 
+                          ? 'bg-emerald-500' 
+                          : 'bg-slate-400'
+                      }`} />
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className={`text-sm font-bold truncate ${
+                          isDark ? 'text-slate-100' : 'text-slate-900'
+                        }`}>
+                          {client.name_en}
+                        </h3>
+                        <Badge 
+                          tone={client.type === 'LEGAL' ? 'indigo' : 'emerald'} 
+                          className="text-[10px] shrink-0"
+                        >
+                          {client.type === 'LEGAL' ? 'Legal' : 'Individual'}
+                        </Badge>
+                      </div>
+                      
+                      <p className={`text-[11px] truncate mb-2 ${
+                        isDark ? 'text-slate-400' : 'text-slate-600'
+                      }`} dir="rtl">
+                        {client.name_fa}
+                      </p>
+
+                      {/* Stats */}
+                      <div className="flex items-center gap-3">
+                        <div className={`flex items-center gap-1 text-[10px] ${
+                          isDark ? 'text-slate-400' : 'text-slate-600'
+                        }`}>
+                          <span>📄</span>
+                          <span className="font-semibold">{clientContracts.length}</span>
+                          <span>contracts</span>
+                        </div>
+                        
+                        {canTotalBadge && totalValue > 0 && (
+                          <div className={`flex items-center gap-1 text-[10px] ${
+                            isDark ? 'text-emerald-400' : 'text-emerald-600'
+                          }`}>
+                            <span>💰</span>
+                            <span className="font-semibold">
+                              {totalValue >= 1000000000 
+                                ? `${(totalValue / 1000000000).toFixed(1)}B`
+                                : totalValue >= 1000000 
+                                  ? `${(totalValue / 1000000).toFixed(1)}M`
+                                  : totalValue.toLocaleString()
+                              }
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Arrow Icon */}
+                    <div className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                      isSelected
+                        ? isDark 
+                          ? 'bg-indigo-500/20 text-indigo-400' 
+                          : 'bg-indigo-500/20 text-indigo-600'
+                        : isDark 
+                          ? 'bg-slate-700/50 text-slate-500 group-hover:bg-slate-700 group-hover:text-slate-300'
+                          : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600'
+                    }`}>
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
                 </button>
               );
             })}
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Client List */}
-        <div className="flex-1 overflow-y-auto pb-24">
-          {filteredClients.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className="text-4xl mb-2">🔍</div>
-              <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>No clients found</p>
-            </div>
-          ) : (
-            filteredClients.map((client) => {
-              const canClick = canAccessElement('client_list_item_click');
-              
-              return (
-                <div
-                  key={client.id}
-                  onClick={() => handleClientClick(client)}
-                  className={`flex items-center gap-3 px-4 py-3 border-b transition-colors ${
-                    canClick ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
-                  } ${
-                    isDark ? 'border-slate-700' : 'border-slate-100'
-                  } ${
-                    selectedClient?.id === client.id
-                      ? (isDark ? 'bg-indigo-900/30 border-l-4 border-l-indigo-400' : 'bg-indigo-50 border-l-4 border-l-indigo-500')
-                      : (isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50')
-                  }`}
-                >
-                  <div className={`w-10 h-10 rounded-lg overflow-hidden border-2 shrink-0 ${
-                    isDark ? 'border-slate-600 bg-slate-800' : 'border-slate-200 bg-slate-50'
-                  } flex items-center justify-center`}>
-                    <Avatar name={client.name_en} gradient={client.logoColor} size="md"/>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-medium truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{client.name_en}</div>
-                    <div className={`text-xs truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`} dir="rtl">{client.name_fa}</div>
-                    <div className="flex items-center gap-2 mt-1">
-                      {filter === 'ALL' && (
-                        <Badge tone={client.type === 'LEGAL' ? 'indigo' : 'violet'}>
-                          {client.type === 'LEGAL' ? 'Legal' : 'Individual'}
-                        </Badge>
-                      )}
-                      {/* 🔗 client_total_agreement_badge */}
-                      {canShowAgreementBadge && (() => {
-                        const realCount = contracts.filter(c => c.client_id === client.id).length;
-                        return (
-                          <Badge tone="slate" className="font-semibold text-[10px]">
-                            {realCount} {realCount === 1 ? 'Agreement' : 'Agreements'}
-                          </Badge>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </PermissionGuard>
-
-      {/* Gradient Fade */}
-      <div className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t pointer-events-none z-10 ${
+      {/* Footer Stats */}
+      <div className={`px-4 py-2.5 border-t ${
         isDark 
-          ? 'from-slate-900 via-slate-900/95 to-slate-900/0'
-          : 'from-white via-white/95 to-white/0'}`} />
-      
-      {/* Action Buttons */}
-      <div className="absolute bottom-5 left-0 right-0 px-4 z-20 flex gap-2">
-        {/* 🔗 client_btn_add */}
-        <PermissionGuard elementId="client_btn_add" fallback={null}>
-          <Button 
-            variant="primary"
-            size="md"
-            onClick={onAddClick} 
-            className={`flex-1 justify-center gap-2 transition-all duration-300 hover:-translate-y-0.5 ${
-              isDark 
-                ? 'border border-indigo-400/30 shadow-[0_8px_24px_rgba(99,102,241,0.4)] hover:shadow-[0_12px_32px_rgba(99,102,241,0.6)]'
-                : 'shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30'}`}
-          >
-            <span>➕</span> Add New Client
-          </Button>
-        </PermissionGuard>
-
-        {/* 🔗 client_btn_export */}
-        <PermissionGuard elementId="client_btn_export" fallback={null}>
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={onExport}
-            className={`transition-all duration-300 hover:-translate-y-0.5 ${
-              isDark 
-                ? 'border border-slate-700 shadow-[0_8px_24px_rgba(0,0,0,0.3)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.5)]'
-                : 'shadow-lg shadow-slate-300/50 hover:shadow-xl hover:shadow-slate-400/50'}`}
-            title="Export to Excel"
-          >
-            📥
-          </Button>
-        </PermissionGuard>
+          ? 'border-slate-700/50 bg-slate-900/50' 
+          : 'border-slate-200/70 bg-slate-50/50'
+      }`}>
+        <div className="flex items-center justify-between text-[10px]">
+          <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>
+            Showing {sortedClients.length} clients
+          </span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Active</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-slate-400" />
+              <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>No Contracts</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

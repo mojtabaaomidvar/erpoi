@@ -13,7 +13,6 @@ class AuthService {
   private listeners: Array<(session: AuthSession | null) => void> = [];
 
   private constructor() {
-    console.log('[AuthService] 🔧 Constructor called');
     this.loadSession();
   }
 
@@ -31,8 +30,7 @@ class AuthService {
     };
   }
 
-  private notifyListeners() {
-    console.log('[AuthService] 🔔 Notifying listeners, session:', this.session?.user?.username);
+  public notifyListeners() {
     this.listeners.forEach(listener => listener(this.session));
   }
 
@@ -41,45 +39,30 @@ class AuthService {
   }
 
   private saveSession() {
-    console.log('[AuthService] 💾 saveSession called, session:', this.session?.user?.username);
     if (this.session) {
       try {
         const json = JSON.stringify(this.session);
         localStorage.setItem(SESSION_KEY, json);
-        console.log('[AuthService] ✅ Session saved to localStorage');
-        console.log('[AuthService] 📦 Saved data:', JSON.parse(json));
       } catch (error) {
-        console.error('[AuthService] ❌ Failed to save session:', error);
+        console.error('[AuthService] Failed to save session:', error);
       }
-    } else {
-      console.warn('[AuthService] ⚠️ Session is null, not saving');
     }
   }
 
   private loadSession() {
-    console.log('[AuthService] 📂 loadSession called');
     try {
       const stored = localStorage.getItem(SESSION_KEY);
-      console.log('[AuthService] 📦 Stored data:', stored);
-      
       if (stored) {
         const session = JSON.parse(stored);
-        console.log('[AuthService] 📦 Parsed session:', session);
-        
         if (session.expiresAt && new Date(session.expiresAt) > new Date()) {
           this.session = session;
           this.notifyListeners();
-          console.log('[AuthService] ✅ Session loaded from localStorage');
-          console.log('[AuthService] 👤 User:', session.user?.username, 'Role:', session.user?.role);
         } else {
-          console.log('[AuthService] ⚠️ Session expired, clearing...');
           localStorage.removeItem(SESSION_KEY);
         }
-      } else {
-        console.log('[AuthService] ℹ️ No session in localStorage');
       }
     } catch (error) {
-      console.error('[AuthService] ❌ Failed to load session:', error);
+      console.error('[AuthService] Failed to load session:', error);
     }
   }
 
@@ -87,18 +70,42 @@ class AuthService {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
   }
 
+  updateCurrentUser(updatedUser: User) {
+    if (this.session && this.session.user.id === updatedUser.id) {
+      console.log('[AuthService] 🔄 Updating current user in session:', updatedUser.username);
+      
+      this.session = {
+        ...this.session,
+        user: {
+          ...this.session.user,
+          ...updatedUser,
+        },
+      };
+      
+      this.saveSession();
+      this.notifyListeners();
+      
+      console.log('[AuthService] ✅ Session updated successfully');
+    }
+  }
+  
   async login(credentials: LoginCredentials): Promise<User> {
-    console.log('[AuthService] 🔐 Login attempt:', credentials.username);
     await new Promise(resolve => setTimeout(resolve, 800));
-
-    const user = await userService.getUserByUsername(credentials.username.trim());
-    console.log('[AuthService] 👤 User found:', user?.username, 'Role:', user?.role);
-
-    if (!user) {
+    
+    // 🔧 FIX: خواندن مستقیم از localStorage برای اطمینان از به‌روز بودن
+    const usersJson = localStorage.getItem('ics_db_users');
+    if (!usersJson) {
+      throw this.createError('INVALID_CREDENTIALS', 'No users in database');
+    }
+    
+    const users = JSON.parse(usersJson);
+    const dbUser = users.find((u: any) => u.username === credentials.username.trim());
+    
+    if (!dbUser) {
       throw this.createError('INVALID_CREDENTIALS', 'Invalid username or password');
     }
 
-    if (user.status !== 'active') {
+    if (dbUser.status !== 'active') {
       throw this.createError('ACCOUNT_DISABLED', 'Account is disabled');
     }
 
@@ -106,14 +113,17 @@ class AuthService {
       throw this.createError('INVALID_CREDENTIALS', 'Password is required');
     }
 
+    // 🔧 NOTE: در این نسخه، password چک نمی‌شود (mock database)
+    
     const session: AuthSession = {
       user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        department: user.department,
+        id: dbUser.id,
+        username: dbUser.username,
+        email: dbUser.email,
+        fullName: dbUser.fullName,
+        role: dbUser.role,
+        department: dbUser.department,
+        customPermissions: dbUser.customPermissions || [],
       },
       token: this.generateToken(),
       refreshToken: this.generateToken(),
@@ -121,26 +131,20 @@ class AuthService {
       createdAt: new Date(),
     };
 
-    console.log('[AuthService] 📝 Session created:', session.user.username, session.user.role);
-
     this.session = session;
-    console.log('[AuthService] ✅ this.session set');
-    
     this.saveSession();
-    console.log('[AuthService] ✅ saveSession called');
-    
     this.notifyListeners();
-    console.log('[AuthService] ✅ notifyListeners called');
 
     eventBus.publish({
       type: 'auth.login' as any,
-      payload: { userId: user.id, username: user.username },
+      payload: { userId: dbUser.id, username: dbUser.username },
       timestamp: new Date(),
       eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       source: 'auth',
     });
 
-    showToast('success', 'Login Successful', `Welcome back, ${user.fullName}!`);
+    showToast('success', 'Login Successful', `Welcome back, ${dbUser.fullName}!`);
+    console.log('[AuthService] 🔐 User logged in:', session.user);
 
     return session.user;
   }

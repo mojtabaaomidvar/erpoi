@@ -37,7 +37,7 @@ export function useClients() {
   const [filter, setFilter] = useState<'ALL' | 'LEGAL' | 'INDIVIDUAL'>('ALL');
   const [contractTab, setContractTab] = useState<'ALL' | 'CONTRACT' | 'WORK_ORDER'>('ALL');
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
-  const [sortBy, setSortBy] = useState<'name' | 'contracts' | 'value'>('contracts');
+  const [sortBy, setSortBy] = useState<'name' | 'contracts' | 'value'| 'recent'>('contracts');
 
   const loadData = useCallback(async () => {
     try {
@@ -92,31 +92,50 @@ export function useClients() {
   // 🔐 RBAC: فیلتر مشتری‌ها بر اساس دپارتمان
   // ═══════════════════════════════════════
 
-  const accessibleClients = useMemo(() => {
-    // 🔧 FIX: view_all → همه مشتری‌ها
-    if (canViewAllClients) {
-      return clients;
+// در useClients.ts، بخش accessibleClients رو اصلاح کن:
+
+const accessibleClients = useMemo(() => {
+  console.log('[useClients] 🔍 Debug Info:', {
+    canViewAllClients,
+    canViewOwnClients,
+    canRead,
+    userDepartmentId,
+    totalClients: clients.length,
+  });
+
+  // 🔧 FIX: view_all → همه مشتری‌ها
+  if (canViewAllClients) {
+    console.log('[useClients] ✅ User has view_all, showing all clients');
+    return clients;
+  }
+  
+  // 🔧 FIX: view_own یا read → فقط مشتری‌های دپارتمان خودش
+  if (canViewOwnClients || canRead) {
+    if (!userDepartmentId) {
+      console.warn('[useClients] ⚠️ User has no department, showing no clients');
+      return [];
     }
     
-    // 🔧 FIX: view_own یا read → فقط مشتری‌های دپارتمان خودش
-    if (canViewOwnClients || canRead) {
-      if (!userDepartmentId) {
-        console.warn('[useClients] ⚠️ User has no department, showing no clients');
-        return [];
-      }
+    const filtered = clients.filter(client => {
+      const clientDepartments = (client as any).departments || [];
+      const hasAccess = clientDepartments.includes(userDepartmentId);
       
-      const filtered = clients.filter(client => {
-        const clientDepartments = (client as any).departments || [];
-        // 🔧 FIX: چک کردن department ID
-        return clientDepartments.includes(userDepartmentId);
+      console.log(`[useClients] 🏢 Client "${client.name_en}":`, {
+        departments: clientDepartments,
+        userDepartment: userDepartmentId,
+        hasAccess,
       });
       
-      console.log(`[useClients] 🏢 User department: ${userDepartmentId}, filtered clients: ${filtered.length}/${clients.length}`);
-      return filtered;
-    }
+      return hasAccess;
+    });
     
-    return [];
-  }, [clients, canViewAllClients, canViewOwnClients, canRead, userDepartmentId]);
+    console.log(`[useClients] 🎯 Final result: ${filtered.length}/${clients.length} clients accessible`);
+    return filtered;
+  }
+  
+  console.warn('[useClients] ⚠️ User has no permission to view clients');
+  return [];
+}, [clients, canViewAllClients, canViewOwnClients, canRead, userDepartmentId]);
 
   // ═══════════════════════════════════════
   // 🔐 RBAC: فیلتر قراردادها
@@ -171,6 +190,12 @@ export function useClients() {
         const valA = accessibleContracts.filter((c) => c.client_id === a.id).reduce((sum, c) => sum + c.total_value, 0);
         const valB = accessibleContracts.filter((c) => c.client_id === b.id).reduce((sum, c) => sum + c.total_value, 0);
         if (valB !== valA) return valB - valA;
+        return a.name_en.localeCompare(b.name_en);
+      }
+      if (sortBy === 'recent') {
+        const dateA = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
+        const dateB = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+        if (dateB !== dateA) return dateB - dateA;
         return a.name_en.localeCompare(b.name_en);
       }
       return 0;

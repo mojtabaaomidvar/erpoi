@@ -32,7 +32,6 @@ interface SavePreviewItem {
 
 interface DeleteErrorInfo {
   permission: string;
-  assignedToRoles: string[];
   assignedToUsers: string[];
 }
 
@@ -134,7 +133,6 @@ export function PermissionManager() {
   }, []);
   
   const checkPermissionAssignments = useCallback(async (permission: string): Promise<{
-	  assignedToRoles: string[];
 	  assignedToUsers: string[];
 	  canDelete: boolean;
 	}> => {
@@ -154,14 +152,12 @@ export function PermissionManager() {
 		  .map(user => user.fullName || user.username);
 		
 		return {
-		  assignedToRoles,
 		  assignedToUsers,
-		  canDelete: assignedToRoles.length === 0 && assignedToUsers.length === 0,
+		  canDelete: assignedToUsers.length === 0,
 		};
 	  } catch (error) {
 		console.error('[PermissionManager] Failed to check assignments:', error);
 		return {
-		  assignedToRoles: [],
 		  assignedToUsers: [],
 		  canDelete: false,
 		};
@@ -506,7 +502,6 @@ export function PermissionManager() {
 	  if (!assignments.canDelete) {
 		setShowDeleteErrorModal({
 		  permission,
-		  assignedToRoles: assignments.assignedToRoles,
 		  assignedToUsers: assignments.assignedToUsers,
 		});
 		return;
@@ -1271,38 +1266,6 @@ export function PermissionManager() {
 				  </div>
 				</div>
 			  </div>
-
-			  {/* Assigned to Roles */}
-			  {showDeleteErrorModal.assignedToRoles.length > 0 && (
-				<div className={`rounded-lg border ${
-				  isDark ? 'border-slate-700 bg-slate-800/30' : 'border-slate-200 bg-slate-50/50'
-				}`}>
-				  <div className={`px-3 py-2 border-b ${
-					isDark ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-slate-100'
-				  }`}>
-					<h5 className={`text-xs font-bold uppercase tracking-wider ${
-					  isDark ? 'text-slate-200' : 'text-slate-700'
-					}`}>
-					  🎭 Assigned to Roles ({showDeleteErrorModal.assignedToRoles.length})
-					</h5>
-				  </div>
-				  <div className="p-3 space-y-2">
-					{showDeleteErrorModal.assignedToRoles.map((roleName, idx) => (
-					  <div
-						key={idx}
-						className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
-						  isDark ? 'bg-slate-800/50' : 'bg-white'
-						}`}
-					  >
-						<span className="text-lg">🎭</span>
-						<span className={`text-sm font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-						  {roleName}
-						</span>
-					  </div>
-					))}
-				  </div>
-				</div>
-			  )}
 
 			  {/* Assigned to Users */}
 			  {showDeleteErrorModal.assignedToUsers.length > 0 && (

@@ -23,13 +23,10 @@ export type {
   EntityType as PermissionEntityType,
 } from './permissions';
 
-export { useRole } from './hooks/useRole';
 export { usePermission } from './hooks/usePermission';
-export { useEntityAccess } from './hooks/useEntityAccess';
+export { usePermissionMapping } from './hooks/usePermissionMapping';
 
-export { RoleGuard } from './components/RoleGuard';
-export { RoleManager } from './components/RoleManager';
-export { PermissionExplorer } from './components/PermissionExplorer';
+export { RoleGuard, AdminOnly, ManagerOrAbove, InspectorOnly } from './components/RoleGuard';
+export { PermissionGuard } from './ui/PermissionGuard';
 
-export { roleService } from './services/RoleService';
 export { userService } from './services/UserService';

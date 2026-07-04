@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getDB } from '@shared/database';
 import { uiElementRegistry } from '../uiElements/registry';
 import '@shared/authorization/uiElements';
-import type { Permission, EntityType, Role } from '../types';
+import type { Permission, EntityType } from '../types';
 import type { DBPermissionMapping, DBUIElement } from '@shared/database/types';
 
 import { useAuth } from '@features/auth/hooks/useAuth';
@@ -12,35 +12,13 @@ import { checkDependenciesChain } from '../uiElements/dependencies';
 
 export function usePermissionMapping() {
   const { user } = useAuth();
-  const role = (user?.role || 'viewer') as Role;
-  
-  const isAdmin = role === 'admin' || user?.role === 'admin';
   const customPermissions = (user as any)?.customPermissions || [];
+  const isAdmin = (user as any)?.role === 'admin';
 
   const [mappings, setMappings] = useState<Map<string, DBPermissionMapping>>(new Map());
   const [loading, setLoading] = useState(true);
 
-  // 🔧 FIX: گرفتن permissions واقعی کاربر از role (Batch Permission)
-  const rolePermissions = useMemo((): string[] => {
-    if (isAdmin) return ['*:*'];
-    
-    try {
-      const rolesJson = localStorage.getItem('ics_db_roles');
-      if (!rolesJson) return [];
-      
-      const roles = JSON.parse(rolesJson);
-      const userRole = roles.find((r: any) => r.name === role);
-      
-      if (userRole && userRole.permissions) {
-        return userRole.permissions;
-      }
-    } catch (error) {
-      console.error('[usePermissionMapping] Failed to read role permissions:', error);
-    }
-    
-    return [];
-  }, [role, isAdmin]);
-
+  // 🔧 Load mappings از دیتابیس
   useEffect(() => {
     const loadFromDB = async () => {
       try {
@@ -57,10 +35,10 @@ export function usePermissionMapping() {
         setLoading(false);
       }
     };
-
     loadFromDB();
   }, []);
 
+  // 🔧 UI Elements Registry
   const uiElements = useMemo((): DBUIElement[] => {
     return uiElementRegistry.getAllElements().map(el => ({
       ...el,
@@ -70,66 +48,87 @@ export function usePermissionMapping() {
     })) as DBUIElement[];
   }, []);
 
-  // 🔧 FIX: فقط permissions واقعی کاربر (نه همه mappings!)
-  const activePermissions = useMemo((): Permission[] => {
-    const permissions = new Set<string>();
-    
-    // ۱. Admin همه چیز دارد
-    if (isAdmin || rolePermissions.includes('*:*')) {
-      // همه mappings را اضافه کن
-      mappings.forEach((_, permission) => permissions.add(permission));
-    } else {
-      // ۲. Permissions از Batch Permission (role)
-      rolePermissions.forEach((p: string) => permissions.add(p));
-      
-      // ۳. Permissions از User (customPermissions) - مستقل!
-      customPermissions.forEach((p: string) => permissions.add(p));
+  // ═══════════════════════════════════════
+  // 🔐 ENTITY-LEVEL ACCESS (برای Sidebar و صفحات)
+  // ═══════════════════════════════════════
+
+  /**
+   * چک کردن دسترسی به یک entity
+   * مثال: canAccess('client') → true اگر کاربر هر دسترسی client:* داشته باشه
+   */
+  const canAccess = useCallback((entity: string): boolean => {
+    if (isAdmin) return true;
+    return customPermissions.some((perm: string) => {
+      const permEntity = perm.split(':')[0];
+      return permEntity === entity;
+    });
+  }, [isAdmin, customPermissions]);
+
+  /**
+   * چک کردن دسترسی به چند entity (حداقل یکی true باشه)
+   */
+  const canAccessAny = useCallback((entities: string[]): boolean => {
+    return entities.some(entity => canAccess(entity));
+  }, [canAccess]);
+
+  // ═══════════════════════════════════════
+  // 🔐 ELEMENT-LEVEL ACCESS (برای دکمه‌ها و المان‌های خاص)
+  // ═══════════════════════════════════════
+
+  /**
+   * محاسبه لیست element های مجاز بر اساس permission های کاربر
+   */
+  const allowedElements = useMemo((): Set<string> => {
+    if (isAdmin) {
+      // Admin همه element ها رو داره
+      return new Set(uiElements.map(el => el.id));
     }
+
+    const allowed = new Set<string>();
     
-    return Array.from(permissions).sort() as Permission[];
-  }, [isAdmin, rolePermissions, customPermissions, mappings]);
-
-  // 🔧 FIX: ساخت accessProfile با permissions واقعی
-  const accessProfile = useMemo(() => {
-    const allowedElements = new Set<string>();
-    const deniedElements = new Set<string>();
-
-    activePermissions.forEach((permission: Permission) => {
+    customPermissions.forEach((permission: string) => {
       const mapping = mappings.get(permission);
       if (mapping) {
-        mapping.allowedElements.forEach(el => allowedElements.add(el));
-        mapping.deniedElements?.forEach(el => deniedElements.add(el));
+        mapping.allowedElements.forEach(el => allowed.add(el));
       }
     });
 
-    // حذف denied از allowed
-    deniedElements.forEach(el => allowedElements.delete(el));
-
-    // 🔧 FIX: فیلتر dependencies
-    const allowedArray = Array.from(allowedElements);
-    const filteredAllowed = allowedArray.filter(elementId => {
+    // 🔧 فیلتر dependencies
+    const allowedArray = Array.from(allowed);
+    const filtered = allowedArray.filter(elementId => {
       const { satisfied } = checkDependenciesChain(elementId, allowedArray);
       return satisfied;
     });
 
-    const profileId = activePermissions.sort().join('_') || 'empty';
+    return new Set(filtered);
+  }, [isAdmin, customPermissions, mappings, uiElements]);
 
-    return {
-      id: `profile_${profileId}`,
-      name: 'Dynamic Profile',
-      description: `Profile with ${activePermissions.length} permissions`,
-      permissions: activePermissions,
-      allowedElements: filteredAllowed,
-      deniedElements: Array.from(deniedElements),
-    };
-  }, [activePermissions, mappings]);
-
+  /**
+   * چک کردن دسترسی به یک element خاص
+   * مثال: canAccessElement('client_btn_edit') → true اگر کاربر این element رو داشته باشه
+   */
   const canAccessElement = useCallback((elementId: string): boolean => {
     if (isAdmin) return true;
-    
-    return accessProfile.allowedElements.includes(elementId) &&
-           !accessProfile.deniedElements.includes(elementId);
-  }, [accessProfile, isAdmin]);
+    return allowedElements.has(elementId);
+  }, [isAdmin, allowedElements]);
+
+  /**
+   * چک کردن دسترسی به چند element (حداقل یکی true باشه)
+   */
+  const canAccessAnyElement = useCallback((elementIds: string[]): boolean => {
+    return elementIds.some(id => canAccessElement(id));
+  }, [canAccessElement]);
+
+  /**
+   * چک کردن دسترسی به چند element (همه true باشن)
+   */
+  const canAccessAllElements = useCallback((elementIds: string[]): boolean => {
+    return elementIds.every(id => canAccessElement(id));
+  }, [canAccessElement]);
+
+  // ═══════════════════════════════════════
+  // 🔧 HELPER FUNCTIONS
+  // ═══════════════════════════════════════
 
   const getAllowedElementsByEntity = useCallback((entity: EntityType): DBUIElement[] => {
     return uiElements.filter(el => el.entity === entity && canAccessElement(el.id));
@@ -143,36 +142,30 @@ export function usePermissionMapping() {
     return uiElements.filter(el => el.type === type && canAccessElement(el.id));
   }, [uiElements, canAccessElement]);
 
-  const registry = useMemo(() => {
-    const elements: Record<string, DBUIElement> = {};
-    const byEntity: Record<string, string[]> = {};
-    const byModule: Record<string, string[]> = {};
-    const byType: Record<string, string[]> = {};
-
-    uiElements.forEach(el => {
-      elements[el.id] = el;
-      if (!byEntity[el.entity]) byEntity[el.entity] = [];
-      byEntity[el.entity].push(el.id);
-      if (!byModule[el.module]) byModule[el.module] = [];
-      byModule[el.module].push(el.id);
-      if (!byType[el.type]) byType[el.type] = [];
-      byType[el.type].push(el.id);
-    });
-
-    return { elements, byEntity, byModule, byType };
-  }, [uiElements]);
+  // ═══════════════════════════════════════
+  // 📤 EXPORT
+  // ═══════════════════════════════════════
 
   return {
-    role,
-    isAdmin,
-    loading,
-    activePermissions,
-    accessProfile,
+    // Entity-level
+    canAccess,
+    canAccessAny,
+    
+    // Element-level
     canAccessElement,
+    canAccessAnyElement,
+    canAccessAllElements,
+    allowedElements,
+    
+    // Helper functions
     getAllowedElementsByEntity,
     getAllowedElementsByModule,
     getAllowedElementsByType,
-    registry,
+    
+    // State
+    isAdmin,
+    loading,
+    customPermissions,
     mappings,
     uiElements,
   };

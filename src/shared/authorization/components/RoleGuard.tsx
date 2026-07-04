@@ -1,25 +1,24 @@
 // src/shared/authorization/components/RoleGuard.tsx
 
 import { ReactNode } from 'react';
-import { useRole } from '../hooks/useRole';
+import { useAuth } from '@features/auth/hooks/useAuth';
 
 interface RoleGuardProps {
-  allowedRoles: string[];  // 🔧 FIX: از Role به string
+  allowedRoles: string[];
   children: ReactNode;
   fallback?: ReactNode;
 }
 
 export function RoleGuard({ allowedRoles, children, fallback = null }: RoleGuardProps) {
-  const { role } = useRole();
+  const { user } = useAuth();
+  const role = user?.role || 'viewer';
 
   if (!allowedRoles.includes(role)) {
     return <>{fallback}</>;
   }
-
   return <>{children}</>;
 }
 
-// 🔧 FIX: اضافه کردن AdminOnly, ManagerOrAbove, InspectorOnly
 export function AdminOnly({ children, fallback = null }: { children: ReactNode; fallback?: ReactNode }) {
   return <RoleGuard allowedRoles={['admin']} fallback={fallback}>{children}</RoleGuard>;
 }

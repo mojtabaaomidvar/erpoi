@@ -3,22 +3,21 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '@app/providers/ThemeProvider';
 import { useAuth } from '@features/auth/hooks/useAuth';
+import { authService } from '@features/auth/services/AuthService';
 import { getDB } from '@shared/database';
-import type { DBUser, DBRole, DBDepartment } from '@shared/database/types';
+import type { DBUser, DBDepartment } from '@shared/database/types';
 import { showToast } from '@shared/ui/ToastContainer';
 import { confirmDialog } from '@shared/ui/ConfirmDialog';
 import { PermissionManager } from './PermissionManager';
 import { UserModal } from './modals/UserModal';
-import { RoleModal } from './modals/RoleModal';
 import { DepartmentModal } from './modals/DepartmentModal';
 import { UserPermissionsModal } from './modals/UserPermissionsModal';
-import { RolePermissionsModal } from './modals/RolePermissionsModal';
 
-type Tab = 'users' | 'roles' | 'departments' | 'permissions';
+// 🔧 فقط 3 تب - بدون roles
+type Tab = 'users' | 'departments' | 'permissions';
 
 const tabs: Array<{ key: Tab; label: string; icon: string; description: string }> = [
   { key: 'users', label: 'Users', icon: '👤', description: 'Manage user accounts and access' },
-  { key: 'roles', label: 'Batch Permissions', icon: '📦', description: 'Define roles and assign permissions' },
   { key: 'departments', label: 'Departments', icon: '🏢', description: 'Manage organizational departments' },
   { key: 'permissions', label: 'Permissions', icon: '🔐', description: 'Define which UI elements each permission can access' },
 ];
@@ -26,26 +25,18 @@ const tabs: Array<{ key: Tab; label: string; icon: string; description: string }
 export function UserManagement() {
   const { isDark } = useTheme();
   const { user: currentUser } = useAuth();
-  
+
   const [activeTab, setActiveTab] = useState<Tab>('users');
   const [users, setUsers] = useState<DBUser[]>([]);
-  const [roles, setRoles] = useState<DBRole[]>([]);
   const [departments, setDepartments] = useState<DBDepartment[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // State های مودال‌ها
+
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<DBUser | null>(null);
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [editingRole, setEditingRole] = useState<DBRole | null>(null);
   const [showDepartmentModal, setShowDepartmentModal] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<DBDepartment | null>(null);
   const [showUserPermissionsModal, setShowUserPermissionsModal] = useState(false);
   const [userForPermissions, setUserForPermissions] = useState<DBUser | null>(null);
-  const [showRolePermissionsModal, setShowRolePermissionsModal] = useState(false);
-  const [roleForPermissions, setRoleForPermissions] = useState<DBRole | null>(null);
-
-  const currentTab = tabs.find(t => t.key === activeTab)!;
 
   // ═══════════════════════════════════════
   // 💾 Load Data
@@ -56,7 +47,6 @@ export function UserManagement() {
     try {
       const db = await getDB();
       setUsers(await db.getAllUsers());
-      setRoles(await db.getAllRoles());
       setDepartments(await db.getAllDepartments());
     } catch (error: any) {
       console.error('Failed to load:', error);
@@ -66,9 +56,26 @@ export function UserManagement() {
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
+
+  // ═══════════════════════════════════════
+  // 🔧 Helper: Sync session after user update
+  // ═══════════════════════════════════════
+
+  const syncSessionIfNeeded = (updatedUser: DBUser) => {
+    if (currentUser?.id === updatedUser.id) {
+      console.log('[UserManagement] 🔄 Syncing session for current user:', updatedUser.username);
+      authService.updateCurrentUser({
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        fullName: updatedUser.fullName,
+        role: updatedUser.role,
+        department: updatedUser.department,
+        customPermissions: updatedUser.customPermissions || [],
+      });
+    }
+  };
 
   // ═══════════════════════════════════════
   // 🎯 User Handlers
@@ -89,16 +96,13 @@ export function UserManagement() {
       showToast('error', 'Cannot Delete', 'You cannot delete your own account');
       return;
     }
-
     const confirmed = await confirmDialog({
       title: 'Delete User',
       message: `Are you sure you want to delete "${user.fullName}"?`,
       confirmText: 'Delete',
       variant: 'danger',
     });
-
     if (!confirmed) return;
-
     try {
       const db = await getDB();
       await db.deleteUser(user.id);
@@ -112,10 +116,10 @@ export function UserManagement() {
   const handleSaveUser = async (formData: any) => {
     try {
       const db = await getDB();
-      
       if (editingUser) {
         const updated = await db.updateUser(editingUser.id, formData);
         setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+        syncSessionIfNeeded(updated);
         showToast('success', 'Updated', `User "${updated.fullName}" updated`);
       } else {
         const created = await db.createUser({
@@ -144,99 +148,14 @@ export function UserManagement() {
 
   const handleSaveUserPermissions = async (permissions: string[]) => {
     if (!userForPermissions) return;
-    
     try {
       const db = await getDB();
       const updated = await db.updateUser(userForPermissions.id, { customPermissions: permissions });
       setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+      syncSessionIfNeeded(updated);
       showToast('success', 'Saved', `Permissions updated for "${userForPermissions.fullName}"`);
       setShowUserPermissionsModal(false);
       setUserForPermissions(null);
-    } catch (error: any) {
-      showToast('error', 'Save Failed', error.message);
-    }
-  };
-
-  // ═══════════════════════════════════════
-  // 🎯 Role Handlers
-  // ═══════════════════════════════════════
-
-  const handleCreateRole = () => {
-    setEditingRole(null);
-    setShowRoleModal(true);
-  };
-
-  const handleEditRole = (role: DBRole) => {
-    setEditingRole(role);
-    setShowRoleModal(true);
-  };
-
-    const handleDeleteRole = async (role: DBRole) => {
-    if (role.isSystem) {
-      showToast('error', 'Cannot Delete', 'System batch permissions cannot be deleted');
-      return;
-    }
-
-    const confirmed = await confirmDialog({
-      title: 'Delete Batch Permission',
-      message: `Are you sure you want to delete batch permission "${role.displayName}"?\n\nUsers assigned to this batch will lose these permissions.`,
-      confirmText: 'Delete',
-      variant: 'danger',
-    });
-
-    if (!confirmed) return;
-
-    try {
-      const db = await getDB();
-      await db.deleteRole(role.id);
-      setRoles(prev => prev.filter(r => r.id !== role.id));
-      showToast('success', 'Deleted', `Batch permission "${role.displayName}" deleted`);
-    } catch (error: any) {
-      showToast('error', 'Delete Failed', error.message);
-    }
-  };
-
-  const handleSaveRole = async (formData: any) => {
-    try {
-      const db = await getDB();
-      
-      if (editingRole) {
-        const updated = await db.updateRole(editingRole.id, formData);
-        setRoles(prev => prev.map(r => r.id === updated.id ? updated : r));
-        showToast('success', 'Updated', `Batch permission "${updated.displayName}" updated`);
-      } else {
-        const created = await db.createRole({
-          name: formData.name,
-          displayName: formData.displayName,
-          description: formData.description,
-          permissions: formData.permissions || [],
-          isSystem: false,
-        });
-        setRoles(prev => [...prev, created]);
-        showToast('success', 'Created', `Batch permission "${created.displayName}" created`);
-      }
-      setShowRoleModal(false);
-      setEditingRole(null);
-    } catch (error: any) {
-      showToast('error', 'Save Failed', error.message);
-    }
-  };
-
-  const handleAssignRolePermissions = (role: DBRole) => {
-    setRoleForPermissions(role);
-    setShowRolePermissionsModal(true);
-  };
-
-  const handleSaveRolePermissions = async (permissions: string[]) => {
-    if (!roleForPermissions) return;
-    
-    try {
-      const db = await getDB();
-      const updated = await db.updateRole(roleForPermissions.id, { permissions });
-      setRoles(prev => prev.map(r => r.id === updated.id ? updated : r));
-      showToast('success', 'Saved', `Permissions updated for "${roleForPermissions.displayName}"`);
-      setShowRolePermissionsModal(false);
-      setRoleForPermissions(null);
     } catch (error: any) {
       showToast('error', 'Save Failed', error.message);
     }
@@ -257,24 +176,20 @@ export function UserManagement() {
   };
 
   const handleDeleteDepartment = async (department: DBDepartment) => {
-    // 🔧 FIX: چک کردن اگه کاربری در این department هست
     const relatedUsers = users.filter(u => u.department === department.id);
-    
     if (relatedUsers.length > 0) {
       const confirmed = await confirmDialog({
         title: 'Delete Department',
-        message: `"${department.name}" has ${relatedUsers.length} user(s). Are you sure you want to delete it? Users will be unassigned from this department.`,
+        message: `"${department.name}" has ${relatedUsers.length} user(s). Delete anyway?`,
         confirmText: 'Delete',
         variant: 'danger',
       });
-      
       if (!confirmed) return;
-      
-      // 🔧 FIX: حذف department از کاربران مرتبط
       try {
         const db = await getDB();
         for (const user of relatedUsers) {
-          await db.updateUser(user.id, { department: '' });
+          const updatedUser = await db.updateUser(user.id, { department: '' });
+          syncSessionIfNeeded(updatedUser);
         }
         setUsers(prev => prev.map(u => u.department === department.id ? { ...u, department: '' } : u));
       } catch (error: any) {
@@ -288,10 +203,8 @@ export function UserManagement() {
         confirmText: 'Delete',
         variant: 'danger',
       });
-      
       if (!confirmed) return;
     }
-
     try {
       const db = await getDB();
       await db.deleteDepartment(department.id);
@@ -305,7 +218,6 @@ export function UserManagement() {
   const handleSaveDepartment = async (formData: any) => {
     try {
       const db = await getDB();
-      
       if (editingDepartment) {
         const updated = await db.updateDepartment(editingDepartment.id, formData);
         setDepartments(prev => prev.map(d => d.id === updated.id ? updated : d));
@@ -346,15 +258,12 @@ export function UserManagement() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-start justify-between flex-wrap gap-4">
-        <div className="mb-6">
-		  <h1 className={`text-3xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-			{activeTab === 'users' && '👥 Users'}
-			{activeTab === 'roles' && '📦 Batch Permissions'}
-			{activeTab === 'departments' && '🏢 Departments'}
-			{activeTab === 'permissions' && '🔐 Permission Manager'}
-		  </h1>
-		</div>
+      <div className="mb-6">
+        <h1 className={`text-3xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+          {activeTab === 'users' && '👥 Users'}
+          {activeTab === 'departments' && '🏢 Departments'}
+          {activeTab === 'permissions' && '🔐 Permission Manager'}
+        </h1>
       </div>
 
       <div className={`flex gap-1 p-1 rounded-lg w-fit ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
@@ -378,26 +287,19 @@ export function UserManagement() {
       {activeTab === 'users' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <div>
-              <h2 className={`text-xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                Users ({users.length})
-              </h2>
-            </div>
-            <button
-              onClick={handleCreateUser}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
-            >
-              <span>➕</span>
-              <span>New User</span>
+            <h2 className={`text-xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+              Users ({users.length})
+            </h2>
+            <button onClick={handleCreateUser} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2">
+              <span>➕</span><span>New User</span>
             </button>
           </div>
-
           <div className={`rounded-xl border overflow-hidden ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
             <table className="w-full">
               <thead className={isDark ? 'bg-slate-800/50' : 'bg-slate-50'}>
                 <tr>
                   <th className={`px-4 py-3 text-left text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>User</th>
-                  <th className={`px-4 py-3 text-left text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Batch Permission</th>
+                  <th className={`px-4 py-3 text-left text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Position</th>
                   <th className={`px-4 py-3 text-left text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Department</th>
                   <th className={`px-4 py-3 text-left text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Custom Perms</th>
                   <th className={`px-4 py-3 text-right text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Actions</th>
@@ -405,7 +307,6 @@ export function UserManagement() {
               </thead>
               <tbody className={`divide-y ${isDark ? 'divide-slate-700' : 'divide-slate-200'}`}>
                 {users.map(user => {
-                  const userRole = roles.find(r => r.name === user.role);
                   const userDept = departments.find(d => d.id === user.department);
                   return (
                     <tr key={user.id} className={isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}>
@@ -417,62 +318,27 @@ export function UserManagement() {
                             {user.fullName.split(' ').map(n => n[0]).join('').toUpperCase()}
                           </div>
                           <div>
-                            <div className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                              {user.fullName}
-                            </div>
-                            <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                              @{user.username}
-                            </div>
+                            <div className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{user.fullName}</div>
+                            <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>@{user.username}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          isDark ? 'bg-purple-900/30 text-purple-300' : 'bg-purple-100 text-purple-700'
-                        }`}>
-                          {userRole?.displayName || user.role}
+                        <span className={`text-xs px-2 py-1 rounded capitalize ${isDark ? 'bg-purple-900/30 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>
+                          {user.role}
                         </span>
                       </td>
-                      <td className={`px-4 py-3 text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                        {userDept?.name || '-'}
-                      </td>
+                      <td className={`px-4 py-3 text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{userDept?.name || '-'}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          isDark ? 'bg-cyan-900/30 text-cyan-300' : 'bg-cyan-100 text-cyan-700'
-                        }`}>
+                        <span className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-cyan-900/30 text-cyan-300' : 'bg-cyan-100 text-cyan-700'}`}>
                           {user.customPermissions?.length || 0} custom
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex gap-1 justify-end flex-wrap">
-                          <button
-                            onClick={() => handleAssignUserPermissions(user)}
-                            className={`px-2 py-1 text-xs rounded ${
-                              isDark ? 'bg-cyan-900/30 text-cyan-300 hover:bg-cyan-900/50' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
-                            }`}
-                            title="Assign Permissions"
-                          >
-                            🔐
-                          </button>
-                          <button
-                            onClick={() => handleEditUser(user)}
-                            className={`px-2 py-1 text-xs rounded ${
-                              isDark ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            }`}
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(user)}
-                            disabled={user.id === currentUser?.id}
-                            className={`px-2 py-1 text-xs rounded ${
-                              user.id === currentUser?.id
-                                ? 'opacity-50 cursor-not-allowed bg-slate-200 text-slate-400'
-                                : 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300'
-                            }`}
-                          >
-                            🗑️
-                          </button>
+                          <button onClick={() => handleAssignUserPermissions(user)} className={`px-2 py-1 text-xs rounded ${isDark ? 'bg-cyan-900/30 text-cyan-300 hover:bg-cyan-900/50' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'}`} title="Assign Permissions">🔐</button>
+                          <button onClick={() => handleEditUser(user)} className={`px-2 py-1 text-xs rounded ${isDark ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>✏️</button>
+                          <button onClick={() => handleDeleteUser(user)} disabled={user.id === currentUser?.id} className={`px-2 py-1 text-xs rounded ${user.id === currentUser?.id ? 'opacity-50 cursor-not-allowed bg-slate-200 text-slate-400' : 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300'}`}>🗑️</button>
                         </div>
                       </td>
                     </tr>
@@ -484,195 +350,44 @@ export function UserManagement() {
         </div>
       )}
 
-      {/* Tab: Roles */}
-      {activeTab === 'roles' && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className={`text-xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                📦 Batch Permissions ({roles.length})
-              </h2>
-            </div>
-            <button
-              onClick={handleCreateRole}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
-            >
-              <span>➕</span>
-              <span>New Batch Permission</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {roles.map(role => (
-              <div
-                key={role.id}
-                className={`rounded-xl border p-4 ${isDark ? 'border-slate-700 bg-slate-800/30' : 'border-slate-200 bg-white'}`}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className={`text-lg font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                        {role.displayName}
-                      </h3>
-                      {role.isSystem && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                          isDark ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          SYSTEM
-                        </span>
-                      )}
-                    </div>
-                    <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                      {role.description}
-                    </p>
-                  </div>
-                </div>
-
-                <div className={`text-xs mb-3 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  <strong>{role.permissions.length}</strong> permissions in this batch
-                </div>
-
-                <div className="flex flex-wrap gap-1 mb-3 max-h-20 overflow-y-auto">
-                  {role.permissions.slice(0, 10).map(perm => (
-                    <span
-                      key={perm}
-                      className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${
-                        isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {perm}
-                    </span>
-                  ))}
-                  {role.permissions.length > 10 && (
-                    <span className={`text-[9px] px-1.5 py-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      +{role.permissions.length - 10} more
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => handleAssignRolePermissions(role)}
-                    className={`flex-1 px-2 py-1.5 text-xs rounded ${
-                      isDark ? 'bg-cyan-900/30 text-cyan-300 hover:bg-cyan-900/50' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
-                    }`}
-                  >
-                    🔐 Edit Permissions
-                  </button>
-                  <button
-                    onClick={() => handleEditRole(role)}
-                    className={`flex-1 px-2 py-1.5 text-xs rounded ${
-                      isDark ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    ✏️ Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteRole(role)}
-                    disabled={role.isSystem}
-                    className={`px-2 py-1.5 text-xs rounded ${
-                      role.isSystem
-                        ? 'opacity-50 cursor-not-allowed bg-slate-200 text-slate-400'
-                        : 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300'
-                    }`}
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 🔧 FIX: Tab: Departments */}
+      {/* Tab: Departments */}
       {activeTab === 'departments' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <div>
-              <h2 className={`text-xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                Departments ({departments.length})
-              </h2>
-            </div>
-            <button
-              onClick={handleCreateDepartment}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
-            >
-              <span>➕</span>
-              <span>New Department</span>
+            <h2 className={`text-xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Departments ({departments.length})</h2>
+            <button onClick={handleCreateDepartment} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2">
+              <span>➕</span><span>New Department</span>
             </button>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {departments.map(department => {
               const relatedUsers = users.filter(u => u.department === department.id);
               return (
-                <div
-                  key={department.id}
-                  className={`rounded-xl border p-4 ${isDark ? 'border-slate-700 bg-slate-800/30' : 'border-slate-200 bg-white'}`}
-                >
+                <div key={department.id} className={`rounded-xl border p-4 ${isDark ? 'border-slate-700 bg-slate-800/30' : 'border-slate-200 bg-white'}`}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-2xl">🏢</span>
-                        <h3 className={`text-lg font-bold truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                          {department.name}
-                        </h3>
+                        <h3 className={`text-lg font-bold truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{department.name}</h3>
                       </div>
-                      {department.description && (
-                        <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                          {department.description}
-                        </p>
-                      )}
+                      {department.description && <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{department.description}</p>}
                     </div>
                   </div>
-
-                  <div className={`text-xs mb-3 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                    <strong>{relatedUsers.length}</strong> user(s) in this department
-                  </div>
-
-                  {/* لیست کاربران مرتبط */}
+                  <div className={`text-xs mb-3 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}><strong>{relatedUsers.length}</strong> user(s)</div>
                   {relatedUsers.length > 0 && (
-                    <div className={`rounded border p-2 mb-3 max-h-24 overflow-y-auto ${
-                      isDark ? 'border-slate-700 bg-slate-900/30' : 'border-slate-200 bg-slate-50'
-                    }`}>
-                      <div className="space-y-1">
-                        {relatedUsers.slice(0, 5).map(user => (
-                          <div key={user.id} className={`flex items-center gap-2 text-xs ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                              isDark ? 'bg-indigo-900/30 text-indigo-300' : 'bg-indigo-100 text-indigo-700'
-                            }`}>
-                              {user.fullName.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="truncate flex-1">{user.fullName}</span>
-                          </div>
-                        ))}
-                        {relatedUsers.length > 5 && (
-                          <div className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                            +{relatedUsers.length - 5} more...
-                          </div>
-                        )}
-                      </div>
+                    <div className={`rounded border p-2 mb-3 max-h-24 overflow-y-auto ${isDark ? 'border-slate-700 bg-slate-900/30' : 'border-slate-200 bg-slate-50'}`}>
+                      {relatedUsers.slice(0, 5).map(u => (
+                        <div key={u.id} className={`flex items-center gap-2 text-xs py-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${isDark ? 'bg-indigo-900/30 text-indigo-300' : 'bg-indigo-100 text-indigo-700'}`}>{u.fullName.charAt(0).toUpperCase()}</div>
+                          <span className="truncate">{u.fullName}</span>
+                        </div>
+                      ))}
+                      {relatedUsers.length > 5 && <div className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>+{relatedUsers.length - 5} more</div>}
                     </div>
                   )}
-
                   <div className="flex gap-1">
-                    <button
-                      onClick={() => handleEditDepartment(department)}
-                      className={`flex-1 px-2 py-1.5 text-xs rounded ${
-                        isDark ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      ✏️ Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteDepartment(department)}
-                      className={`flex-1 px-2 py-1.5 text-xs rounded ${
-                        'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300'
-                      }`}
-                    >
-                      🗑️ Delete
-                    </button>
+                    <button onClick={() => handleEditDepartment(department)} className={`flex-1 px-2 py-1.5 text-xs rounded ${isDark ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>✏️ Edit</button>
+                    <button onClick={() => handleDeleteDepartment(department)} className="flex-1 px-2 py-1.5 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300">🗑️ Delete</button>
                   </div>
                 </div>
               );
@@ -682,56 +397,17 @@ export function UserManagement() {
       )}
 
       {/* Tab: Permissions */}
-      {activeTab === 'permissions' && (
-        <div className="space-y-4">
-          <div>
-            
-          </div>
-          <PermissionManager />
-        </div>
-      )}
+      {activeTab === 'permissions' && <PermissionManager />}
 
       {/* مودال‌ها */}
       {showUserModal && (
-        <UserModal
-          user={editingUser}
-          roles={roles}
-          onClose={() => { setShowUserModal(false); setEditingUser(null); }}
-          onSave={handleSaveUser}
-        />
+        <UserModal user={editingUser} onClose={() => { setShowUserModal(false); setEditingUser(null); }} onSave={handleSaveUser} />
       )}
-
-      {showRoleModal && (
-        <RoleModal
-          role={editingRole}
-          onClose={() => { setShowRoleModal(false); setEditingRole(null); }}
-          onSave={handleSaveRole}
-        />
-      )}
-
       {showDepartmentModal && (
-        <DepartmentModal
-          department={editingDepartment}
-          users={users}
-          onClose={() => { setShowDepartmentModal(false); setEditingDepartment(null); }}
-          onSave={handleSaveDepartment}
-        />
+        <DepartmentModal department={editingDepartment} users={users} onClose={() => { setShowDepartmentModal(false); setEditingDepartment(null); }} onSave={handleSaveDepartment} />
       )}
-
       {showUserPermissionsModal && userForPermissions && (
-        <UserPermissionsModal
-          user={userForPermissions}
-          onClose={() => { setShowUserPermissionsModal(false); setUserForPermissions(null); }}
-          onSave={handleSaveUserPermissions}
-        />
-      )}
-
-      {showRolePermissionsModal && roleForPermissions && (
-        <RolePermissionsModal
-          role={roleForPermissions}
-          onClose={() => { setShowRolePermissionsModal(false); setRoleForPermissions(null); }}
-          onSave={handleSaveRolePermissions}
-        />
+        <UserPermissionsModal user={userForPermissions} onClose={() => { setShowUserPermissionsModal(false); setUserForPermissions(null); }} onSave={handleSaveUserPermissions} />
       )}
     </div>
   );

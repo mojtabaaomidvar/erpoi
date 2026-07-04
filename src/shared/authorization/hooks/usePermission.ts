@@ -7,51 +7,61 @@ import { useAuth } from '@features/auth/hooks/useAuth';
 export function usePermission() {
   const { user } = useAuth();
   const role = user?.role || 'viewer';
+  const isAdmin = role === 'admin';
 
-  // 🔧 FIX: خواندن مستقیم از localStorage (نه از getDBSync)
+  // 🔐 customPermissions کاربر
+  const customPermissions = useMemo((): string[] => {
+    return (user as any)?.customPermissions || [];
+  }, [user]);
+
+  // 🔐  rolePermissions از Batch Permission (از localStorage)
   const rolePermissions = useMemo((): string[] => {
+    if (isAdmin) return ['*:*'];
+    
     try {
       const rolesJson = localStorage.getItem('ics_db_roles');
-      if (!rolesJson) {
-        console.warn('[usePermission] ❌ No roles in localStorage');
-        return [];
-      }
+      if (!rolesJson) return [];
       
       const roles = JSON.parse(rolesJson);
       const dbRole = roles.find((r: any) => r.name === role);
       
-      if (dbRole) {
-        console.log(`[usePermission] ✅ Role "${role}" found, permissions:`, dbRole.permissions);
-        return dbRole.permissions || [];
-      } else {
-        console.warn(`[usePermission] ❌ Role "${role}" not found in localStorage`);
+      if (dbRole && dbRole.permissions) {
+        return dbRole.permissions;
       }
     } catch (error) {
-      console.error('[usePermission] ❌ Failed to read roles:', error);
+      console.error('[usePermission] Failed to read roles:', error);
     }
     
     return [];
-  }, [role]);
+  }, [role, isAdmin]);
 
+  // 🔐 ترکیب همه permission ها
+  const allPermissions = useMemo((): string[] => {
+    if (isAdmin) return ['*:*'];
+    return [...new Set([...customPermissions, ...rolePermissions])];
+  }, [customPermissions, rolePermissions, isAdmin]);
+
+  // 🔐 تابع چک کردن permission با پشتیبانی از wildcard و entity-level
   const can = useCallback((permission: Permission | string): boolean => {
-    // 🔧 FIX: چک کردن customPermissions کاربر
-    const customPermissions = (user as any)?.customPermissions || [];
-    if (customPermissions.includes(permission as string)) {
-      console.log(`[usePermission] ✅ ${permission} granted via customPermissions`);
-      return true;
+    if (isAdmin) return true;
+    
+    const perm = permission as string;
+    
+    // چک کردن دقیق
+    if (allPermissions.includes(perm)) return true;
+    
+    // چک کردن wildcard (مثلاً client:* با client:read match می‌شه)
+    const entity = perm.split(':')[0];
+    if (allPermissions.includes(`${entity}:*`)) return true;
+    if (allPermissions.includes('*:*')) return true;
+    
+    // چک کردن entity-level (مثلاً can('client') true برمی‌گرداند اگه کاربر هر دسترسی client:* داشته باشه)
+    if (!perm.includes(':')) {
+      return allPermissions.some(p => p.startsWith(`${perm}:`));
     }
-
-    // 🔧 FIX: چک کردن *:* (admin)
-    if (rolePermissions.includes('*:*')) {
-      console.log(`[usePermission] ✅ ${permission} granted via *:* (admin)`);
-      return true;
-    }
-
-    // 🔧 FIX: چک کردن role permissions
-    const hasPermission = rolePermissions.includes(permission as string);
-    console.log(`[usePermission] ${hasPermission ? '✅' : '❌'} ${permission} = ${hasPermission}`);
-    return hasPermission;
-  }, [rolePermissions, user]);
+    
+    return false;
+  }, [allPermissions, isAdmin]);
 
   const canAny = useCallback((permissions: (Permission | string)[]): boolean => {
     return permissions.some(p => can(p));
@@ -65,12 +75,27 @@ export function usePermission() {
     return !can(permission);
   }, [can]);
 
+  // 🔐 تابع چک کردن دسترسی به entity - حالا allPermissions را چک می‌کند
+  const canAccessEntity = useCallback((entity: string): boolean => {
+    if (isAdmin) return true;
+    
+    // 🔧 چک کردن در allPermissions (شامل customPermissions + rolePermissions)
+    return allPermissions.some((perm: string) => {
+      const permEntity = perm.split(':')[0];
+      return permEntity === entity;
+    });
+  }, [isAdmin, allPermissions]);
+
   return {
     role,
+    isAdmin,
     can,
     canAny,
     canAll,
     cannot,
-    customPermissions: (user as any)?.customPermissions || [],
+    canAccessEntity,
+    customPermissions,
+    rolePermissions,
+    allPermissions,   
   };
 }

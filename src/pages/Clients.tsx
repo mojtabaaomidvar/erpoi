@@ -6,8 +6,6 @@ import { exportToExcel } from "@shared/lib/exportToExcel";
 import { validateMobile } from "@shared/lib/validators";
 import type { Client } from "../types/contract";
 
-// 🔐 RBAC Imports
-import { usePermission } from "@shared/authorization/hooks/usePermission";
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 
@@ -21,20 +19,7 @@ import { DuplicateWarningModal } from "@features/client-management/ui/DuplicateW
 import { ContractDetailsModal } from "@features/client-management/ui/ContractDetailsModal";
 
 export function Clients() {
-  // ═══════════════════════════════════════
-  // 🎯 ALL HOOKS MUST BE AT THE TOP
-  // ═══════════════════════════════════════
-  
   const { isDark } = useTheme();
-  const { can } = usePermission();
-  
-  const canCreate = can('client:create');
-  const canUpdate = can('client:update');
-  const canDelete = can('client:delete');
-  const canExport = can('client:export');
-  const canRead = can('client:read');
-
-  console.log('[Clients] Permissions:', { canCreate, canUpdate, canDelete, canExport, canRead });
 
   const {
     clients,
@@ -70,27 +55,16 @@ export function Clients() {
   const [duplicateWarning, setDuplicateWarning] = useState<{ field: string; client: any; message: string } | null>(null);
   const [newContactForDuplicate, setNewContactForDuplicate] = useState({ name: "", position: "", mobile: "", email: "" });
 
-  const emailDropdownRef = useRef<HTMLDivElement>(null);
-  const contactDropdownRef = useRef<HTMLDivElement>(null);
-
   // ═══════════════════════════════════════
-  // 🎯 ALL useCallback HOOKS
+  // 🎯 HANDLERS
   // ═══════════════════════════════════════
 
   const handleEditClick = useCallback(() => {
-    if (!canUpdate) {
-      showToast('error', 'Access Denied', 'You do not have permission to edit clients');
-      return;
-    }
     if (!selectedClient) return;
     setIsEditModalOpen(true);
-  }, [selectedClient, canUpdate]);
+  }, [selectedClient]);
 
   const handleDeleteClick = useCallback(async () => {
-    if (!canDelete) {
-      showToast('error', 'Access Denied', 'You do not have permission to delete clients');
-      return;
-    }
     if (!selectedClient) return;
 
     const confirmed = await confirmDialog({
@@ -108,14 +82,9 @@ export function Clients() {
     } catch (err: any) {
       showToast('error', 'Delete Failed', err.message || 'Failed to delete client');
     }
-  }, [selectedClient, clients, setClients, setSelectedClient, canDelete]);
+  }, [selectedClient, clients, setClients, setSelectedClient]);
 
   const handleExportToExcel = useCallback(async () => {
-    if (!canExport) {
-      showToast('error', 'Access Denied', 'You do not have permission to export clients');
-      return;
-    }
-
     const confirmed = await confirmDialog({
       title: 'Export Clients',
       message: `Are you sure you want to export ${filteredClients.length} clients to Excel?`,
@@ -140,15 +109,11 @@ export function Clients() {
     const today = new Date().toISOString().split("T")[0];
     exportToExcel(dataToExport, `${filterName}_Clients_${today}`, "Clients");
     showToast('success', 'Export Successful', `${filteredClients.length} clients exported to Excel`);
-  }, [filteredClients, filter, canExport]);
+  }, [filteredClients, filter]);
 
   const handleAddClick = useCallback(() => {
-    if (!canCreate) {
-      showToast('error', 'Access Denied', 'You do not have permission to create clients');
-      return;
-    }
     setIsAddModalOpen(true);
-  }, [canCreate]);
+  }, []);
 
   const handleSaveAdd = useCallback(async (newClient: any) => {
     try {
@@ -217,27 +182,8 @@ export function Clients() {
   }, [clients, duplicateWarning, newContactForDuplicate, setClients, setSelectedClient, currentDepartment]);
 
   // ═══════════════════════════════════════
-  // 🎯 CONDITIONAL RETURNS (AFTER ALL HOOKS)
+  // 🎯 LOADING & ERROR STATES
   // ═══════════════════════════════════════
-  
-  if (!canRead) {
-    return (
-      <div className="flex items-center justify-center min-h-[600px]">
-        <div className="text-center max-w-md">
-          <div className="text-6xl mb-4">🔒</div>
-          <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-            Access Denied
-          </h2>
-          <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-            You don't have permission to view clients. Please contact your administrator.
-          </p>
-          <div className={`text-xs p-3 rounded ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}>
-            <strong>Required Permission:</strong> <code>client:read</code>
-          </div>
-        </div>
-      </div>
-    );
-  }
   
   if (loading) {
     return (
@@ -296,9 +242,6 @@ export function Clients() {
         setSelectedClient={setSelectedClient}
         onAddClick={handleAddClick}
         onExport={handleExportToExcel}
-        canCreate={canCreate}
-        canExport={canExport}
-        canRead={canRead}
       />
 
       {/* RIGHT PANEL - ClientDetails */}
@@ -317,37 +260,30 @@ export function Clients() {
           onClose={() => setSelectedClient(null)}
           currentDepartment={currentDepartment}
           onContractClick={setSelectedContract}
-          canUpdate={canUpdate}
-          canDelete={canDelete}
-          canRead={canRead}
         />
       </div>
 
       {/* 🔑 ADD CLIENT MODAL */}
-      {canCreate && (
-        <ClientForm
-          isOpen={isAddModalOpen}
-          onClose={() => {
-            setIsAddModalOpen(false);
-            setDuplicateWarning(null);
-          }}
-          onSave={handleSaveAdd}
-          clients={clients}
-          currentDepartment={currentDepartment}
-          onDuplicateWarning={setDuplicateWarning}
-        />
-      )}
+      <ClientForm
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setDuplicateWarning(null);
+        }}
+        onSave={handleSaveAdd}
+        clients={clients}
+        currentDepartment={currentDepartment}
+        onDuplicateWarning={setDuplicateWarning}
+      />
 
       {/* 🔑 EDIT CLIENT MODAL */}
-      {canUpdate && (
-        <ClientEditModal
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          onSave={handleSaveEdit}
-          client={selectedClient}
-          currentDepartment={currentDepartment}
-        />
-      )}
+      <ClientEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleSaveEdit}
+        client={selectedClient}
+        currentDepartment={currentDepartment}
+      />
 
       {/* 🔑 DUPLICATE WARNING MODAL */}
       <DuplicateWarningModal

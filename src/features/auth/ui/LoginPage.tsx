@@ -13,7 +13,6 @@ export function LoginPage({ onForgotPassword }: Props) {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    rememberMe: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -27,7 +26,7 @@ export function LoginPage({ onForgotPassword }: Props) {
     
     if (!formData.password) {
       errors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
+    } else if (formData.password.length < 1) {
       errors.password = 'Password must be at least 6 characters';
     }
 
@@ -126,28 +125,7 @@ export function LoginPage({ onForgotPassword }: Props) {
                 <p className="mt-1 text-xs text-red-400">{validationErrors.password}</p>
               )}
             </div>
-
-            {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.rememberMe}
-                  onChange={(e) => handleChange('rememberMe', e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-600 bg-white/10 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-slate-300">Remember me</span>
-              </label>
-              {onForgotPassword && (
-                <button
-                  type="button"
-                  onClick={onForgotPassword}
-                  className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  Forgot password?
-                </button>
-              )}
-            </div>
+            
 
             {/* Submit Button */}
             <button
@@ -165,30 +143,11 @@ export function LoginPage({ onForgotPassword }: Props) {
               )}
             </button>
           </form>
-
-          {/* Demo Credentials */}
-          <div className="mt-6 pt-6 border-t border-white/20">
-            <p className="text-xs text-slate-400 text-center mb-3">Demo Credentials</p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                onClick={() => setFormData({ username: 'admin', password: 'admin123', rememberMe: false })}
-                className="px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-slate-300 transition-colors"
-              >
-                Admin
-              </button>
-              <button
-                onClick={() => setFormData({ username: 'sara.m', password: 'password', rememberMe: false })}
-                className="px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-slate-300 transition-colors"
-              >
-                Manager
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
         <p className="text-center text-sm text-slate-400 mt-8">
-          © 2024 ICS System. All rights reserved.
+          © 2026 ICS System. All rights reserved.
         </p>
       </div>
     </div>

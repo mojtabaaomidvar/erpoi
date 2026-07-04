@@ -4,6 +4,7 @@ import { User, UserFormData, UserStatus, Permission } from '../types';
 import { getDB } from '@shared/database';
 import type { DBUser } from '@shared/database/types';
 import { eventBus } from '@infra/events';
+import { authService } from '@features/auth/services/AuthService';
 
 class UserService {
   private static instance: UserService;
@@ -113,6 +114,9 @@ class UserService {
 
     const user = this.dbUserToUser(dbUser);
     this.users.set(user.id, user);
+
+    // 🔧 FIX: استفاده از updateCurrentUser به جای notifyListeners مستقیم
+    authService.updateCurrentUser(user);
 
     eventBus.publish({
       type: 'user.updated' as any,

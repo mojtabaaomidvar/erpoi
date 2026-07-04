@@ -3,7 +3,6 @@
 export interface LoginCredentials {
   username: string;
   password: string;
-  rememberMe?: boolean;
 }
 
 export interface User {
@@ -14,6 +13,7 @@ export interface User {
   role: string;
   department?: string;
   avatar?: string;
+  customPermissions?: string[];
 }
 
 export interface AuthSession {
@@ -24,15 +24,6 @@ export interface AuthSession {
   createdAt: Date;
 }
 
-export interface PasswordResetRequest {
-  email: string;
-}
-
-export interface PasswordResetConfirm {
-  token: string;
-  newPassword: string;
-  confirmPassword: string;
-}
 
 export type AuthError = 
   | 'INVALID_CREDENTIALS'

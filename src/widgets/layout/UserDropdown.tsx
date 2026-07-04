@@ -2,13 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { User, Settings, LogOut, Shield, ChevronDown } from 'lucide-react';
-import { useRole } from '@shared/authorization/hooks/useRole';
+import { useAuth } from '@features/auth/hooks/useAuth';
 
 interface Props {
   userName?: string;
   userEmail?: string;
   onNavigateSettings: () => void;
-  onLogout?: () => void | Promise<void>;  // ✅ اضافه شد
+  onLogout?: () => void | Promise<void>;
   isExpanded?: boolean;
 }
 
@@ -16,12 +16,14 @@ export function UserDropdown({
   userName = 'Admin User', 
   userEmail = 'admin@ics.com',
   onNavigateSettings,
-  onLogout,  // ✅ اضافه شد
+  onLogout,
   isExpanded = true
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { role, roleName } = useRole();
+  const { user } = useAuth();
+  
+  const role = user?.role || 'viewer';
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -33,16 +35,13 @@ export function UserDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleProfile = () => {
-    setIsOpen(false);
-  };
+  const handleProfile = () => setIsOpen(false);
 
   const handleSettings = () => {
     setIsOpen(false);
     onNavigateSettings();
   };
 
-  // 🔧 FIX: Logout handler
   const handleLogout = async () => {
     setIsOpen(false);
     if (onLogout) {
@@ -57,6 +56,9 @@ export function UserDropdown({
     accountant: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
     viewer: 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200',
   };
+
+  // 🔧 FIX: roleName از role
+  const roleName = role.charAt(0).toUpperCase() + role.slice(1);
 
   if (isExpanded) {
     return (
@@ -109,7 +111,6 @@ export function UserDropdown({
 
               <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
 
-              {/* 🔧 FIX: دکمه Logout */}
               <button 
                 onClick={handleLogout} 
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -164,7 +165,6 @@ export function UserDropdown({
 
             <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
 
-            {/* 🔧 FIX: دکمه Logout */}
             <button 
               onClick={handleLogout} 
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"

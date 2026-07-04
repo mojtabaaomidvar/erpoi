@@ -3,16 +3,24 @@
 import { useState } from 'react';
 import { useTheme } from '@app/providers/ThemeProvider';
 import { DepartmentSelect } from '@shared/authorization/components/DepartmentSelect';
-import type { DBUser, DBRole } from '@shared/database/types';
+import type { DBUser } from '@shared/database/types';
 
 interface UserModalProps {
   user: DBUser | null;
-  roles: DBRole[];
   onClose: () => void;
   onSave: (formData: any) => void;
 }
 
-export function UserModal({ user, roles, onClose, onSave }: UserModalProps) {
+// 🔧 لیست سمت‌های شغلی (فقط نمایشی)
+const JOB_TITLES = [
+  { value: 'admin', label: '👑 Administrator' },
+  { value: 'manager', label: '👔 Manager' },
+  { value: 'coordinator', label: '👷 Coordinator' },
+  { value: 'expert', label: '🎯 Expert' },
+  { value: 'inspector', label: '🔍 Inspector' },
+];
+
+export function UserModal({ user, onClose, onSave }: UserModalProps) {
   const { isDark } = useTheme();
   
   const [formData, setFormData] = useState({
@@ -20,7 +28,7 @@ export function UserModal({ user, roles, onClose, onSave }: UserModalProps) {
     email: user?.email || '',
     fullName: user?.fullName || '',
     password: '',
-    role: user?.role || '',
+    role: user?.role || 'viewer',
     department: user?.department || '',
     status: user?.status || 'active',
   });
@@ -43,7 +51,6 @@ export function UserModal({ user, roles, onClose, onSave }: UserModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-3">
-          {/* Full Name */}
           <div>
             <label className={`block text-xs font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
               Full Name *
@@ -57,7 +64,6 @@ export function UserModal({ user, roles, onClose, onSave }: UserModalProps) {
             />
           </div>
 
-          {/* Username & Email */}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className={`block text-xs font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -85,7 +91,6 @@ export function UserModal({ user, roles, onClose, onSave }: UserModalProps) {
             </div>
           </div>
 
-          {/* Password */}
           {!user && (
             <div>
               <label className={`block text-xs font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -101,30 +106,25 @@ export function UserModal({ user, roles, onClose, onSave }: UserModalProps) {
             </div>
           )}
 
-          {/* 🔧 FIX: Batch Permission - با displayName */}
+          {/* 🔧 Position */}
           <div>
             <label className={`block text-xs font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              📦 Batch Permission *
+              📋 Job Position
             </label>
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              required
               className={`w-full px-3 py-1.5 rounded border text-sm ${isDark ? 'border-slate-600 bg-slate-700 text-slate-100' : 'border-slate-300 bg-white'}`}
             >
-              <option value="">Select a batch permission...</option>
-              {roles.map(r => (
-                <option key={r.id} value={r.name}>
-                  {r.displayName} {r.isSystem ? '(System)' : ''}
-                </option>
+              {JOB_TITLES.map(title => (
+                <option key={title.value} value={title.value}>{title.label}</option>
               ))}
             </select>
             <p className={`text-[10px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              This batch determines the user's default permissions
+              For display purposes only. Manage actual permissions via 🔐 button.
             </p>
           </div>
 
-          {/* Department */}
           <div>
             <label className={`block text-xs font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
               Department
@@ -137,7 +137,6 @@ export function UserModal({ user, roles, onClose, onSave }: UserModalProps) {
             />
           </div>
 
-          {/* Status */}
           <div>
             <label className={`block text-xs font-semibold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
               Status
@@ -153,7 +152,6 @@ export function UserModal({ user, roles, onClose, onSave }: UserModalProps) {
             </select>
           </div>
 
-          {/* Buttons */}
           <div className={`flex gap-2 pt-3 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
             <button
               type="button"

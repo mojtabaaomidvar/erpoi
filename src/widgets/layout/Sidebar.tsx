@@ -7,10 +7,8 @@ import {
 import { useTheme } from "@app/providers/ThemeProvider";
 import { UserDropdown } from './UserDropdown';
 import { useAuth } from '@features/auth/hooks/useAuth';
-import { useRole } from '@shared/authorization/hooks/useRole';
-import { useEntityAccess } from '@shared/authorization/hooks/useEntityAccess';
+import { usePermission } from '@shared/authorization/hooks/usePermission';
 
-// 🔧 FIX: تغییر 'permission-manager' به 'user-management'
 export type ViewKey =
   | 'dashboard'
   | 'clients'
@@ -21,7 +19,7 @@ export type ViewKey =
   | 'reports'
   | 'audit'
   | 'settings'
-  | 'user-management';  // 🔧 FIX: تغییر نام
+  | 'user-management';
 
 interface SidebarProps {
   active: ViewKey;
@@ -36,42 +34,41 @@ const navItems: Array<{
   label: string;
   icon: typeof LayoutDashboard;
   badge?: string;
+  entity?: string;
 }> = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { key: "clients", label: "Clients", icon: Users },
-  { key: "contracts", label: "Agreements", icon: FileText },
-  { key: "inspectors", label: "Inspectors", icon: UserCheck },
-  { key: "inspections", label: "Workflow", icon: ClipboardCheck, badge: "3" },
-  { key: "billing", label: "Billing", icon: Receipt },
-  { key: "reports", label: "Reports", icon: BarChart3 },
-  { key: 'audit', label: 'Audit Log', icon: ShieldCheck },
+  { key: "clients", label: "Clients", icon: Users, entity: 'client' },
+  { key: "contracts", label: "Agreements", icon: FileText, entity: 'contract' },
+  { key: "inspectors", label: "Inspectors", icon: UserCheck, entity: 'inspector' },
+  { key: "inspections", label: "Workflow", icon: ClipboardCheck, badge: "3", entity: 'inspection' },
+  { key: "billing", label: "Billing", icon: Receipt, entity: 'invoice' },
+  { key: "reports", label: "Reports", icon: BarChart3, entity: 'report' },
+  { key: 'audit', label: 'Audit Log', icon: ShieldCheck, entity: 'audit' },
 ];
 
 export function Sidebar({ active, onSelect, isExpanded, expiringContractsCount, onLogout }: SidebarProps) {
   const { isDark } = useTheme();
   const { user } = useAuth();
-  const { isAdmin } = useRole();
+  
+  // 🔧 FIX: استفاده از usePermission به جای useRole و useEntityAccess
+  const { canAccessEntity, isAdmin, customPermissions } = usePermission();
 
-  const clientAccess = useEntityAccess('client');
-  const contractAccess = useEntityAccess('contract');
-  const inspectorAccess = useEntityAccess('inspector');
-  const inspectionAccess = useEntityAccess('inspection');
-  const invoiceAccess = useEntityAccess('invoice');
-  const reportAccess = useEntityAccess('report');
-  const auditAccess = useEntityAccess('audit_log');
-  const settingAccess = useEntityAccess('setting');
-
+    console.log('[Sidebar] 🔍 User:', user);
+  console.log('[Sidebar] 🔍 Custom Permissions:', customPermissions);
+  console.log('[Sidebar] 🔍 Is Admin:', isAdmin);
+  console.log('[Sidebar] 🔍 canAccessEntity("client"):', canAccessEntity('client'));
+  console.log('[Sidebar] 🔍 canAccessEntity("contract"):', canAccessEntity('contract'));
+  
+  // 🔧 FIX: فیلتر کردن آیتم‌ها بر اساس دسترسی entity
   const visibleNavItems = navItems.filter((item) => {
+    // Dashboard همیشه نمایش داده میشه
     if (item.key === 'dashboard') return true;
-    if (item.key === 'clients') return clientAccess.hasAccess;
-    if (item.key === 'contracts') return contractAccess.hasAccess;
-    if (item.key === 'inspectors') return inspectorAccess.hasAccess;
-    if (item.key === 'inspections') return inspectionAccess.hasAccess;
-    if (item.key === 'billing') return invoiceAccess.hasAccess;
-    if (item.key === 'reports') return reportAccess.hasAccess;
-    if (item.key === 'audit') return auditAccess.hasAccess;
-    if (item.key === 'settings') return settingAccess.hasAccess;
-    return true;
+    
+    // اگه entity نداره، نمایش داده میشه
+    if (!item.entity) return true;
+    
+    // 🔧 FIX: چک کردن دسترسی به entity
+    return canAccessEntity(item.entity);
   });
 
   return (
@@ -82,11 +79,9 @@ export function Sidebar({ active, onSelect, isExpanded, expiringContractsCount, 
         : "bg-white/95 border-slate-200 shadow-xl shadow-slate-200/50 backdrop-blur-xl"}`}
       style={{ height: "calc(100vh - 4rem)" }}>
 
-      {/* لوگو */}
       <div className="flex items-center gap-3 px-5 py-5">
       </div>
 
-      {/* منو */}
       <nav className="flex-1 space-y-0.5 px-3 overflow-y-auto">
         {visibleNavItems.map((item) => {
           const Icon = item.icon;
@@ -126,7 +121,7 @@ export function Sidebar({ active, onSelect, isExpanded, expiringContractsCount, 
           );
         })}
 
-        {/* 🔧 FIX: User Management - فقط برای admin */}
+        {/* 🔧 FIX: User Management فقط برای admin */}
         {isAdmin && (
           <button
             onClick={() => onSelect('user-management')}
@@ -152,7 +147,6 @@ export function Sidebar({ active, onSelect, isExpanded, expiringContractsCount, 
         )}
       </nav>
 
-      {/* فوتر - User Dropdown */}
       <div className="p-3 border-t border-slate-200 dark:border-slate-700">
         <UserDropdown
           userName={user?.fullName || 'Admin User'}

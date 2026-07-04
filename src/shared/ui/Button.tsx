@@ -19,7 +19,7 @@ export function Button({
 }: ButtonProps) {
   const variants: Record<ButtonVariant, string> = {
     primary:"bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm",
-    secondary:"bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-700",
+    secondary:"bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-800 dark:hover:bg-slate-100",
     ghost:"text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
     danger:"bg-rose-600 text-white hover:bg-rose-700 shadow-sm",
 	outline:"border border-slate-300 bg-transparent text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800",

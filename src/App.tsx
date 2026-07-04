@@ -21,8 +21,8 @@ import { ToastProvider } from "@shared/ui/ToastContainer";
 
 const meta: Record<ViewKey, { title: string; subtitle: string }> = {
   dashboard: { title: "Operations Dashboard", subtitle: "Live overview of inspections, revenue, and inspector workload" },
-  clients: { title: "Client Registry", subtitle: "Legal entities and individuals under management" },
-  contracts: { title: "Contracts & Tariffs", subtitle: "Master service agreements and work orders" },
+  clients: { title: "Client Managements", subtitle: "Legal entities and individuals under management" },
+  contracts: { title: "Agrrement(s) Management", subtitle: "Master service agreements and work orders" },
   inspectors: { title: "Inspector Roster", subtitle: "Certified engineers, specialties, and availability" },
   inspections: { title: "Inspection Workflow", subtitle: "5-step pipeline from request to completion" },
   billing: { title: "Billing & Invoices", subtitle: "Financial records tied to completed inspections" },
@@ -102,7 +102,6 @@ function AppContent() {
           {view === "billing" && <Billing />}
           {view === "reports" && <Reports />}
           {view === "settings" && <Settings />}
-          {/* 🔧 FIX: جایگزینی PermissionManager با UserManagement */}
           {view === "user-management" && <UserManagement />}
         </div>
       </main>
