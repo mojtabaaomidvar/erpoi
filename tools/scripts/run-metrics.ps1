@@ -1,1 +1,0 @@
-node -e "const Engine=require('./tools/engines/architecture-engine'); console.log(new Engine().run())"

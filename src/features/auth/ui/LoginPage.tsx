@@ -1,8 +1,8 @@
 // src/features/auth/ui/LoginPage.tsx
 
-import { useState } from 'react';
-import { useAuth } from '../hooks/useAuth';
-import { Lock, User, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useState } from "react";
+import { useAuth } from "../hooks/useAuth";
+import { Lock, User, Eye, EyeOff, Loader2 } from "lucide-react";
 
 interface Props {
   onForgotPassword?: () => void;
@@ -11,23 +11,25 @@ interface Props {
 export function LoginPage({ onForgotPassword }: Props) {
   const { login, isLoading, error } = useAuth();
   const [formData, setFormData] = useState({
-    username: '',
-    password: '',
+    username: "",
+    password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
-    
+
     if (!formData.username.trim()) {
-      errors.username = 'Username is required';
+      errors.username = "Username is required";
     }
-    
+
     if (!formData.password) {
-      errors.password = 'Password is required';
+      errors.password = "Password is required";
     } else if (formData.password.length < 1) {
-      errors.password = 'Password must be at least 6 characters';
+      errors.password = "Password must be at least 6 characters";
     }
 
     setValidationErrors(errors);
@@ -36,7 +38,7 @@ export function LoginPage({ onForgotPassword }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validate()) return;
 
     try {
@@ -47,9 +49,9 @@ export function LoginPage({ onForgotPassword }: Props) {
   };
 
   const handleChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (validationErrors[field]) {
-      setValidationErrors(prev => ({ ...prev, [field]: '' }));
+      setValidationErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
@@ -84,16 +86,20 @@ export function LoginPage({ onForgotPassword }: Props) {
                 <input
                   type="text"
                   value={formData.username}
-                  onChange={(e) => handleChange('username', e.target.value)}
+                  onChange={(e) => handleChange("username", e.target.value)}
                   className={`w-full pl-10 pr-4 py-3 bg-white/10 border rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
-                    validationErrors.username ? 'border-red-500' : 'border-white/20'
+                    validationErrors.username
+                      ? "border-red-500"
+                      : "border-white/20"
                   }`}
                   placeholder="Enter your username"
                   autoFocus
                 />
               </div>
               {validationErrors.username && (
-                <p className="mt-1 text-xs text-red-400">{validationErrors.username}</p>
+                <p className="mt-1 text-xs text-red-400">
+                  {validationErrors.username}
+                </p>
               )}
             </div>
 
@@ -105,11 +111,13 @@ export function LoginPage({ onForgotPassword }: Props) {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   value={formData.password}
-                  onChange={(e) => handleChange('password', e.target.value)}
+                  onChange={(e) => handleChange("password", e.target.value)}
                   className={`w-full pl-10 pr-12 py-3 bg-white/10 border rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
-                    validationErrors.password ? 'border-red-500' : 'border-white/20'
+                    validationErrors.password
+                      ? "border-red-500"
+                      : "border-white/20"
                   }`}
                   placeholder="Enter your password"
                 />
@@ -118,18 +126,25 @@ export function LoginPage({ onForgotPassword }: Props) {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
                 </button>
               </div>
               {validationErrors.password && (
-                <p className="mt-1 text-xs text-red-400">{validationErrors.password}</p>
+                <p className="mt-1 text-xs text-red-400">
+                  {validationErrors.password}
+                </p>
               )}
             </div>
 
             {import.meta.env.DEV && (
               <button
                 onClick={async () => {
-                  const { runMigration } = await import('../../../scripts/migrateToSupabase');
+                  const { runMigration } =
+                    await import("../../../scripts/migrateToSupabase");
                   await runMigration();
                 }}
                 className="mt-4 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm"
@@ -150,7 +165,7 @@ export function LoginPage({ onForgotPassword }: Props) {
                   Signing in...
                 </>
               ) : (
-                'Sign In'
+                "Sign In"
               )}
             </button>
           </form>
