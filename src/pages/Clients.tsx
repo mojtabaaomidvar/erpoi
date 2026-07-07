@@ -52,8 +52,17 @@ export function Clients() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDuplicateWarningOpen, setIsDuplicateWarningOpen] = useState(false);
   const [duplicateClient, setDuplicateClient] = useState<any>(null);
-  const [duplicateWarning, setDuplicateWarning] = useState<{ field: string; client: any; message: string } | null>(null);
-  const [newContactForDuplicate, setNewContactForDuplicate] = useState({ name: "", position: "", mobile: "", email: "" });
+  const [duplicateWarning, setDuplicateWarning] = useState<{
+    field: string;
+    client: any;
+    message: string;
+  } | null>(null);
+  const [newContactForDuplicate, setNewContactForDuplicate] = useState({
+    name: "",
+    position: "",
+    mobile: "",
+    email: "",
+  });
 
   // ═══════════════════════════════════════
   // 🎯 HANDLERS
@@ -68,28 +77,32 @@ export function Clients() {
     if (!selectedClient) return;
 
     const confirmed = await confirmDialog({
-      title: 'Delete Client',
+      title: "Delete Client",
       message: `Are you sure you want to delete "${selectedClient.name_en}"? This action cannot be undone.`,
-      confirmText: 'Delete',
-      variant: 'danger',
+      confirmText: "Delete",
+      variant: "danger",
     });
 
     if (!confirmed) return;
 
     try {
-      setClients(clients.filter(c => c.id !== selectedClient.id));
+      setClients(clients.filter((c) => c.id !== selectedClient.id));
       setSelectedClient(null);
     } catch (err: any) {
-      showToast('error', 'Delete Failed', err.message || 'Failed to delete client');
+      showToast(
+        "error",
+        "Delete Failed",
+        err.message || "Failed to delete client",
+      );
     }
   }, [selectedClient, clients, setClients, setSelectedClient]);
 
   const handleExportToExcel = useCallback(async () => {
     const confirmed = await confirmDialog({
-      title: 'Export Clients',
+      title: "Export Clients",
       message: `Are you sure you want to export ${filteredClients.length} clients to Excel?`,
-      confirmText: 'Export',
-      variant: 'info',
+      confirmText: "Export",
+      variant: "info",
     });
 
     if (!confirmed) return;
@@ -97,46 +110,65 @@ export function Clients() {
     const dataToExport = filteredClients.map((client) => ({
       "نام انگلیسی": client.name_en,
       "نام فارسی": client.name_fa,
-      "نوع": client.type === "LEGAL" ? "حقوقی" : "حقیقی",
+      نوع: client.type === "LEGAL" ? "حقوقی" : "حقیقی",
       "شناسه/کد ملی": client.national_id || "-",
       "شماره ثبت": (client as any).registration_no || "-",
       "کد اقتصادی": (client as any).economic_code || "-",
-      "تلفن": client.phone || "-",
-      "ایمیل": client.email || "-",
+      تلفن: client.phone || "-",
+      ایمیل: client.email || "-",
       "تعداد قراردادها": client.contracts,
     }));
-    const filterName = filter === "ALL" ? "All" : filter === "LEGAL" ? "Legal" : "Individual";
+    const filterName =
+      filter === "ALL" ? "All" : filter === "LEGAL" ? "Legal" : "Individual";
     const today = new Date().toISOString().split("T")[0];
     exportToExcel(dataToExport, `${filterName}_Clients_${today}`, "Clients");
-    showToast('success', 'Export Successful', `${filteredClients.length} clients exported to Excel`);
+    showToast(
+      "success",
+      "Export Successful",
+      `${filteredClients.length} clients exported to Excel`,
+    );
   }, [filteredClients, filter]);
 
   const handleAddClick = useCallback(() => {
     setIsAddModalOpen(true);
   }, []);
 
-  const handleSaveAdd = useCallback(async (newClient: any) => {
-    try {
-      setClients([newClient, ...clients]);
-      setSelectedClient(newClient);
-      setIsAddModalOpen(false);
-    } catch (err: any) {
-      showToast('error', 'Save Failed', err.message || 'Failed to save client');
-    }
-  }, [clients, setClients, setSelectedClient]);
+  const handleSaveAdd = useCallback(
+    async (newClient: any) => {
+      try {
+        setClients([newClient, ...clients]);
+        setSelectedClient(newClient);
+        setIsAddModalOpen(false);
+      } catch (err: any) {
+        showToast(
+          "error",
+          "Save Failed",
+          err.message || "Failed to save client",
+        );
+      }
+    },
+    [clients, setClients, setSelectedClient],
+  );
 
-  const handleSaveEdit = useCallback(async (updatedClient: Client) => {
-    try {
-      const updatedClients = clients.map((c) =>
-        c.id === updatedClient.id ? updatedClient : c
-      );
-      setClients(updatedClients);
-      setSelectedClient(updatedClient);
-      setIsEditModalOpen(false);
-    } catch (err: any) {
-      showToast('error', 'Save Failed', err.message || 'Failed to update client');
-    }
-  }, [clients, setClients, setSelectedClient]);
+  const handleSaveEdit = useCallback(
+    async (updatedClient: Client) => {
+      try {
+        const updatedClients = clients.map((c) =>
+          c.id === updatedClient.id ? updatedClient : c,
+        );
+        setClients(updatedClients);
+        setSelectedClient(updatedClient);
+        setIsEditModalOpen(false);
+      } catch (err: any) {
+        showToast(
+          "error",
+          "Save Failed",
+          err.message || "Failed to update client",
+        );
+      }
+    },
+    [clients, setClients, setSelectedClient],
+  );
 
   const handleViewDuplicate = useCallback(() => {
     if (duplicateWarning) {
@@ -147,11 +179,15 @@ export function Clients() {
   }, [duplicateWarning]);
 
   const handleAddContactToDuplicate = useCallback(async () => {
-    if (!duplicateWarning || !newContactForDuplicate.name.trim() || !validateMobile(newContactForDuplicate.mobile)) {
-      showToast('error', 'Validation Error', 'Valid name and mobile required');
+    if (
+      !duplicateWarning ||
+      !newContactForDuplicate.name.trim() ||
+      !validateMobile(newContactForDuplicate.mobile)
+    ) {
+      showToast("error", "Validation Error", "Valid name and mobile required");
       return;
     }
-    
+
     try {
       const updatedClients = clients.map((c) => {
         if (c.id === duplicateWarning.client.id) {
@@ -161,10 +197,10 @@ export function Clients() {
             updated.departments.push(currentDepartment);
           }
           if (!updated.contactPersons) updated.contactPersons = [];
-          updated.contactPersons.push({ 
-            ...newContactForDuplicate, 
-            id: String(Date.now()), 
-            department: currentDepartment 
+          updated.contactPersons.push({
+            ...newContactForDuplicate,
+            id: String(Date.now()),
+            department: currentDepartment,
           });
           updated.contacts = updated.contactPersons.length;
           return updated;
@@ -172,25 +208,41 @@ export function Clients() {
         return c;
       });
       setClients(updatedClients);
-      setSelectedClient(updatedClients.find((c) => c.id === duplicateWarning.client.id) || null);
+      setSelectedClient(
+        updatedClients.find((c) => c.id === duplicateWarning.client.id) || null,
+      );
       setIsAddModalOpen(false);
-      setNewContactForDuplicate({ name: "", position: "", mobile: "", email: "" });
+      setNewContactForDuplicate({
+        name: "",
+        position: "",
+        mobile: "",
+        email: "",
+      });
       setDuplicateWarning(null);
     } catch (err: any) {
-      showToast('error', 'Save Failed', err.message || 'Failed to add contact');
+      showToast("error", "Save Failed", err.message || "Failed to add contact");
     }
-  }, [clients, duplicateWarning, newContactForDuplicate, setClients, setSelectedClient, currentDepartment]);
+  }, [
+    clients,
+    duplicateWarning,
+    newContactForDuplicate,
+    setClients,
+    setSelectedClient,
+    currentDepartment,
+  ]);
 
   // ═══════════════════════════════════════
   // 🎯 LOADING & ERROR STATES
   // ═══════════════════════════════════════
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[600px]">
         <div className="text-center">
           <div className="text-6xl mb-4 animate-pulse">⏳</div>
-          <p className={`text-lg ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+          <p
+            className={`text-lg ${isDark ? "text-slate-300" : "text-slate-600"}`}
+          >
             Loading clients from database...
           </p>
         </div>
@@ -203,10 +255,14 @@ export function Clients() {
       <div className="flex items-center justify-center min-h-[600px]">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">⚠️</div>
-          <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+          <h2
+            className={`text-xl font-bold mb-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
+          >
             Failed to Load Clients
           </h2>
-          <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+          <p
+            className={`text-sm mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+          >
             {error}
           </p>
           <button
@@ -245,8 +301,13 @@ export function Clients() {
       />
 
       {/* RIGHT PANEL - ClientDetails */}
-      <div className={`col-span-1 lg:col-span-8 flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out ${
-        isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200/70'}`}>
+      <div
+        className={`col-span-1 lg:col-span-8 flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out ${
+          isDark
+            ? "bg-slate-900 border-slate-700"
+            : "bg-white border-slate-200/70"
+        }`}
+      >
         <ClientDetails
           client={selectedClient}
           contracts={contracts}
@@ -291,7 +352,12 @@ export function Clients() {
         onClose={() => {
           setIsDuplicateWarningOpen(false);
           setDuplicateClient(null);
-          setNewContactForDuplicate({ name: "", position: "", mobile: "", email: "" });
+          setNewContactForDuplicate({
+            name: "",
+            position: "",
+            mobile: "",
+            email: "",
+          });
         }}
         onSaveContact={handleAddContactToDuplicate}
         duplicateClient={duplicateClient}
@@ -303,6 +369,7 @@ export function Clients() {
         isOpen={!!selectedContract}
         onClose={() => setSelectedContract(null)}
         contract={selectedContract}
+        contractTariffs={contractTariffs}
       />
     </div>
   );

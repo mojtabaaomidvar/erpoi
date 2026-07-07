@@ -1,199 +1,123 @@
 // src/features/client-management/services/ClientService.ts
 
-import { getDB } from '@shared/database';
-import type { DBClient, DBContactPerson } from '@shared/database/types';
-import { eventBus } from '@infra/events';
-import { showToast } from '@shared/ui/ToastContainer';
-
-export interface ClientFormData {
-  type: 'LEGAL' | 'INDIVIDUAL';
-  name_en: string;
-  name_fa: string;
-  national_id: string;
-  email?: string;
-  phone?: string;
-  category: string;
-  logoColor: string;
-  abbreviated_name?: string;
-  company_type?: string;
-  registration_no?: string;
-  economic_code?: string;
-  address_en: string;
-  address_fa: string;
-  departments: string[];
-  contactPersons?: DBContactPerson[];
-}
+import { supabase } from "@shared/database/supabase";
+import type { Client } from "@entities/contract/types";
 
 class ClientService {
-  private static instance: ClientService;
+  async getAll(): Promise<Client[]> {
+    const { data, error } = await supabase
+      .from("clients")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-  private constructor() {}
-
-  static getInstance(): ClientService {
-    if (!ClientService.instance) {
-      ClientService.instance = new ClientService();
-    }
-    return ClientService.instance;
-  }
-
-  // ═══════════════════════════════════════
-  // 🔍 Query Methods
-  // ═══════════════════════════════════════
-
-  async getAll(): Promise<DBClient[]> {
-    const db = await getDB();
-    return await db.getAllClients();
-  }
-
-  async getById(id: string): Promise<DBClient | null> {
-    const db = await getDB();
-    return await db.getClient(id);
-  }
-
-  async getByDepartment(department: string): Promise<DBClient[]> {
-    const clients = await this.getAll();
-    return clients.filter(c => c.departments.includes(department));
-  }
-
-  async search(query: string): Promise<DBClient[]> {
-    const clients = await this.getAll();
-    const q = query.toLowerCase();
-    return clients.filter(c => 
-      c.name_en.toLowerCase().includes(q) ||
-      c.name_fa.includes(q) ||
-      c.national_id.includes(q) ||
-      c.email?.toLowerCase().includes(q)
-    );
-  }
-
-  // ═══════════════════════════════════════
-  // ✏️ Mutation Methods
-  // ═══════════════════════════════════════
-
-  async create(formData: ClientFormData): Promise<DBClient> {
-    const db = await getDB();
-
-    // Check for duplicates
-    const allClients = await db.getAllClients();
-    const duplicate = allClients.find(c => 
-      c.national_id === formData.national_id ||
-      (formData.email && c.email === formData.email)
-    );
-
-    if (duplicate) {
-      throw new Error(`Client with national ID or email already exists: ${duplicate.name_en}`);
+    if (error) {
+      console.error("[ClientService] Failed to get clients:", error);
+      return [];
     }
 
-    const newClient = await db.createClient({
-      ...formData,
-      contacts: formData.contactPersons?.length || 0,
-      contracts: 0,
-      contactPersons: formData.contactPersons || [],
-    });
-
-    // Publish Event
-    eventBus.publish({
-      type: 'client.created' as any,
-      payload: {
-        clientId: newClient.id,
-        clientName: newClient.name_en,
-        clientType: newClient.type,
-      },
-      timestamp: new Date(),
-      eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      source: 'client-management',
-    });
-
-    showToast('success', 'Client Created', `${newClient.name_en} has been added`);
-
-    return newClient;
+    return (data || []).map(this.dbToClient);
   }
 
-  async update(id: string, formData: Partial<ClientFormData>): Promise<DBClient> {
-    const db = await getDB();
+  async getById(id: string): Promise<Client | null> {
+    const { data, error } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-    const existing = await db.getClient(id);
-    if (!existing) {
-      throw new Error(`Client ${id} not found`);
+    if (error || !data) return null;
+    return this.dbToClient(data);
+  }
+
+  async create(client: Partial<Client>): Promise<Client> {
+    const dbClient = this.clientToDb(client);
+
+    const { data, error } = await supabase
+      .from("clients")
+      .insert({
+        ...dbClient,
+        id:
+          dbClient.id ||
+          `c_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[ClientService] Failed to create client:", error);
+      throw new Error(error.message);
     }
 
-    const updated = await db.updateClient(id, {
-      ...formData,
-      contacts: formData.contactPersons?.length ?? existing.contacts,
-    });
+    return this.dbToClient(data);
+  }
 
-    eventBus.publish({
-      type: 'client.updated' as any,
-      payload: {
-        clientId: id,
-        clientName: updated.name_en,
-      },
-      timestamp: new Date(),
-      eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      source: 'client-management',
-    });
+  async update(id: string, client: Partial<Client>): Promise<Client> {
+    const dbClient = this.clientToDb(client);
 
-    showToast('success', 'Client Updated', `${updated.name_en} has been updated`);
+    const { data, error } = await supabase
+      .from("clients")
+      .update({ ...dbClient, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
 
-    return updated;
+    if (error) {
+      console.error("[ClientService] Failed to update client:", error);
+      throw new Error(error.message);
+    }
+
+    return this.dbToClient(data);
   }
 
   async delete(id: string): Promise<void> {
-    const db = await getDB();
+    const { error } = await supabase.from("clients").delete().eq("id", id);
 
-    const client = await db.getClient(id);
-    if (!client) {
-      throw new Error(`Client ${id} not found`);
+    if (error) {
+      console.error("[ClientService] Failed to delete client:", error);
+      throw new Error(error.message);
     }
-
-    // Check if client has contracts
-    const contracts = await db.getContractsByClient(id);
-    if (contracts.length > 0) {
-      throw new Error(`Cannot delete client with ${contracts.length} active contracts`);
-    }
-
-    await db.deleteClient(id);
-
-    eventBus.publish({
-      type: 'client.deleted' as any,
-      payload: {
-        clientId: id,
-        clientName: client.name_en,
-      },
-      timestamp: new Date(),
-      eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      source: 'client-management',
-    });
-
-    showToast('success', 'Client Deleted', `${client.name_en} has been removed`);
   }
 
-  // ═══════════════════════════════════════
-  // 📊 Stats
-  // ═══════════════════════════════════════
-
-  async getStats() {
-    const clients = await this.getAll();
+  private dbToClient(dbClient: any): Client {
     return {
-      total: clients.length,
-      legal: clients.filter(c => c.type === 'LEGAL').length,
-      individual: clients.filter(c => c.type === 'INDIVIDUAL').length,
-      byCategory: clients.reduce((acc, client) => {
-        acc[client.category] = (acc[client.category] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>),
+      id: dbClient.id,
+      name_en: dbClient.name_en,
+      name_fa: dbClient.name_fa || "",
+      type: dbClient.type,
+      national_id: dbClient.national_id || "",
+      phone: dbClient.phone || "",
+      email: dbClient.email || "",
+      emails: dbClient.emails || [],
+      departments: dbClient.departments || [],
+      contactPersons: dbClient.contact_persons || [],
+      logoColor: dbClient.logo_color || "from-blue-500 to-purple-600",
+      contracts: dbClient.contracts || 0,
+      contacts: dbClient.contacts || 0,
+      registration_no: dbClient.registration_no,
+      economic_code: dbClient.economic_code,
+      abbreviated_name: dbClient.abbreviated_name,
+      createdAt: dbClient.created_at,
+      updatedAt: dbClient.updated_at,
     };
   }
 
-  // ═══════════════════════════════════════
-  // 🔄 Bulk Operations
-  // ═══════════════════════════════════════
-
-  async resetToDefaults(): Promise<void> {
-    const db = await getDB();
-    await db.reset();
-    showToast('info', 'Data Reset', 'All clients have been reset to defaults');
+  private clientToDb(client: Partial<Client>): any {
+    return {
+      name_en: client.name_en,
+      name_fa: client.name_fa,
+      type: client.type,
+      national_id: client.national_id,
+      phone: client.phone,
+      email: client.email,
+      emails: client.emails || [],
+      departments: client.departments || [],
+      contact_persons: client.contactPersons || [],
+      logo_color: client.logoColor,
+      registration_no: client.registration_no,
+      economic_code: client.economic_code,
+      abbreviated_name: client.abbreviated_name,
+    };
   }
 }
 
-export const clientService = ClientService.getInstance();
+export const clientService = new ClientService();
