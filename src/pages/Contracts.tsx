@@ -13,31 +13,16 @@ import {
 } from "@entities/contract/services/contractCalculations";
 import type { Contract } from "../types/contract";
 
-// 🔐 RBAC Imports
-import { usePermission } from "@shared/authorization/hooks/usePermission";
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 
-// 🔑 کامپوننت‌های استخراج‌شده
 import { useContracts } from "@features/contract-management/hooks/useContracts";
 import { ContractList } from "@features/contract-management/ui/ContractList";
 import { ContractDetails } from "@features/contract-management/ui/ContractDetails";
 import { ContractForm } from "@features/contract-management/ui/ContractForm";
 
 export function Contracts() {
-  // ═══════════════════════════════════════
-  // 🎯 ALL HOOKS AT THE TOP
-  // ═══════════════════════════════════════
-
   const { isDark } = useTheme();
-  const { can } = usePermission();
-
-  const canCreate = can("contract:create");
-  const canUpdate = can("contract:update");
-  const canDelete = can("contract:delete");
-  const canExport = can("contract:export");
-  const canRead = can("contract:read");
-  const canApprove = can("contract:approve");
 
   const {
     contracts,
@@ -67,7 +52,6 @@ export function Contracts() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
-  const [userRole, setUserRole] = useState<"admin" | "user">("admin");
 
   const [isClientContractsOpen, setIsClientContractsOpen] = useState(false);
   const [clientContractsList, setClientContractsList] = useState<Contract[]>(
@@ -93,20 +77,12 @@ export function Contracts() {
   }, [isAddModalOpen]);
 
   // ═══════════════════════════════════════
-  // 🎯 ALL useCallback/useMemo HOOKS
+  // 🎯 HANDLERS
   // ═══════════════════════════════════════
 
   const handleAddClick = useCallback(() => {
-    if (!canCreate) {
-      showToast(
-        "error",
-        "Access Denied",
-        "You do not have permission to create contracts",
-      );
-      return;
-    }
     setIsAddModalOpen(true);
-  }, [canCreate]);
+  }, []);
 
   const handleAddSave = useCallback(
     async (formData: any) => {
@@ -168,18 +144,10 @@ export function Contracts() {
   );
 
   const handleEditClick = useCallback(() => {
-    if (!canUpdate) {
-      showToast(
-        "error",
-        "Access Denied",
-        "You do not have permission to edit contracts",
-      );
-      return;
-    }
     if (!selectedContract) return;
     setEditingContract(selectedContract);
     setIsEditModalOpen(true);
-  }, [selectedContract, canUpdate]);
+  }, [selectedContract]);
 
   const handleEditSave = useCallback(
     async (formData: any) => {
@@ -204,15 +172,6 @@ export function Contracts() {
   );
 
   const handleExportToExcel = useCallback(async () => {
-    if (!canExport) {
-      showToast(
-        "error",
-        "Access Denied",
-        "You do not have permission to export contracts",
-      );
-      return;
-    }
-
     const confirmed = await confirmDialog({
       title: "Export Contracts",
       message: `Are you sure you want to export ${filteredContracts.length} contracts to Excel?`,
@@ -247,26 +206,15 @@ export function Contracts() {
     showToast(
       "success",
       "Export Successful",
-      `${filteredContracts.length} contracts exported to Excel`,
+      `${filteredContracts.length} contracts exported`,
     );
-  }, [filteredContracts, typeFilter, canExport]);
+  }, [filteredContracts, typeFilter]);
 
-  const handleRequestComplete = useCallback(
-    (contract: Contract) => {
-      if (!canUpdate) {
-        showToast(
-          "error",
-          "Access Denied",
-          "You do not have permission to complete contracts",
-        );
-        return;
-      }
-      setContractToComplete(contract);
-      setCompleteReason("");
-      setConfirmCompleteOpen(true);
-    },
-    [canUpdate],
-  );
+  const handleRequestComplete = useCallback((contract: Contract) => {
+    setContractToComplete(contract);
+    setCompleteReason("");
+    setConfirmCompleteOpen(true);
+  }, []);
 
   const handleConfirmComplete = useCallback(async () => {
     if (!contractToComplete) return;
@@ -348,23 +296,8 @@ export function Contracts() {
   }, [clientContractsList]);
 
   // ═══════════════════════════════════════
-  // 🎯 CONDITIONAL RETURNS (AFTER ALL HOOKS)
+  // 🎯 ERROR STATE
   // ═══════════════════════════════════════
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[600px]">
-        <div className="text-center">
-          <div className="text-6xl mb-4 animate-pulse">⏳</div>
-          <p
-            className={`text-lg ${isDark ? "text-slate-300" : "text-slate-600"}`}
-          >
-            Loading contracts from database...
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   if (error) {
     return (
@@ -417,17 +350,15 @@ export function Contracts() {
         }}
         onAddClick={handleAddClick}
         onExport={handleExportToExcel}
-        canCreate={canCreate}
-        canExport={canExport}
-        canRead={canRead}
+        loading={loading}
       />
 
       {/* RIGHT PANEL - ContractDetails */}
       <div
-        className={`col-span-1 lg:col-span-8 flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out ${
+        className={`col-span-1 lg:col-span-8 flex flex-col rounded-2xl overflow-hidden transition-all duration-300 ${
           isDark
-            ? "bg-slate-900 border-slate-700"
-            : "bg-white border-slate-200/70"
+            ? "bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-700/50 shadow-2xl shadow-black/30"
+            : "bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/70 shadow-xl shadow-slate-200/50"
         }`}
       >
         <ContractDetails
@@ -438,49 +369,41 @@ export function Contracts() {
           }}
           onEdit={handleEditClick}
           onRequestComplete={handleRequestComplete}
-          userRole={userRole}
-          canUpdate={canUpdate}
-          canApprove={canApprove}
+          onViewClientContracts={handleViewClientContracts}
         />
       </div>
 
       {/* 🔑 ADD CONTRACT MODAL */}
-      {canCreate && (
-        <ContractForm
-          isOpen={isAddModalOpen}
-          onClose={() => setIsAddModalOpen(false)}
-          onSave={handleAddSave}
-          mode="add"
-          typeFilter={typeFilter}
-          contracts={contracts}
-          generateContractNo={(type, contracts) =>
-            generateContractNo(type, contracts, currentDepartment)
-          }
-          onNavigateToClients={handleNavigateToClients}
-          canCreate={canCreate}
-        />
-      )}
+      <ContractForm
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSave={handleAddSave}
+        mode="add"
+        typeFilter={typeFilter}
+        contracts={contracts}
+        generateContractNo={(type, contracts) =>
+          generateContractNo(type, contracts, currentDepartment)
+        }
+        onNavigateToClients={handleNavigateToClients}
+      />
 
       {/* 🔑 EDIT CONTRACT MODAL */}
-      {canUpdate && (
-        <ContractForm
-          isOpen={isEditModalOpen}
-          onClose={() => {
-            setIsEditModalOpen(false);
-            setEditingContract(null);
-          }}
-          onSave={handleEditSave}
-          initialData={editingContract || undefined}
-          mode="edit"
-          typeFilter={typeFilter}
-          contracts={contracts}
-          generateContractNo={(type, contracts) =>
-            generateContractNo(type, contracts, currentDepartment)
-          }
-          onNavigateToClients={handleNavigateToClients}
-          canUpdate={canUpdate}
-        />
-      )}
+      <ContractForm
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingContract(null);
+        }}
+        onSave={handleEditSave}
+        initialData={editingContract || undefined}
+        mode="edit"
+        typeFilter={typeFilter}
+        contracts={contracts}
+        generateContractNo={(type, contracts) =>
+          generateContractNo(type, contracts, currentDepartment)
+        }
+        onNavigateToClients={handleNavigateToClients}
+      />
 
       {/* 🔑 MODAL نمایش قراردادهای قبلی مشتری */}
       <Modal

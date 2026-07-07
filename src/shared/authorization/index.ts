@@ -10,23 +10,28 @@ export type {
   ActionType,
   UserStatus,
   UserFormData,
-} from './types';
+} from "./types";
 
-export { ROLES, getRolePermissions, hasPermission, hasAnyPermission, hasAllPermissions } from './roles';
 export {
-  ENTITIES,
-  DEFAULT_ACTIONS,
-  ENTITY_GROUPS,
-} from './permissions';
+  ROLES,
+  getRolePermissions,
+  hasPermission,
+  hasAnyPermission,
+  hasAllPermissions,
+} from "./roles";
+export { ENTITIES, ENTITY_GROUPS } from "./permissions";
 
-export type {
-  EntityType as PermissionEntityType,
-} from './permissions';
+export type { EntityType as PermissionEntityType } from "./permissions";
 
-export { usePermission } from './hooks/usePermission';
-export { usePermissionMapping } from './hooks/usePermissionMapping';
+export { usePermission } from "./hooks/usePermission";
+export { usePermissionMapping } from "./hooks/usePermissionMapping";
 
-export { RoleGuard, AdminOnly, ManagerOrAbove, InspectorOnly } from './components/RoleGuard';
-export { PermissionGuard } from './ui/PermissionGuard';
+export {
+  RoleGuard,
+  AdminOnly,
+  ManagerOrAbove,
+  InspectorOnly,
+} from "./components/RoleGuard";
+export { PermissionGuard } from "./ui/PermissionGuard";
 
-export { userService } from './services/UserService';
+export { userService } from "./services/UserService";

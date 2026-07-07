@@ -1,41 +1,81 @@
 // src/features/contract-management/ui/ContractList.tsx
 
-import { Button, Badge } from '@design-system';
-import { useTheme } from '@app/providers/ThemeProvider';
-import { usePermission } from '@shared/authorization/hooks/usePermission';
-import { PermissionGuard } from '@shared/authorization/ui/PermissionGuard';
-import { usePermissionMapping } from '@shared/authorization/hooks/usePermissionMapping';
-import { showToast } from '@shared/ui/ToastContainer';
-import type { Contract } from '@entities/contract/types';
-import { formatCurrency } from '@shared/lib/formatters';
+import { useMemo } from "react";
+import { Button, Badge } from "@design-system";
+import { useTheme } from "@app/providers/ThemeProvider";
+import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
+import { showToast } from "@shared/ui/ToastContainer";
+import type { Contract } from "@entities/contract/types";
+import { formatCurrency } from "@shared/lib/formatters";
 import {
-  calculateProgressFromTariffs,
   calculateDaysProgress,
   calculateDaysLeft,
   getDaysUntilStart,
   getContractFinancialStatus,
   isExpiringSoon,
   getDaysProgressColor,
-} from '@entities/contract/services/contractCalculations';
+} from "@entities/contract/services/contractCalculations";
 
 interface ContractListProps {
   contracts: Contract[];
   filteredContracts: Contract[];
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  typeFilter: 'ALL' | 'CONTRACT' | 'WORK_ORDER';
-  setTypeFilter: (type: 'ALL' | 'CONTRACT' | 'WORK_ORDER') => void;
-  statusFilter: 'ALL' | 'ACTIVE' | 'NOT_STARTED' | 'NEEDS_REVIEW' | 'COMPLETED';
-  setStatusFilter: (status: 'ALL' | 'ACTIVE' | 'NOT_STARTED' | 'NEEDS_REVIEW' | 'COMPLETED') => void;
-  sortBy: 'date' | 'value' | 'status';
-  setSortBy: (sort: 'date' | 'value' | 'status') => void;
+  typeFilter: "ALL" | "CONTRACT" | "WORK_ORDER";
+  setTypeFilter: (type: "ALL" | "CONTRACT" | "WORK_ORDER") => void;
+  statusFilter: "ALL" | "ACTIVE" | "NOT_STARTED" | "NEEDS_REVIEW" | "COMPLETED";
+  setStatusFilter: (
+    status: "ALL" | "ACTIVE" | "NOT_STARTED" | "NEEDS_REVIEW" | "COMPLETED",
+  ) => void;
+  sortBy: "date" | "value" | "status";
+  setSortBy: (sort: "date" | "value" | "status") => void;
   selectedContract: Contract | null;
   setSelectedContract: (contract: Contract) => void;
   onAddClick: () => void;
   onExport: () => void;
-  canCreate?: boolean;
-  canExport?: boolean;
-  canRead?: boolean;
+  loading?: boolean;
+}
+
+// 🔧 Skeleton Component
+function ContractSkeleton({ isDark }: { isDark: boolean }) {
+  return (
+    <div
+      className={`px-4 py-3 border-b animate-pulse ${isDark ? "border-slate-700" : "border-slate-100"}`}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2">
+            <div
+              className={`h-5 w-24 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+            />
+            <div
+              className={`h-4 w-20 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+            />
+          </div>
+          <div
+            className={`h-4 w-3/4 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+          />
+          <div
+            className={`h-3 w-1/2 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+          />
+        </div>
+        <div
+          className={`h-5 w-16 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+        />
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        <div
+          className={`h-3 w-32 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+        />
+        <div
+          className={`h-3 w-20 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+        />
+      </div>
+      <div
+        className={`mt-2 h-1.5 w-full rounded-full ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+      />
+    </div>
+  );
 }
 
 export function ContractList({
@@ -53,414 +93,507 @@ export function ContractList({
   setSelectedContract,
   onAddClick,
   onExport,
-  canCreate = true,
-  canExport = true,
-  canRead = true,
+  loading = false,
 }: ContractListProps) {
   const { isDark } = useTheme();
-  
-  const { canAny } = usePermission();
-  const canViewFinancial = canAny(['contract:read', 'contract:view_all', 'contract:view_own']);
-  
   const { canAccessElement } = usePermissionMapping();
 
+  // 🔐 Element-Level Access
+  const canClickItem = canAccessElement("contract_list_item_click");
+  const canSearch = canAccessElement("contract_search_box");
+  const canSort = canAccessElement("contract_sort_select");
+  const canFilterType = canAccessElement("contract_filter_type");
+  const canFilterStatus = canAccessElement("contract_filter_status");
+  const canStatusBadge = canAccessElement("contract_status_badge");
+  const canListValue = canAccessElement("contract_list_value");
+  const canProgressBar = canAccessElement("contract_progress_bar");
+  const canContractDates = canAccessElement("contract_dates");
+  const canAdd = canAccessElement("contract_btn_add");
+  const canExport = canAccessElement("contract_btn_export");
+
   const handleContractClick = (contract: Contract) => {
-    if (!canRead) {
-      showToast('error', 'Access Denied', 'You do not have permission to view contracts');
+    if (!canClickItem) {
+      showToast(
+        "error",
+        "Access Denied",
+        "You do not have permission to view contract details",
+      );
       return;
     }
-    
-    if (!canAccessElement('contract_list_item_click')) {
-      showToast('error', 'Access Denied', 'You do not have permission to view contract details');
-      return;
-    }
-    
     setSelectedContract(contract);
   };
 
-  const canFilterType = canAccessElement('contract_filter_type');
-  const canFilterStatus = canAccessElement('contract_filter_status');
-  const canSearch = canAccessElement('contract_search_box');
-  const canSort = canAccessElement('contract_sort_select');
-
   return (
-    <div className={`col-span-1 lg:col-span-4 relative flex flex-col rounded-xl panel-3d overflow-hidden transition-all duration-300 ease-in-out max-h-[50vh] lg:max-h-none ${
-      isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200/70'}`}>
-      
-      <PermissionGuard 
-        elementId="contract_list_item_view" 
-        fallback={
-          <div className="p-8 text-center">
-            <div className="text-4xl mb-2">🔒</div>
-            <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              You don't have permission to view contracts
-            </p>
-          </div>
-        }
+    <div
+      className={`col-span-1 lg:col-span-4 flex flex-col rounded-2xl overflow-hidden transition-all duration-300 ${
+        isDark
+          ? "bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-700/50 shadow-2xl shadow-black/30"
+          : "bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/70 shadow-xl shadow-slate-200/50"
+      }`}
+    >
+      {/* Header با Gradient */}
+      <div
+        className={`relative px-5 py-4 border-b ${
+          isDark
+            ? "border-slate-700/50 bg-gradient-to-r from-indigo-900/30 via-slate-900 to-violet-900/30"
+            : "border-slate-200/70 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50"
+        }`}
       >
-        <div className={`relative z-10 border-b px-4 py-4 space-y-3 ${
-          isDark ? 'border-slate-700 bg-slate-800/50' : 'border-slate-100 bg-slate-50/50'}`}>
-          
-          {/* 🔗 contract_search_box */}
-          <div className={`flex items-center gap-3 ${!canSearch ? 'opacity-50 pointer-events-none' : ''}`}>
-            <div className="relative flex-1">
-              <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>🔍</span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by Contract No, ..."
-                disabled={!canSearch}
-                className={`w-full rounded-lg py-2 pl-9 pr-8 text-sm input-themed ${
-                  !canSearch ? 'cursor-not-allowed' : ''
-                }`}
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery('')} 
-                  className={`absolute right-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  ✕
-                </button>
-              )}
+        {/* Pattern Background */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='${isDark ? "%23ffffff" : "%23000000"}' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }}
+        />
+
+        <div className="relative flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2.5">
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${
+                isDark
+                  ? "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/30"
+                  : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20"
+              }`}
+            >
+              📄
             </div>
-            <div className="relative">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'date' | 'value' | 'status')}
-                disabled={!canSort}
-                className={`appearance-none text-xs rounded-md border pl-2 pr-6 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer ${
-                  isDark ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                } ${!canSort ? 'cursor-not-allowed opacity-60' : ''}`}
+            <div>
+              <h2
+                className={`text-sm font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}
               >
-                <option value="date">Latest First</option>
-                <PermissionGuard elementId="contract_stat_total_value" fallback={null}>
-                  {canViewFinancial && <option value="value">Highest Value</option>}
-                </PermissionGuard>
-                <option value="status">By Status</option>
-              </select>
-              <span className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>▼</span>
+                Agreements
+              </h2>
             </div>
           </div>
+          <div className="flex gap-1.5">
+            {canExport && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={onExport}
+                title="Export to Excel"
+                className="transition-all hover:scale-105 shadow-md shadow-slate-700/50"
+              >
+                📊
+              </Button>
+            )}
+            {canAdd && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={onAddClick}
+                title="Add Agreement"
+                className="transition-all hover:scale-105 shadow-md shadow-slate-700/50"
+              >
+                ➕
+              </Button>
+            )}
+          </div>
+        </div>
 
-                    {/* 🔗 contract_filter_type */}
-          <div className={`flex gap-1 rounded-lg border p-0.5 text-xs ${
-            isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
-          } ${!canFilterType ? 'opacity-50 pointer-events-none' : ''}`}>
-            {(['ALL', 'CONTRACT', 'WORK_ORDER'] as const).map((t) => {
-              const count = t === 'ALL' ? contracts.length : t === 'CONTRACT' ? contracts.filter(c => c.type === 'CONTRACT').length : contracts.filter(c => c.type === 'WORK_ORDER').length;
+        {/* Search */}
+        {canSearch && (
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="🔍 Search contracts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-full rounded-xl px-4 py-2.5 text-sm transition-all focus:ring-2 ${
+                isDark
+                  ? "bg-slate-800/50 border border-slate-700/50 text-slate-100 placeholder-slate-500 focus:ring-indigo-500/50 focus:border-indigo-500/50"
+                  : "bg-white/70 border border-slate-200/70 text-slate-900 placeholder-slate-400 focus:ring-indigo-500/30 focus:border-indigo-300 shadow-sm"
+              }`}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Type Filter Tabs */}
+      {canFilterType && (
+        <div
+          className={`px-4 py-2.5 border-b ${
+            isDark
+              ? "border-slate-700/50 bg-slate-900/30"
+              : "border-slate-200/70 bg-slate-50/50"
+          }`}
+        >
+          <div className="flex gap-1.5">
+            {(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => {
+              const count =
+                t === "ALL"
+                  ? contracts.length
+                  : contracts.filter((c) => c.type === t).length;
               return (
                 <button
                   key={t}
                   onClick={() => setTypeFilter(t)}
-                  disabled={!canFilterType}
-                  className={`flex-1 rounded px-1 py-1.5 font-medium transition-all whitespace-nowrap ${
+                  className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
                     typeFilter === t
-                      ? (isDark 
-                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30 border border-indigo-500'
-                          : 'bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm')
-                      : (isDark 
-                          ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                          : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50')
-                  } ${!canFilterType ? 'cursor-not-allowed' : ''}`}
+                      ? isDark
+                        ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/30"
+                        : "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/20"
+                      : isDark
+                        ? "bg-slate-800/50 text-slate-400 hover:bg-slate-700/50 hover:text-slate-200"
+                        : "bg-white/70 text-slate-600 hover:bg-slate-100 hover:text-slate-900 shadow-sm"
+                  }`}
                 >
-                  {/* 🔧 FIX: اگه دسترسی نداره، count رو نشون نده */}
-                  {t === 'ALL' ? (canFilterType ? `All (${count})` : 'All') : 
-                   t === 'CONTRACT' ? (canFilterType ? `📄 (${count})` : '📄') : 
-                   (canFilterType ? `📦 (${count})` : '📦')}
+                  {t === "ALL"
+                    ? `All (${count})`
+                    : t === "CONTRACT"
+                      ? `📄 Contracts (${count})`
+                      : `📦 W/Orders (${count})`}
                 </button>
               );
             })}
           </div>
+        </div>
+      )}
 
-                    {/* 🔗 contract_filter_status */}
-          <div className={`flex gap-1 rounded-lg border p-1 text-xs ${
-            isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'
-          } ${!canFilterStatus ? 'opacity-50 pointer-events-none' : ''}`}>
-            {(['ALL', 'ACTIVE', 'NOT_STARTED', 'NEEDS_REVIEW', 'COMPLETED'] as const).map((t) => {
-              const baseFiltered = typeFilter === 'ALL' ? contracts : contracts.filter(c => c.type === typeFilter);
+      {/* Status Filter Tabs */}
+      {canFilterStatus && (
+        <div
+          className={`px-4 py-2 border-b ${
+            isDark ? "border-slate-700/50" : "border-slate-200/70"
+          }`}
+        >
+          <div className="flex gap-1.5">
+            {(
+              [
+                "ALL",
+                "ACTIVE",
+                "NOT_STARTED",
+                "NEEDS_REVIEW",
+                "COMPLETED",
+              ] as const
+            ).map((t) => {
+              const baseFiltered =
+                typeFilter === "ALL"
+                  ? contracts
+                  : contracts.filter((c) => c.type === typeFilter);
               let count = 0;
-              
-              if (t === 'ALL') count = baseFiltered.length;
-              else if (t === 'ACTIVE') count = baseFiltered.filter(c => getContractFinancialStatus(c) === 'active').length;
-              else if (t === 'NOT_STARTED') count = baseFiltered.filter(c => getContractFinancialStatus(c) === 'not_started').length;
-              else if (t === 'NEEDS_REVIEW') count = baseFiltered.filter(c => getContractFinancialStatus(c) === 'needs_review').length;
-              else if (t === 'COMPLETED') count = baseFiltered.filter(c => getContractFinancialStatus(c) === 'completed').length;
-              
+              if (t === "ALL") count = baseFiltered.length;
+              else
+                count = baseFiltered.filter(
+                  (c) =>
+                    getContractFinancialStatus(c) ===
+                    t.toLowerCase().replace("_", "_"),
+                ).length;
+
               return (
                 <button
                   key={t}
                   onClick={() => setStatusFilter(t)}
-                  disabled={!canFilterStatus}
-                  className={`flex-1 rounded px-1 py-1.5 font-medium transition-all whitespace-nowrap ${
+                  className={`flex-1 px-2 py-1 rounded-md text-[10px] font-semibold transition-all ${
                     statusFilter === t
-                      ? (isDark 
-                          ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30 border border-emerald-500'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm')
-                      : (isDark 
-                          ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-700'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50')
-                  } ${!canFilterStatus ? 'cursor-not-allowed' : ''}`}
+                      ? isDark
+                        ? "bg-emerald-900/50 text-emerald-300 border border-emerald-700"
+                        : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : isDark
+                        ? "text-slate-400 hover:bg-slate-800/50"
+                        : "text-slate-600 hover:bg-slate-100"
+                  }`}
                 >
-                  {/* 🔧 FIX: اگه دسترسی نداره، count رو نشون نده */}
-                  {t === 'ALL' ? (canFilterStatus ? `All (${count})` : 'All') : 
-                   t === 'ACTIVE' ? (canFilterStatus ? `🟢 (${count})` : '🟢') : 
-                   t === 'NOT_STARTED' ? (canFilterStatus ? `⏳ (${count})` : '⏳') : 
-                   t === 'NEEDS_REVIEW' ? (canFilterStatus ? `⚠️ (${count})` : '⚠️') : 
-                   (canFilterStatus ? `✓ (${count})` : '✓')}
+                  {t === "ALL"
+                    ? "All"
+                    : t === "ACTIVE"
+                      ? "🟢"
+                      : t === "NOT_STARTED"
+                        ? "⏳"
+                        : t === "NEEDS_REVIEW"
+                          ? "⚠️"
+                          : "✓"}
                 </button>
               );
             })}
           </div>
         </div>
+      )}
 
-        {/* Contract List */}
-        <div className="flex-1 overflow-y-auto pb-24">
-          {filteredContracts.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className="text-4xl mb-2">📄</div>
-              <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>No contracts found</p>
+      {/* Sort */}
+      {canSort && (
+        <div
+          className={`px-4 py-2 border-b ${
+            isDark ? "border-slate-700/50" : "border-slate-200/70"
+          }`}
+        >
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className={`w-full rounded-lg px-3 py-1.5 text-[11px] transition-all focus:ring-2 ${
+              isDark
+                ? "bg-slate-800/50 border border-slate-700/50 text-slate-300 focus:ring-indigo-500/50"
+                : "bg-white/70 border border-slate-200/70 text-slate-700 focus:ring-indigo-500/30 shadow-sm"
+            }`}
+          >
+            <option value="date">📅 Sort by Date</option>
+            <option value="value">💰 Sort by Value</option>
+            <option value="status">🏷️ Sort by Status</option>
+          </select>
+        </div>
+      )}
+
+      {/* Contract List */}
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="divide-y divide-slate-100 dark:divide-slate-700">
+            <ContractSkeleton isDark={isDark} />
+            <ContractSkeleton isDark={isDark} />
+            <ContractSkeleton isDark={isDark} />
+            <ContractSkeleton isDark={isDark} />
+          </div>
+        ) : filteredContracts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+            <div
+              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${
+                isDark ? "bg-slate-800/50" : "bg-slate-100"
+              }`}
+            >
+              📄
             </div>
-          ) : (
-            filteredContracts.map((contract) => {
-              const canClick = canAccessElement('contract_list_item_click');
-              
+            <p
+              className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
+            >
+              No contracts found
+            </p>
+            <p
+              className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
+            >
+              Try adjusting your search or filters
+            </p>
+          </div>
+        ) : (
+          <div className="p-2 space-y-1.5">
+            {filteredContracts.map((contract) => {
+              const isSelected = selectedContract?.id === contract.id;
+              const financialStatus = getContractFinancialStatus(contract);
+              const expiringInfo = isExpiringSoon(contract);
+              const daysProgress = calculateDaysProgress(contract);
+              const daysLeft = calculateDaysLeft(contract.end_date);
+              const isExpired = daysLeft < 0;
+
               return (
-                <div
+                <button
                   key={contract.id}
                   onClick={() => handleContractClick(contract)}
-                  className={`flex flex-col gap-2 px-4 py-3 border-b transition-colors ${
-                    canClick ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
+                  disabled={!canClickItem}
+                  className={`group relative w-full text-left rounded-xl p-3 transition-all duration-200 ${
+                    !canClickItem
+                      ? "cursor-not-allowed opacity-60"
+                      : "cursor-pointer"
                   } ${
-                    isDark ? 'border-slate-700' : 'border-slate-100'
-                  } ${
-                    selectedContract?.id === contract.id
-                      ? (isDark ? 'bg-indigo-900/30 border-l-4 border-l-indigo-400' : 'bg-indigo-50 border-l-4 border-l-indigo-500')
-                      : (isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50')
+                    isSelected
+                      ? isDark
+                        ? "bg-gradient-to-r from-indigo-900/50 to-violet-900/50 border border-indigo-500/50 shadow-lg shadow-indigo-500/20"
+                        : "bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-300/50 shadow-lg shadow-indigo-500/10"
+                      : isDark
+                        ? "bg-slate-800/30 border border-transparent hover:bg-slate-800/60 hover:border-slate-700/50 hover:shadow-md"
+                        : "bg-white/50 border border-transparent hover:bg-white hover:border-slate-200/70 hover:shadow-md"
                   }`}
                 >
-                  <div className="flex items-start justify-between">
+                  {/* Selection Indicator */}
+                  {isSelected && (
+                    <div
+                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full ${
+                        isDark ? "bg-indigo-500" : "bg-indigo-500"
+                      }`}
+                    />
+                  )}
+
+                  <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge tone={contract.type === 'CONTRACT' ? 'indigo' : 'amber'}>
-                          {contract.type === 'CONTRACT' ? '📄 Contract' : '📦 Work Order'}
+                        <Badge
+                          tone={
+                            contract.type === "CONTRACT" ? "indigo" : "amber"
+                          }
+                          className="text-[9px]"
+                        >
+                          {contract.type === "CONTRACT"
+                            ? "📄 Contract"
+                            : "📦 Work Order"}
                         </Badge>
-                        <span className={`font-mono text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <span
+                          className={`font-mono text-[11px] ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                        >
                           {contract.contract_no}
                         </span>
                       </div>
-                      <div className={`text-sm font-medium truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                      <h3
+                        className={`text-sm font-bold truncate ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                      >
                         {contract.contract_title}
-                      </div>
-                      <div className={`text-xs truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                      </h3>
+                      <p
+                        className={`text-[11px] truncate mt-0.5 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                      >
                         {contract.client_name}
-                      </div>
+                      </p>
                     </div>
-                    
-                    {/* 🔗 contract_status_badge */}
-                    <PermissionGuard elementId="contract_status_badge" fallback={null}>
-                      {(() => {
-                        const financialStatus = getContractFinancialStatus(contract);
-                        const expiringInfo = isExpiringSoon(contract);
-                        
-                        if (contract.status === 'COMPLETED') {
-                          return <Badge tone="slate">✓ Completed</Badge>;
-                        }
-                        
-                        if (expiringInfo.expiring) {
-                          return (
-                            <Badge tone="danger" className="gap-1 animate-pulse">
-                              <span>⚠️</span>
-                              <span>Expiring Soon</span>
-                            </Badge>
-                          );
-                        }
-                        
-                        if (financialStatus === 'not_started') {
-                          return (
-                            <Badge tone="amber" className="gap-1">
-                              <span>⏳</span>
-                              <span>Not Started</span>
-                            </Badge>
-                          );
-                        }
-                        
-                        if (financialStatus === 'needs_review') {
-                          return (
-                            <Badge tone="amber" className="gap-1">
-                              <span>⚠️</span>
-                              <span>Needs Review</span>
-                            </Badge>
-                          );
-                        }
-                        
-                        return <Badge tone="emerald">🟢 Active</Badge>;
-                      })()}
-                    </PermissionGuard>
-                  </div>
-                  
-                  {/* 🔗 contract_dates */}
-                  <PermissionGuard elementId="contract_dates" fallback={null}>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-                        {contract.start_date} → {contract.end_date}
-                      </span>
-                      {/* 🔗 contract_list_value */}
-                      <PermissionGuard elementId="contract_list_value" fallback={
-                        <span className={`font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                          🔒 Locked
-                        </span>
-                      }>
-                        {canViewFinancial ? (
-                          <span className={`font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                            {formatCurrency(contract.total_value, contract.currency)}
-                          </span>
+
+                    {/* Status Badge */}
+                    {canStatusBadge && (
+                      <div className="shrink-0 ml-2">
+                        {contract.status === "COMPLETED" ? (
+                          <Badge tone="slate" className="text-[9px]">
+                            ✓ Completed
+                          </Badge>
+                        ) : expiringInfo.expiring ? (
+                          <Badge
+                            tone="danger"
+                            className="text-[9px] gap-1 animate-pulse"
+                          >
+                            <span>⚠️</span>
+                            <span>Expiring</span>
+                          </Badge>
+                        ) : financialStatus === "not_started" ? (
+                          <Badge tone="amber" className="text-[9px]">
+                            ⏳ Not Started
+                          </Badge>
+                        ) : financialStatus === "needs_review" ? (
+                          <Badge tone="amber" className="text-[9px]">
+                            ⚠️ Review
+                          </Badge>
                         ) : (
-                          <span className={`font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                            🔒 Locked
-                          </span>
+                          <Badge tone="emerald" className="text-[9px]">
+                            🟢 Active
+                          </Badge>
                         )}
-                      </PermissionGuard>
-                    </div>
-                  </PermissionGuard>
-
-                  {(() => {
-                    const financialStatus = getContractFinancialStatus(contract);
-                    
-                    if (contract.status === 'COMPLETED' || financialStatus === 'completed') {
-                      return (
-                        <div className="mt-1">
-                          {/* 🔗 contract_progress_bar */}
-                          <PermissionGuard elementId="contract_progress_bar" fallback={null}>
-                            <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}>
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${
-                                  isDark ? 'bg-slate-500' : 'bg-slate-400'}`}
-                                style={{ width: '100%' }}
-                              />
-                            </div>
-                          </PermissionGuard>
-                          <div className="flex items-center justify-between mt-1 text-[10px]">
-                            <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-                              Time Progress
-                            </span>
-                            <span className={`font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                              ✓ Completed
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    }
-                  
-                    if (financialStatus === 'not_started') {
-                      const daysUntilStart = getDaysUntilStart(contract.start_date);
-                      return (
-                        /* 🔗 contract_progress_bar */
-                        <PermissionGuard elementId="contract_progress_bar" fallback={null}>
-                          <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${
-                            isDark ? 'border-amber-700 bg-amber-900/20 text-amber-300' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-                            <div className="flex items-center gap-2">
-                              <span>⏳</span>
-                              <span className="font-medium">Starts in {daysUntilStart} days</span>
-                            </div>  
-                          </div>
-                        </PermissionGuard>
-                      );
-                    }
-                    
-                    const daysProgress = calculateDaysProgress(contract);
-                    const daysLeft = calculateDaysLeft(contract.end_date);
-                    const isExpired = daysLeft < 0;
-                    
-                    return (
-                      <div className="mt-1">
-                        {/* 🔗 contract_progress_bar */}
-                        <PermissionGuard elementId="contract_progress_bar" fallback={null}>
-                          <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}>
-                            <div
-                              className={`h-full rounded-full transition-all duration-500 ${getDaysProgressColor(daysProgress)}`}
-                              style={{ width: `${Math.min(daysProgress, 100)}%` }}
-                            />
-                          </div>
-                        </PermissionGuard>
-                        <div className="flex items-center justify-between mt-1 text-[10px]">
-                          <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-                            Time Progress
-                          </span>
-                          {/* 🔗 contract_progress_bar */}
-                          <PermissionGuard elementId="contract_progress_bar" fallback={
-                            <span className={`font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                              🔒
-                            </span>
-                          }>
-                            <span className={`font-semibold ${
-                              isExpired 
-                                ? (isDark ? 'text-rose-400' : 'text-rose-600')
-                                : daysLeft <= 30 
-                                  ? (isDark ? 'text-amber-400' : 'text-amber-600')
-                                  : (isDark ? 'text-emerald-400' : 'text-emerald-600')
-                            }`}>
-                              {isExpired 
-                                ? `${Math.abs(daysLeft)} days overdue` 
-                                : daysLeft === 0 
-                                  ? 'Expires today'
-                                  : `${daysLeft} days left`}
-                              <span className={`ml-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                ({daysProgress.toFixed(0)}%)
-                              </span>
-                            </span>
-                          </PermissionGuard>
-                        </div>
                       </div>
-                    );
-                  })()}
-                </div>
+                    )}
+                  </div>
+
+                  {/* Dates & Value */}
+                  <div className="flex items-center justify-between text-[11px]">
+                    {canContractDates && (
+                      <span
+                        className={isDark ? "text-slate-400" : "text-slate-500"}
+                      >
+                        📅 {contract.start_date} → {contract.end_date}
+                      </span>
+                    )}
+                    {canListValue && (
+                      <span
+                        className={`font-semibold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
+                      >
+                        {formatCurrency(
+                          contract.total_value,
+                          contract.currency,
+                        )}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Progress Bar */}
+                  {canProgressBar && contract.status !== "COMPLETED" && (
+                    <div className="mt-2">
+                      <div
+                        className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700/50" : "bg-slate-200/70"}`}
+                      >
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${getDaysProgressColor(daysProgress)}`}
+                          style={{ width: `${Math.min(daysProgress, 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-1 text-[10px]">
+                        <span
+                          className={
+                            isDark ? "text-slate-500" : "text-slate-400"
+                          }
+                        >
+                          Time Progress
+                        </span>
+                        <span
+                          className={`font-semibold ${
+                            isExpired
+                              ? isDark
+                                ? "text-rose-400"
+                                : "text-rose-600"
+                              : daysLeft <= 30
+                                ? isDark
+                                  ? "text-amber-400"
+                                  : "text-amber-600"
+                                : isDark
+                                  ? "text-emerald-400"
+                                  : "text-emerald-600"
+                          }`}
+                        >
+                          {isExpired
+                            ? `${Math.abs(daysLeft)} days overdue`
+                            : daysLeft === 0
+                              ? "Expires today"
+                              : `${daysLeft} days left`}
+                          <span
+                            className={`ml-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                          >
+                            ({daysProgress.toFixed(0)}%)
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Arrow Icon */}
+                  <div
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                      isSelected
+                        ? isDark
+                          ? "bg-indigo-500/20 text-indigo-400"
+                          : "bg-indigo-500/20 text-indigo-600"
+                        : isDark
+                          ? "bg-slate-700/50 text-slate-500 group-hover:bg-slate-700 group-hover:text-slate-300"
+                          : "bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600"
+                    }`}
+                  >
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
+                </button>
               );
-            })
-          )}
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Footer Stats */}
+      <div
+        className={`px-4 py-2.5 border-t ${
+          isDark
+            ? "border-slate-700/50 bg-slate-900/50"
+            : "border-slate-200/70 bg-slate-50/50"
+        }`}
+      >
+        <div className="flex items-center justify-between text-[10px]">
+          <span className={isDark ? "text-slate-400" : "text-slate-600"}>
+            Showing {filteredContracts.length} of {contracts.length} contracts
+          </span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className={isDark ? "text-slate-400" : "text-slate-600"}>
+                Active
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className={isDark ? "text-slate-400" : "text-slate-600"}>
+                Expiring
+              </span>
+            </div>
+          </div>
         </div>
-      </PermissionGuard>
-
-      {/* Gradient Fade */}
-      <div className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t pointer-events-none z-10 ${
-        isDark 
-          ? 'from-slate-900 via-slate-900/95 to-slate-900/0'
-          : 'from-white via-white/95 to-white/0'}`} />
-      
-      {/* Action Buttons */}
-      <div className="absolute bottom-5 left-0 right-0 px-4 z-20 flex gap-2">
-        {/* 🔗 contract_btn_add */}
-        <PermissionGuard elementId="contract_btn_add" fallback={null}>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={onAddClick}
-            className={`flex-1 justify-center gap-2 transition-all duration-300 hover:-translate-y-0.5 ${
-              isDark 
-                ? 'border border-indigo-400/30 shadow-[0_8px_24px_rgba(99,102,241,0.4)] hover:shadow-[0_12px_32px_rgba(99,102,241,0.6)]'
-                : 'shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30'}`}
-          >
-            <span>➕</span> 
-            {typeFilter === 'ALL' ? 'Add New Agreement' : 
-             typeFilter === 'CONTRACT' ? 'Add New Contract' : 'Add New Work Order'}
-          </Button>
-        </PermissionGuard>
-
-        {/* 🔗 contract_btn_export */}
-        <PermissionGuard elementId="contract_btn_export" fallback={null}>
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={onExport}
-            className={`transition-all duration-300 hover:-translate-y-0.5 ${
-              isDark 
-                ? 'border border-slate-700 shadow-[0_8px_24px_rgba(0,0,0,0.3)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.5)]'
-                : 'shadow-lg shadow-slate-300/50 hover:shadow-xl hover:shadow-slate-400/50'}`}
-            title="Export to Excel"
-          >
-            📥
-          </Button>
-        </PermissionGuard>
       </div>
     </div>
   );
