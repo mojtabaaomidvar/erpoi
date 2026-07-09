@@ -17,23 +17,53 @@ import { UserManagement } from "@shared/authorization/ui/UserManagement";
 import { LoginPage } from "@features/auth/ui/LoginPage";
 import { ConfirmDialogProvider } from "@shared/ui/ConfirmDialog";
 import { ToastProvider } from "@shared/ui/ToastContainer";
-
+import { amendmentService } from "@features/contract-management/services/AmendmentService";
 
 const meta: Record<ViewKey, { title: string; subtitle: string }> = {
-  dashboard: { title: "Operations Dashboard", subtitle: "Live overview of inspections, revenue, and inspector workload" },
-  clients: { title: "Client Managements", subtitle: "Legal entities and individuals under management" },
-  contracts: { title: "Agrrement(s) Management", subtitle: "Master service agreements and work orders" },
-  inspectors: { title: "Inspector Roster", subtitle: "Certified engineers, specialties, and availability" },
-  inspections: { title: "Inspection Workflow", subtitle: "5-step pipeline from request to completion" },
-  billing: { title: "Billing & Invoices", subtitle: "Financial records tied to completed inspections" },
-  reports: { title: "Reports & Analytics", subtitle: "Performance, quality, and financial intelligence" },
-  audit: { title: "Audit Log", subtitle: "System activity tracking and compliance records" },
-  settings: { title: "Settings", subtitle: "Application preferences and configuration" },
-  'user-management': { title: "User Management", subtitle: "Manage users, roles, and permissions" },
+  dashboard: {
+    title: "Operations Dashboard",
+    subtitle: "Live overview of inspections, revenue, and inspector workload",
+  },
+  clients: {
+    title: "Client Managements",
+    subtitle: "Legal entities and individuals under management",
+  },
+  contracts: {
+    title: "Agreement(s) Management",
+    subtitle: "Master service agreements and work orders",
+  },
+  inspectors: {
+    title: "Inspector Roster",
+    subtitle: "Certified engineers, specialties, and availability",
+  },
+  inspections: {
+    title: "Inspection Workflow",
+    subtitle: "5-step pipeline from request to completion",
+  },
+  billing: {
+    title: "Billing & Invoices",
+    subtitle: "Financial records tied to completed inspections",
+  },
+  reports: {
+    title: "Reports & Analytics",
+    subtitle: "Performance, quality, and financial intelligence",
+  },
+  audit: {
+    title: "Audit Log",
+    subtitle: "System activity tracking and compliance records",
+  },
+  settings: {
+    title: "Settings",
+    subtitle: "Application preferences and configuration",
+  },
+  "user-management": {
+    title: "User Management",
+    subtitle: "Manage users, roles, and permissions",
+  },
 };
 
 function AppContent() {
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark } = useTheme();
   const { isAuthenticated, logout } = useAuth();
   const [view, setView] = useState<ViewKey>("dashboard");
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
@@ -48,6 +78,7 @@ function AppContent() {
     const savedSidebar = localStorage.getItem("ics_sidebar_expanded");
     if (savedView && meta[savedView as ViewKey]) setView(savedView as ViewKey);
     if (savedSidebar) setSidebarExpanded(savedSidebar === "true");
+    amendmentService.syncPendingAmendments();
   }, []);
 
   useEffect(() => {
@@ -62,28 +93,28 @@ function AppContent() {
     return <LoginPage />;
   }
 
-  const m = meta[view];
   const expiringCount = 0;
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
-    }`}>
+    <div
+      className={`min-h-screen transition-colors duration-300 ${
+        isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
+      }`}
+    >
+      {/* 🔧 FIX: استفاده از نام‌های صحیح state */}
       <Header
-        title={m.title}
-        subtitle={m.subtitle}
-        isSidebarExpanded={sidebarExpanded}
+        activeView={view}
         onToggleSidebar={() => setSidebarExpanded(!sidebarExpanded)}
-        isDark={isDark}
-        onToggleTheme={toggleTheme}
+        isSidebarExpanded={sidebarExpanded}
+        onNavigateSettings={() => setView("settings")}
+        onLogout={handleLogout}
       />
-      
+
       <Sidebar
         active={view}
         onSelect={setView}
         isExpanded={sidebarExpanded}
         expiringContractsCount={expiringCount}
-        onLogout={handleLogout}
       />
 
       <main
@@ -93,7 +124,7 @@ function AppContent() {
           paddingTop: "4rem",
         }}
       >
-        <div className="p-6 lg:p-8">
+        <div className="p-1.5 lg:p-2">
           {view === "dashboard" && <Dashboard />}
           {view === "clients" && <Clients />}
           {view === "contracts" && <Contracts />}

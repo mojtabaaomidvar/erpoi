@@ -13,7 +13,7 @@ import { formatCurrency } from "@shared/lib/formatters";
  * Parse تاریخ شمسی با فرمت YYYY/MM/DD
  * اگر نامعتبر باشد، null برمی‌گرداند
  */
-const parseJalaaliDate = (
+export const parseJalaaliDate = (
   dateStr: string | null | undefined,
 ): { jy: number; jm: number; jd: number } | null => {
   if (!dateStr || typeof dateStr !== "string" || dateStr.trim() === "") {
@@ -21,7 +21,8 @@ const parseJalaaliDate = (
   }
 
   try {
-    const parts = dateStr.split("/").map(Number);
+    // 🔧 FIX: قبول هر دو فرمت / و -
+    const parts = dateStr.split(/[\/\-]/).map(Number);
     if (parts.length !== 3 || parts.some(isNaN)) {
       return null;
     }
@@ -35,7 +36,6 @@ const parseJalaaliDate = (
 
     return { jy, jm, jd };
   } catch (error) {
-    console.warn("[parseJalaaliDate] Invalid date:", dateStr, error);
     return null;
   }
 };
@@ -44,7 +44,7 @@ const parseJalaaliDate = (
  * تبدیل تاریخ شمسی به Gregorian Date
  * اگر نامعتبر باشد، null برمی‌گرداند
  */
-const jalaaliToGregorianDate = (
+export const jalaaliToGregorianDate = (
   dateStr: string | null | undefined,
 ): Date | null => {
   const parsed = parseJalaaliDate(dateStr);
@@ -54,9 +54,35 @@ const jalaaliToGregorianDate = (
     const gDate = jalaali.toGregorian(parsed.jy, parsed.jm, parsed.jd);
     return new Date(gDate.gy, gDate.gm - 1, gDate.gd);
   } catch (error) {
-    console.warn("[jalaaliToGregorianDate] Conversion failed:", dateStr, error);
     return null;
   }
+};
+
+/**
+ * 🔧 NEW: Parse تاریخ با پشتیبانی از فرمت‌های مختلف
+ * - Jalaali: 1403/01/01 یا 1403-01-01
+ * - Gregorian: 2024-03-20
+ */
+export const parseDateFlexible = (
+  dateStr: string | null | undefined,
+): Date | null => {
+  if (!dateStr || typeof dateStr !== "string" || dateStr.trim() === "") {
+    return null;
+  }
+
+  // اول تلاش برای parse به عنوان Jalaali
+  const jalaaliDate = jalaaliToGregorianDate(dateStr);
+  if (jalaaliDate) return jalaaliDate;
+
+  // اگر Jalaali نبود، تلاش برای parse به عنوان Gregorian
+  try {
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  } catch (error) {}
+
+  return null;
 };
 
 // ═══════════════════════════════════════
@@ -243,7 +269,6 @@ export const calculateProgressFromTariffs = (
 
     return (totalPerformed / contract.total_value) * 100;
   } catch (error) {
-    console.warn("[calculateProgressFromTariffs] Error:", error);
     return 0;
   }
 };
@@ -267,19 +292,25 @@ export const calculateInvoiceProgress = (contract: ContractLike): number => {
     if (performedWork <= 0) return 0;
     return (totalInvoiced / performedWork) * 100;
   } catch (error) {
-    console.warn("[calculateInvoiceProgress] Error:", error);
     return 0;
   }
 };
 
-export const calculateDaysProgress = (contract: ContractLike): number => {
+export const calculateDaysProgress = (
+  contract: ContractLike,
+): number | null => {
   try {
-    if (!contract.start_date || !contract.end_date) return 0;
+    if (!contract.start_date || !contract.end_date) {
+      return null;
+    }
 
-    const startDate = jalaaliToGregorianDate(contract.start_date);
-    const endDate = jalaaliToGregorianDate(contract.end_date);
+    // 🔧 FIX: استفاده از parseDateFlexible
+    const startDate = parseDateFlexible(contract.start_date);
+    const endDate = parseDateFlexible(contract.end_date);
 
-    if (!startDate || !endDate) return 0;
+    if (!startDate || !endDate) {
+      return null;
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -289,14 +320,15 @@ export const calculateDaysProgress = (contract: ContractLike): number => {
     const daysPassed =
       (today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
 
-    if (totalDays <= 0) return 0;
-    if (daysPassed <= 0) return 0;
+    if (totalDays <= 0) {
+      return null;
+    }
+    if (daysPassed < 0) return 0; // قرارداد هنوز شروع نشده
     if (daysPassed >= totalDays) return 100;
 
     return (daysPassed / totalDays) * 100;
   } catch (error) {
-    console.warn("[calculateDaysProgress] Error:", error);
-    return 0;
+    return null;
   }
 };
 
@@ -304,8 +336,10 @@ export const calculateDaysLeft = (endDate: string): number => {
   try {
     if (!endDate) return 0;
 
-    const endGregorian = jalaaliToGregorianDate(endDate);
-    if (!endGregorian) return 0;
+    const endGregorian = parseDateFlexible(endDate);
+    if (!endGregorian) {
+      return 0;
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -313,7 +347,6 @@ export const calculateDaysLeft = (endDate: string): number => {
     const diffTime = endGregorian.getTime() - today.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   } catch (error) {
-    console.warn("[calculateDaysLeft] Error:", error);
     return 0;
   }
 };
@@ -322,8 +355,10 @@ export const getDaysUntilStart = (startDate: string): number => {
   try {
     if (!startDate) return 0;
 
-    const startGregorian = jalaaliToGregorianDate(startDate);
-    if (!startGregorian) return 0;
+    const startGregorian = parseDateFlexible(startDate);
+    if (!startGregorian) {
+      return 0;
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -331,7 +366,6 @@ export const getDaysUntilStart = (startDate: string): number => {
     const diffTime = startGregorian.getTime() - today.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   } catch (error) {
-    console.warn("[getDaysUntilStart] Error:", error);
     return 0;
   }
 };
@@ -340,7 +374,7 @@ export const isContractNotStarted = (startDate: string): boolean => {
   try {
     if (!startDate) return false;
 
-    const startGregorian = jalaaliToGregorianDate(startDate);
+    const startGregorian = parseDateFlexible(startDate);
     if (!startGregorian) return false;
 
     const today = new Date();
@@ -348,7 +382,6 @@ export const isContractNotStarted = (startDate: string): boolean => {
 
     return startGregorian.getTime() > today.getTime();
   } catch (error) {
-    console.warn("[isContractNotStarted] Error:", error);
     return false;
   }
 };
@@ -407,7 +440,6 @@ export const getCurrentJalaaliYear = (): number => {
     );
     return j.jy;
   } catch (error) {
-    console.warn("[getCurrentJalaaliYear] Error:", error);
     return new Date().getFullYear();
   }
 };
@@ -432,12 +464,24 @@ export const getContractFinancialStatus = (
     const daysUntilStart = getDaysUntilStart(contract.start_date);
     const notStarted = daysUntilStart > 0;
     const isExpired = daysLeft < 0;
+
+    const tariffs = getTariffsForContract(contract);
+    const performedWork = tariffs.reduce((sum, t) => {
+      const rate =
+        typeof t.rate === "string" ? parseNumberInput(t.rate) : t.rate || 0;
+      const consumed = t.consumed_quantity || 0;
+      return sum + rate * consumed;
+    }, 0);
+    const reachedCeiling = performedWork >= contract.total_value;
+
     const isFullyInvoiced = contract.invoiced >= contract.total_value;
 
     if (contract.status === "COMPLETED") return "completed";
     if (notStarted) return "not_started";
-    if (isExpired && isFullyInvoiced) return "completed";
-    if (isExpired && !isFullyInvoiced) return "needs_review";
+
+    if ((isExpired || reachedCeiling) && isFullyInvoiced) return "completed";
+    if (isExpired || reachedCeiling) return "needs_review";
+
     return "active";
   } catch (error) {
     console.warn("[getContractFinancialStatus] Error:", error);
@@ -487,7 +531,6 @@ export const getAdjustmentReminder = (
       effectiveDate: adjustment.effective_date,
     };
   } catch (error) {
-    console.warn("[getAdjustmentReminder] Error:", error);
     return {
       show: false,
       daysUntil: 0,
@@ -507,12 +550,20 @@ export const isExpiringSoon = (
     const daysLeft = calculateDaysLeft(contract.end_date);
     const daysUntilStart = getDaysUntilStart(contract.start_date);
 
+    const tariffs = getTariffsForContract(contract);
+    const performedWork = tariffs.reduce((sum, t) => {
+      const rate =
+        typeof t.rate === "string" ? parseNumberInput(t.rate) : t.rate || 0;
+      const consumed = t.consumed_quantity || 0;
+      return sum + rate * consumed;
+    }, 0);
+    const reachedCeiling = performedWork >= contract.total_value;
+
     if (daysUntilStart > 0 || daysLeft <= 0)
       return { expiring: false, daysLeft };
 
-    return { expiring: daysLeft <= 132, daysLeft };
+    return { expiring: daysLeft <= 132 || reachedCeiling, daysLeft };
   } catch (error) {
-    console.warn("[isExpiringSoon] Error:", error);
     return { expiring: false, daysLeft: 0 };
   }
 };
@@ -575,7 +626,6 @@ export const getNeedsReviewType = (
 
     return { type: "none", message: "", details: "" };
   } catch (error) {
-    console.warn("[getNeedsReviewType] Error:", error);
     return { type: "none", message: "", details: "" };
   }
 };
@@ -585,7 +635,6 @@ export const getInvoicedPercentage = (contract: ContractLike): number => {
     if (contract.total_value <= 0) return 0;
     return (contract.invoiced / contract.total_value) * 100;
   } catch (error) {
-    console.warn("[getInvoicedPercentage] Error:", error);
     return 0;
   }
 };

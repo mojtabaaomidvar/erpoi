@@ -1,13 +1,12 @@
 // src/features/contract-management/hooks/useContracts.ts
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import type { Contract, Client } from "@entities/contract/types";
-
+import type { Contract, Client, TariffLine } from "@entities/contract/types"; // 🔧 FIX: اضافه کردن TariffLine
 import { usePermission } from "@shared/authorization/hooks/usePermission";
 import { useAuth } from "@features/auth/hooks/useAuth";
-
 import { contractService } from "../services/ContractService";
 import { clientService } from "@features/client-management/services/ClientService";
+import { tariffService } from "../services/TariffService";
 
 type ContractStatusFilter =
   | "ALL"
@@ -28,7 +27,10 @@ export function useContracts() {
 
   const [contracts, setContractsState] = useState<Contract[]>([]);
   const [clients, setClientsState] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tariffs, setTariffsState] = useState<TariffLine[]>([]);
+
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,29 +44,47 @@ export function useContracts() {
   const [sortBy, setSortBy] = useState<"date" | "value" | "status">("date");
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const loadData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setInitialLoading(true);
+    }
 
-      // 🔧 FIX: سرویس‌ها خودشان تبدیل می‌کنند، نیازی به map نیست
-      const [dbContracts, dbClients] = await Promise.all([
+    setError(null);
+
+    try {
+      // 🔧 FIX: اضافه کردن dbTariffs در destructuring
+      const [dbContracts, dbClients, dbTariffs] = await Promise.all([
         contractService.getAll(),
         clientService.getAll(),
+        tariffService.getAll(),
       ]);
 
       setContractsState(dbContracts);
       setClientsState(dbClients);
+      setTariffsState(dbTariffs);
+
+      console.log("[useContracts] ✅ Loaded:", {
+        contracts: dbContracts.length,
+        clients: dbClients.length,
+        tariffs: dbTariffs.length,
+      });
     } catch (err: any) {
       console.error("[useContracts] Failed to load data:", err);
       setError(err.message || "Failed to load data");
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  const refresh = useCallback(() => {
+    loadData(true);
   }, [loadData]);
 
   const setContracts = useCallback(
@@ -80,6 +100,7 @@ export function useContracts() {
         )) {
           await contractService.create(contract);
         }
+
         for (const contract of contracts.filter((c) => !newIds.has(c.id))) {
           try {
             await contractService.delete(contract.id);
@@ -87,13 +108,15 @@ export function useContracts() {
             console.error("[useContracts] Failed to delete contract:", err);
           }
         }
+
         for (const contract of newContracts.filter((c) => {
           const prev = contracts.find((pc) => pc.id === c.id);
           return prev && JSON.stringify(prev) !== JSON.stringify(c);
         })) {
           await contractService.update(contract.id, contract);
         }
-        await loadData();
+
+        await loadData(true);
       } catch (err: any) {
         console.error("[useContracts] Failed to update contracts:", err);
         throw err;
@@ -131,6 +154,13 @@ export function useContracts() {
     canRead,
     userDepartmentId,
   ]);
+
+  const accessibleTariffs = useMemo(() => {
+    const accessibleContractIds = accessibleContracts.map((c) => c.id);
+    return tariffs.filter(
+      (t) => t.contract_id && accessibleContractIds.includes(t.contract_id),
+    );
+  }, [tariffs, accessibleContracts]);
 
   const baseContracts = accessibleContracts;
 
@@ -197,9 +227,11 @@ export function useContracts() {
     contracts: accessibleContracts,
     setContracts,
     clients,
-    loading,
+    tariffs: accessibleTariffs,
+    loading: initialLoading,
+    refreshing,
     error,
-    refresh: loadData,
+    refresh,
     searchQuery,
     setSearchQuery,
     selectedContract,

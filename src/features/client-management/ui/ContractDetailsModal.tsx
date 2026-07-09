@@ -1,18 +1,26 @@
 // src/features/client-management/ui/ContractDetailsModal.tsx
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Button, Badge, Card, Modal } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
+import { usePermission } from "@shared/authorization/hooks/usePermission";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
-import type { Contract, TariffLine } from "@entities/contract/types";
+import type { Contract, TariffLine } from "@/types/contract";
 import { formatCurrency } from "@shared/lib/formatters";
+import { AnimatedCollapse } from "@shared/ui/AnimatedCollapse";
 import {
   calculateProgressFromTariffs,
   calculateInvoiceProgress,
   calculateDaysLeft,
-  getProgressTextClass,
-  getProgressBgClass,
+  calculateDaysProgress,
+  getDaysUntilStart,
+  getContractFinancialStatus,
+  getAdjustmentReminder,
   isExpiringSoon,
+  getProgressColor,
+  getProgressTextClass,
+  getProgressTextColor,
+  jalaaliToGregorianDate,
 } from "@entities/contract/services/contractCalculations";
 
 interface ContractDetailsModalProps {
@@ -29,404 +37,1077 @@ export function ContractDetailsModal({
   contractTariffs = [],
 }: ContractDetailsModalProps) {
   const { isDark } = useTheme();
+  const { canAny } = usePermission();
   const { canAccessElement } = usePermissionMapping();
 
-  const canContractValue = canAccessElement("client_contract_value");
-  const canContractProgressWork = canAccessElement(
-    "client_contract_progress_work",
-  );
-  const canContractProgressInvoice = canAccessElement(
-    "client_contract_progress_invoice",
-  );
-  const canTimeRemaining = canAccessElement("client_time_remaining");
-  const canTariffsTable = canAccessElement("client_tariffs_table");
-  const canTariffsSection = canAccessElement("client_tariffs_section");
-  const canTariffsFinancial = canAccessElement("client_tariffs_financial");
-  const canTariffsTotals = canAccessElement("client_tariffs_totals");
+  const canViewFinancial = canAny([
+    "contract:read",
+    "contract:view_all",
+    "contract:view_own",
+  ]);
 
-  const tariffs = useMemo(() => {
+  // 🔐 Element-Level Access
+  const canInfoSection = canAccessElement("contract_info_section");
+  const canInfoStartDate = canAccessElement("contract_info_start_date");
+  const canInfoEndDate = canAccessElement("contract_info_end_date");
+  const canStatTotalValue = canAccessElement("contract_stat_total_value");
+  const canStatPerformedWork = canAccessElement("contract_stat_performed_work");
+  const canStatInvoiced = canAccessElement("contract_stat_invoiced");
+  const canStatNotInvoiced = canAccessElement("contract_stat_not_invoiced");
+  const canProgressWork = canAccessElement("contract_progress_work");
+  const canProgressInvoice = canAccessElement("contract_progress_invoice");
+  const canProgressTime = canAccessElement("contract_progress_time");
+  const canReminderSection = canAccessElement("contract_reminder_section");
+  const canTableTariffs = canAccessElement("contract_table_tariffs");
+
+  // 🔧 NEW: Collapse states
+  const [isArchivedCollapsed, setIsArchivedCollapsed] = useState(true);
+  const [isFutureCollapsed, setIsFutureCollapsed] = useState(true);
+
+  // 🔧 NEW: Today date
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const selectedTariffs = useMemo(() => {
     if (!contract) return [];
+    if (contract.tariffLines && contract.tariffLines.length > 0) {
+      return contract.tariffLines;
+    }
     return contractTariffs.filter((t) => t.contract_id === contract.id);
   }, [contract, contractTariffs]);
 
-  const daysLeft = useMemo(() => {
-    if (!contract) return 0;
-    return calculateDaysLeft(contract.end_date);
-  }, [contract]);
+  // 🔧 NEW: Active Tariffs - بر اساس تاریخ
+  const activeTariffs = useMemo(() => {
+    return selectedTariffs.filter((t) => {
+      const validFrom = jalaaliToGregorianDate(t.valid_from);
+      const validTo = jalaaliToGregorianDate(t.valid_to);
 
-  const workProgress = useMemo(() => {
-    if (!contract) return 0;
-    return calculateProgressFromTariffs(contract);
-  }, [contract]);
+      if (validFrom && validFrom > today) return false;
+      if (validTo && validTo < today) return false;
 
-  const invoiceProgress = useMemo(() => {
-    if (!contract) return 0;
-    return calculateInvoiceProgress(contract);
-  }, [contract]);
+      return true;
+    });
+  }, [selectedTariffs, today]);
 
-  const expiringInfo = useMemo(() => {
-    if (!contract) return { expiring: false, daysLeft: 0 };
-    return isExpiringSoon(contract);
-  }, [contract]);
+  // 🔧 NEW: Future Tariffs
+  const futureTariffs = useMemo(() => {
+    return selectedTariffs.filter((t) => {
+      const validFrom = jalaaliToGregorianDate(t.valid_from);
+      if (validFrom && validFrom > today) return true;
+      return false;
+    });
+  }, [selectedTariffs, today]);
+
+  // 🔧 NEW: Archived Tariffs
+  const archivedTariffs = useMemo(() => {
+    return selectedTariffs.filter((t) => {
+      const validTo = jalaaliToGregorianDate(t.valid_to);
+      if (validTo && validTo < today) return true;
+      return false;
+    });
+  }, [selectedTariffs, today]);
+
+  // 🔧 NEW: Group by version
+  const archivedTariffsByVersion = useMemo(() => {
+    const grouped = new Map<number, TariffLine[]>();
+    archivedTariffs.forEach((tariff) => {
+      const version = tariff.version || 1;
+      if (!grouped.has(version)) {
+        grouped.set(version, []);
+      }
+      grouped.get(version)!.push(tariff);
+    });
+    return Array.from(grouped.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([version, tariffs]) => ({ version, tariffs }));
+  }, [archivedTariffs]);
+
+  const futureTariffsByVersion = useMemo(() => {
+    const grouped = new Map<number, TariffLine[]>();
+    futureTariffs.forEach((tariff) => {
+      const version = tariff.version || 1;
+      if (!grouped.has(version)) {
+        grouped.set(version, []);
+      }
+      grouped.get(version)!.push(tariff);
+    });
+    return Array.from(grouped.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([version, tariffs]) => ({ version, tariffs }));
+  }, [futureTariffs]);
+
+  const totalPerformedWork = useMemo(() => {
+    if (!contract) return 0;
+    return selectedTariffs.reduce((sum, t) => {
+      const rate =
+        typeof t.rate === "string"
+          ? Number(t.rate.replace(/,/g, "")) || 0
+          : t.rate || 0;
+      const consumed = t.consumed_quantity || 0;
+      return sum + rate * consumed;
+    }, 0);
+  }, [contract, selectedTariffs]);
 
   if (!contract) return null;
 
+  const financialStatus = getContractFinancialStatus(contract);
+  const expiringInfo = isExpiringSoon(contract);
+  const reminder = getAdjustmentReminder(contract);
+  const daysUntilStart = getDaysUntilStart(contract.start_date);
+  const daysLeft = calculateDaysLeft(contract.end_date);
+  const isExpired = daysLeft < 0;
+  const isFullyInvoiced = contract.invoiced >= contract.total_value;
+  const needsFinancialReview = isExpired && !isFullyInvoiced;
+  const notStarted = daysUntilStart > 0;
+  const daysProgress = calculateDaysProgress(contract);
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Contract Details" size="lg">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="📄 Contract Details"
+      size="xl"
+    >
       <div className="space-y-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Badge tone={contract.type === "CONTRACT" ? "indigo" : "amber"}>
-                {contract.type}
-              </Badge>
-              <Badge tone={contract.status === "ACTIVE" ? "emerald" : "slate"}>
-                {contract.status}
-              </Badge>
-              {expiringInfo.expiring && (
-                <Badge tone="danger" className="gap-1 animate-pulse">
-                  <span>⚠️</span>
-                  <span>Expiring in {expiringInfo.daysLeft} days</span>
-                </Badge>
-              )}
+        {/* ═══════════════════════════════════════ */}
+        {/* 🔹 HEADER */}
+        {/* ═══════════════════════════════════════ */}
+        <div
+          className={`rounded-2xl border p-4 animate-scaleIn ${
+            isDark
+              ? "border-slate-700 bg-slate-800/30"
+              : "border-slate-200 bg-slate-50/50"
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-2xl font-bold shadow-lg shadow-indigo-500/30">
+              📄
             </div>
-            <h2
-              className={`text-lg font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}
-            >
-              {contract.contract_title}
-            </h2>
-            <div
-              className={`text-sm mt-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
-            >
-              {contract.contract_no} • {contract.client_name}
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-primary">
+                {contract.contract_title}
+              </h3>
+              <p className="text-sm text-secondary font-mono">
+                {contract.contract_no} • {contract.client_name}
+              </p>
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <Badge tone={contract.type === "CONTRACT" ? "indigo" : "amber"}>
+                  {contract.type === "CONTRACT"
+                    ? "📄 Contract"
+                    : "📦 Work Order"}
+                </Badge>
+                {contract.status === "COMPLETED" ? (
+                  <Badge tone="slate">✓ Completed</Badge>
+                ) : financialStatus === "needs_review" ? (
+                  <Badge tone="amber" className="gap-1">
+                    <span>⚠️</span>
+                    <span>Needs Financial Review</span>
+                  </Badge>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Badge tone="emerald">🟢 Active</Badge>
+                    {expiringInfo.expiring && (
+                      <Badge tone="danger" className="gap-1 animate-pulse">
+                        <span>⚠️</span>
+                        <span>Expiring in {expiringInfo.daysLeft} days</span>
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          {canContractValue && (
-            <div className="text-right">
-              <div
-                className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}
-              >
-                Total Value
+        </div>
+
+        {/* ═══════════════════════════════════════ */}
+        {/* 🔹 REMINDER SECTION */}
+        {/* ═══════════════════════════════════════ */}
+        {canReminderSection && reminder.show && (
+          <div
+            className={`rounded-xl border-2 p-4 animate-fadeIn ${
+              reminder.mode === "TBD"
+                ? isDark
+                  ? "border-amber-600 bg-amber-950/40"
+                  : "border-amber-400 bg-amber-50"
+                : isDark
+                  ? "border-indigo-600 bg-indigo-950/40"
+                  : "border-indigo-400 bg-indigo-50"
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">
+                {reminder.mode === "TBD" ? "⏳" : "📊"}
               </div>
-              <div
-                className={`text-xl font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}
-              >
-                {formatCurrency(contract.total_value)}
+              <div className="flex-1">
+                <h4
+                  className={`text-sm font-bold mb-1 ${
+                    reminder.mode === "TBD"
+                      ? isDark
+                        ? "text-amber-200"
+                        : "text-amber-900"
+                      : isDark
+                        ? "text-indigo-200"
+                        : "text-indigo-900"
+                  }`}
+                >
+                  Price Adjustment Reminder
+                </h4>
+                <p
+                  className={`text-xs mb-2 ${
+                    reminder.mode === "TBD"
+                      ? isDark
+                        ? "text-amber-300"
+                        : "text-amber-800"
+                      : isDark
+                        ? "text-indigo-300"
+                        : "text-indigo-800"
+                  }`}
+                >
+                  {reminder.mode === "TBD"
+                    ? `Adjustment percentage needs to be determined. Effective date: ${reminder.effectiveDate}`
+                    : `Adjustment will be applied. Effective date: ${reminder.effectiveDate}`}
+                </p>
+                <div className="flex items-center gap-4 text-xs">
+                  <div>
+                    <span
+                      className={isDark ? "text-slate-400" : "text-slate-600"}
+                    >
+                      Days until effective:{" "}
+                    </span>
+                    <span
+                      className={`font-bold ${
+                        reminder.daysUntil <= 7
+                          ? "text-rose-500"
+                          : reminder.daysUntil <= 15
+                            ? "text-amber-500"
+                            : "text-emerald-500"
+                      }`}
+                    >
+                      {reminder.daysUntil} days
+                    </span>
+                  </div>
+                  {reminder.mode === "FIXED" && reminder.percentage > 0 && (
+                    <div>
+                      <span
+                        className={isDark ? "text-slate-400" : "text-slate-600"}
+                      >
+                        Percentage:{" "}
+                      </span>
+                      <span className="font-bold text-indigo-500">
+                        {reminder.percentage}%
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {canContractProgressWork && (
-            <Card
-              className={`p-4 rounded-xl border ${
-                isDark
-                  ? "border-slate-700/50 bg-slate-800/30"
-                  : "border-slate-200/70 bg-white"
-              }`}
-            >
-              <div
-                className={`text-xs mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
-              >
-                Performed Work Progress
-              </div>
-              <div
-                className={`text-lg font-bold ${getProgressTextClass(workProgress)}`}
-              >
-                {workProgress.toFixed(2)}%
-              </div>
-              <div
-                className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700/50" : "bg-slate-200/70"}`}
-              >
-                <div
-                  className={`h-full rounded-full ${getProgressBgClass(workProgress)}`}
-                  style={{ width: `${Math.min(workProgress, 100)}%` }}
-                />
-              </div>
-            </Card>
-          )}
-
-          {canContractProgressInvoice ? (
-            <Card
-              className={`p-4 rounded-xl border ${
-                isDark
-                  ? "border-slate-700/50 bg-slate-800/30"
-                  : "border-slate-200/70 bg-white"
-              }`}
-            >
-              <div
-                className={`text-xs mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
-              >
-                Invoice Progress
-              </div>
-              <div
-                className={`text-lg font-bold ${getProgressTextClass(invoiceProgress)}`}
-              >
-                {invoiceProgress.toFixed(2)}%
-              </div>
-              <div
-                className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700/50" : "bg-slate-200/70"}`}
-              >
-                <div
-                  className={`h-full rounded-full ${getProgressBgClass(invoiceProgress)}`}
-                  style={{ width: `${Math.min(invoiceProgress, 100)}%` }}
-                />
-              </div>
-            </Card>
-          ) : (
-            <Card
-              className={`p-4 rounded-xl border opacity-50 ${
-                isDark
-                  ? "border-slate-700/50 bg-slate-800/30"
-                  : "border-slate-200/70 bg-white"
-              }`}
-            >
-              <div
-                className={`text-xs mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
-              >
-                Invoice Progress
-              </div>
-              <div
-                className={`text-lg font-bold ${isDark ? "text-slate-500" : "text-slate-400"}`}
-              >
-                🔒 Locked
-              </div>
-            </Card>
-          )}
-
-          {canTimeRemaining && (
-            <Card
-              className={`p-4 rounded-xl border ${
-                expiringInfo.expiring
-                  ? isDark
-                    ? "border-rose-700/50 bg-rose-950/30 animate-pulse shadow-lg shadow-rose-500/20"
-                    : "border-rose-300/70 bg-rose-50/50 animate-pulse shadow-lg shadow-rose-500/20"
-                  : isDark
-                    ? "border-slate-700/50 bg-slate-800/30"
-                    : "border-slate-200/70 bg-white"
-              }`}
-            >
-              <div
-                className={`text-xs mb-1 ${
-                  expiringInfo.expiring
-                    ? isDark
-                      ? "text-rose-400"
-                      : "text-rose-700"
-                    : isDark
-                      ? "text-slate-400"
-                      : "text-slate-600"
-                }`}
-              >
-                {expiringInfo.expiring ? "⚠️ Time Remaining" : "Time Remaining"}
-              </div>
-              {daysLeft < 0 ? (
-                <div
-                  className={`text-lg font-bold ${
-                    expiringInfo.expiring
-                      ? isDark
-                        ? "text-rose-400"
-                        : "text-rose-600"
-                      : "text-rose-600"
-                  }`}
-                >
-                  {Math.abs(daysLeft)} days overdue
-                </div>
-              ) : daysLeft === 0 ? (
-                <div
-                  className={`text-lg font-bold ${
-                    expiringInfo.expiring
-                      ? isDark
-                        ? "text-rose-400"
-                        : "text-rose-600"
-                      : "text-amber-600"
-                  }`}
-                >
-                  Today (Expires)
-                </div>
-              ) : (
-                <div
-                  className={`text-lg font-bold ${
-                    expiringInfo.expiring
-                      ? isDark
-                        ? "text-rose-400"
-                        : "text-rose-600"
-                      : "text-emerald-600"
-                  }`}
-                >
-                  {daysLeft} days remaining
-                </div>
-              )}
-            </Card>
-          )}
-        </div>
-
-        {canTariffsSection ? (
-          <div>
+        {/* ═══════════════════════════════════════ */}
+        {/* 🔹 CONTRACT INFORMATION */}
+        {/* ═══════════════════════════════════════ */}
+        {canInfoSection && (
+          <div
+            className={`rounded-xl border p-4 animate-fadeIn ${
+              isDark
+                ? "border-slate-700 bg-slate-800/30"
+                : "border-slate-200 bg-slate-50/50"
+            }`}
+          >
             <h3
               className={`text-sm font-bold mb-3 ${isDark ? "text-slate-100" : "text-slate-900"}`}
             >
-              Tariff Details
+              📋 Contract Information
             </h3>
-            {tariffs.length === 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+              <div>
+                <div
+                  className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                >
+                  Internal Contract No.
+                </div>
+                <div
+                  className={`font-mono text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                >
+                  {contract.contract_no}
+                </div>
+              </div>
+              <div>
+                <div
+                  className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                >
+                  External Contract No.
+                </div>
+                <div
+                  className={`font-mono text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                >
+                  {contract.external_contract_no || "—"}
+                </div>
+              </div>
+              <div>
+                <div
+                  className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                >
+                  Currency
+                </div>
+                <div
+                  className={`text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                >
+                  {contract.currency}
+                </div>
+              </div>
+              {canInfoStartDate && (
+                <div>
+                  <div
+                    className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                  >
+                    Start Date
+                  </div>
+                  <div
+                    className={`text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                  >
+                    {contract.start_date}
+                  </div>
+                </div>
+              )}
+              {canInfoEndDate && (
+                <div>
+                  <div
+                    className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                  >
+                    End Date
+                  </div>
+                  <div
+                    className={`text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                  >
+                    {contract.end_date}
+                  </div>
+                </div>
+              )}
+              {canViewFinancial && (
+                <>
+                  {canStatTotalValue && (
+                    <div>
+                      <div
+                        className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-emerald-400" : "text-emerald-700"}`}
+                      >
+                        Total Value
+                      </div>
+                      <div
+                        className={`text-xs font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
+                      >
+                        {formatCurrency(
+                          contract.total_value,
+                          contract.currency,
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {canStatPerformedWork && (
+                    <div>
+                      <div
+                        className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-indigo-400" : "text-indigo-700"}`}
+                      >
+                        Total Performed Works
+                      </div>
+                      <div
+                        className={`text-xs font-bold ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
+                      >
+                        {formatCurrency(totalPerformedWork, contract.currency)}
+                      </div>
+                    </div>
+                  )}
+                  {canStatInvoiced && (
+                    <div>
+                      <div
+                        className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-violet-400" : "text-violet-700"}`}
+                      >
+                        Invoiced
+                      </div>
+                      <div
+                        className={`text-xs font-bold ${isDark ? "text-violet-300" : "text-violet-700"}`}
+                      >
+                        {formatCurrency(
+                          selectedTariffs.reduce(
+                            (sum, t) => sum + ((t as any).invoiced || 0),
+                            0,
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {canStatNotInvoiced && (
+                    <div>
+                      <div
+                        className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-rose-400" : "text-rose-700"}`}
+                      >
+                        Not Invoiced
+                      </div>
+                      <div
+                        className={`text-xs font-bold ${isDark ? "text-rose-300" : "text-rose-700"}`}
+                      >
+                        {(() => {
+                          const totalInvoiced = selectedTariffs.reduce(
+                            (sum, t) => sum + ((t as any).invoiced || 0),
+                            0,
+                          );
+                          const notInvoiced = Math.max(
+                            0,
+                            totalPerformedWork - totalInvoiced,
+                          );
+                          return formatCurrency(notInvoiced, contract.currency);
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+              {!canViewFinancial && (
+                <div className="col-span-full">
+                  <div
+                    className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                  >
+                    Financial Information
+                  </div>
+                  <div
+                    className={`text-xs italic ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                  >
+                    🔒 Locked - Need financial access permission
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════ */}
+        {/* 🔹 PROGRESS CARDS */}
+        {/* ═══════════════════════════════════════ */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {canProgressWork && (
+            <Card
+              className={`rounded-xl border p-4 animate-fadeIn ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
+            >
+              <div
+                className={`text-xs mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+              >
+                Total Performed Work (%)
+              </div>
+              {(() => {
+                const workProgress = calculateProgressFromTariffs(contract);
+                return (
+                  <>
+                    <div
+                      className={`text-lg font-bold ${getProgressTextClass(workProgress)}`}
+                    >
+                      {workProgress.toFixed(2)}%
+                    </div>
+                    <div
+                      className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+                    >
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${getProgressColor(workProgress)}`}
+                        style={{ width: `${Math.min(workProgress, 100)}%` }}
+                      />
+                    </div>
+                  </>
+                );
+              })()}
+            </Card>
+          )}
+
+          {canProgressInvoice && canViewFinancial && (
+            <Card
+              className={`rounded-xl border p-4 animate-fadeIn ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
+            >
+              <div
+                className={`text-xs mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+              >
+                Total Invoiced (%)
+              </div>
+              {(() => {
+                const spent = calculateInvoiceProgress(contract);
+                return (
+                  <>
+                    <div
+                      className={`text-lg font-bold ${getProgressTextColor(spent)}`}
+                    >
+                      {spent.toFixed(1)}%
+                      {spent > 100 && (
+                        <span className="text-xs ml-1">(Over)</span>
+                      )}
+                    </div>
+                    <div
+                      className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+                    >
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${getProgressColor(spent)}`}
+                        style={{ width: `${Math.min(spent, 100)}%` }}
+                      />
+                    </div>
+                  </>
+                );
+              })()}
+            </Card>
+          )}
+
+          {canProgressTime && (
+            <Card
+              className={`rounded-xl border p-4 animate-fadeIn ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
+            >
+              {notStarted ? (
+                <>
+                  <div
+                    className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                  >
+                    Status
+                  </div>
+                  <div className="text-lg font-bold text-amber-600">
+                    ⏳ Not Started
+                  </div>
+                  <div className="text-[10px] text-amber-500 mt-0.5">
+                    Starts in {daysUntilStart} days
+                  </div>
+                </>
+              ) : contract.status === "COMPLETED" ? (
+                <>
+                  <div
+                    className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                  >
+                    Status
+                  </div>
+                  <div className="text-lg font-bold text-slate-600">
+                    ✓ Completed
+                  </div>
+                </>
+              ) : needsFinancialReview ? (
+                <>
+                  <div
+                    className={`text-xs mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                  >
+                    Financial Status
+                  </div>
+                  <div className="text-lg font-bold text-amber-600 mb-2">
+                    ⚠️ Needs Review
+                  </div>
+                </>
+              ) : daysProgress !== null ? (
+                <>
+                  <div
+                    className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                  >
+                    Time Progress
+                  </div>
+                  <div
+                    className={`text-lg font-bold ${getProgressTextClass(daysProgress)}`}
+                  >
+                    {daysProgress.toFixed(0)}%
+                  </div>
+                  <div
+                    className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+                  >
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${getProgressColor(daysProgress)}`}
+                      style={{ width: `${Math.min(daysProgress, 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between mt-1 text-[10px]">
+                    <span
+                      className={isDark ? "text-slate-500" : "text-slate-400"}
+                    >
+                      {isExpired ? "Overdue" : "Remaining"}
+                    </span>
+                    <span
+                      className={`font-semibold ${
+                        isExpired
+                          ? isDark
+                            ? "text-rose-400"
+                            : "text-rose-600"
+                          : daysLeft <= 30
+                            ? isDark
+                              ? "text-amber-400"
+                              : "text-amber-600"
+                            : isDark
+                              ? "text-emerald-400"
+                              : "text-emerald-600"
+                      }`}
+                    >
+                      {isExpired
+                        ? `${Math.abs(daysLeft)} days overdue`
+                        : daysLeft === 0
+                          ? "Expires today"
+                          : `${daysLeft} days left`}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div
+                    className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                  >
+                    Status
+                  </div>
+                  <div className="text-lg font-bold text-slate-500">
+                    — No Data
+                  </div>
+                </>
+              )}
+            </Card>
+          )}
+        </div>
+
+        {/* ═══════════════════════════════════════ */}
+        {/* 🔹 TARIFFS TABLE - NEW VERSION */}
+        {/* ═══════════════════════════════════════ */}
+        {canTableTariffs && canViewFinancial ? (
+          <div className="animate-fadeIn">
+            <h3
+              className={`text-sm font-bold mb-3 ${isDark ? "text-slate-100" : "text-slate-900"}`}
+            >
+              Tariff Lines & Consumption
+            </h3>
+
+            {/* 🔹 ACTIVE TARIFFS */}
+            {activeTariffs.length > 0 && (
+              <div className="mb-6">
+                <h4
+                  className={`text-xs font-semibold mb-2 flex items-center gap-2 ${isDark ? "text-emerald-400" : "text-emerald-700"}`}
+                >
+                  <span>✓</span>
+                  <span>Active Tariffs (Current)</span>
+                </h4>
+                <div
+                  className={`overflow-x-auto rounded-xl border-2 ${isDark ? "border-emerald-700/50" : "border-emerald-200"}`}
+                >
+                  <table className="w-full text-left text-xs">
+                    <thead
+                      className={`${isDark ? "bg-emerald-900/20 text-emerald-400" : "bg-emerald-50 text-emerald-700"} text-[10px] uppercase tracking-wide`}
+                    >
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Description</th>
+                        <th className="px-3 py-2 font-semibold">Unit</th>
+                        <th className="px-3 py-2 font-semibold text-right">
+                          Rate
+                        </th>
+                        <th className="px-3 py-2 font-semibold text-center">
+                          Performed
+                        </th>
+                        <th className="px-3 py-2 font-semibold text-right">
+                          Total Value
+                        </th>
+                        <th className="px-3 py-2 font-semibold text-right">
+                          Invoiced
+                        </th>
+                        <th className="px-3 py-2 font-semibold">Valid From</th>
+                      </tr>
+                    </thead>
+                    <tbody
+                      className={
+                        isDark
+                          ? "divide-y divide-slate-700/50"
+                          : "divide-y divide-slate-200/70"
+                      }
+                    >
+                      {activeTariffs.map((tariff) => {
+                        const rate =
+                          typeof tariff.rate === "string"
+                            ? Number(tariff.rate.replace(/,/g, "")) || 0
+                            : tariff.rate || 0;
+                        const value = (tariff.consumed_quantity || 0) * rate;
+                        const invoiced = (tariff as any).invoiced || 0;
+                        return (
+                          <tr
+                            key={tariff.id}
+                            className={
+                              isDark
+                                ? "hover:bg-slate-800/30"
+                                : "hover:bg-slate-50/50"
+                            }
+                          >
+                            <td
+                              className={`px-3 py-2 font-medium ${isDark ? "text-slate-200" : "text-slate-800"}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span>{tariff.description}</span>
+                                {tariff.version && tariff.version > 1 && (
+                                  <span
+                                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                      isDark
+                                        ? "bg-indigo-900/50 text-indigo-300"
+                                        : "bg-indigo-100 text-indigo-700"
+                                    }`}
+                                  >
+                                    v{tariff.version}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">
+                              <Badge tone="indigo" className="text-[9px]">
+                                {tariff.unit.replace("_", " ")}
+                              </Badge>
+                            </td>
+                            <td
+                              className={`px-3 py-2 text-right font-mono ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                            >
+                              {formatCurrency(tariff.rate, contract.currency)}
+                            </td>
+                            <td
+                              className={`px-3 py-2 text-center font-mono ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                            >
+                              {tariff.consumed_quantity || 0}
+                            </td>
+                            <td
+                              className={`px-3 py-2 text-right font-mono font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
+                            >
+                              {formatCurrency(value, contract.currency)}
+                            </td>
+                            <td
+                              className={`px-3 py-2 text-right font-mono font-bold ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
+                            >
+                              {formatCurrency(invoiced)}
+                            </td>
+                            <td
+                              className={`px-3 py-2 text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                            >
+                              {tariff.valid_from ? (
+                                <span className="flex items-center gap-1">
+                                  <span>📅</span>
+                                  <span>{tariff.valid_from}</span>
+                                </span>
+                              ) : (
+                                <span
+                                  className={
+                                    isDark ? "text-slate-500" : "text-slate-400"
+                                  }
+                                >
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 🔹 FUTURE TARIFFS */}
+            {futureTariffsByVersion.length > 0 && (
+              <div className="mb-6">
+                <button
+                  onClick={() => setIsFutureCollapsed(!isFutureCollapsed)}
+                  className={`w-full flex items-center justify-between mb-2 px-3 py-2 rounded-lg transition-all hover:scale-[1.01] ${
+                    isDark
+                      ? "bg-amber-900/20 hover:bg-amber-900/30 text-amber-300"
+                      : "bg-amber-50 hover:bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span>⏳</span>
+                    <span className="text-xs font-semibold">
+                      Future Tariffs (Scheduled)
+                    </span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        isDark
+                          ? "bg-amber-900/50 text-amber-400"
+                          : "bg-amber-200 text-amber-800"
+                      }`}
+                    >
+                      {futureTariffs.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs ${isDark ? "text-amber-400" : "text-amber-600"}`}
+                    >
+                      {isFutureCollapsed ? "Show" : "Hide"}
+                    </span>
+                    <span
+                      className={`transition-transform duration-300 ${isFutureCollapsed ? "" : "rotate-180"}`}
+                    >
+                      ▼
+                    </span>
+                  </div>
+                </button>
+
+                <AnimatedCollapse isOpen={!isFutureCollapsed}>
+                  {futureTariffsByVersion.map(({ version, tariffs }, index) => (
+                    <div
+                      key={version}
+                      className="mb-4 animate-fadeIn"
+                      style={{ animationDelay: `${index * 100}ms` }}
+                    >
+                      <h5
+                        className={`text-[10px] font-bold mb-1 px-2 ${isDark ? "text-amber-400" : "text-amber-700"}`}
+                      >
+                        Version {version}
+                      </h5>
+                      <div
+                        className={`overflow-x-auto rounded-xl border ${isDark ? "border-amber-700/50" : "border-amber-200"}`}
+                      >
+                        <table className="w-full text-left text-xs">
+                          <thead
+                            className={`${isDark ? "bg-amber-900/20 text-amber-400" : "bg-amber-50 text-amber-700"} text-[10px] uppercase tracking-wide`}
+                          >
+                            <tr>
+                              <th className="px-3 py-2 font-semibold">
+                                Description
+                              </th>
+                              <th className="px-3 py-2 font-semibold">Unit</th>
+                              <th className="px-3 py-2 font-semibold text-right">
+                                Rate
+                              </th>
+                              <th className="px-3 py-2 font-semibold">
+                                Valid From
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody
+                            className={
+                              isDark
+                                ? "divide-y divide-slate-700/50"
+                                : "divide-y divide-slate-200/70"
+                            }
+                          >
+                            {tariffs.map((tariff: TariffLine) => (
+                              <tr
+                                key={tariff.id}
+                                className={
+                                  isDark
+                                    ? "hover:bg-slate-800/30"
+                                    : "hover:bg-slate-50/50"
+                                }
+                              >
+                                <td
+                                  className={`px-3 py-2 font-medium ${isDark ? "text-amber-200" : "text-amber-900"}`}
+                                >
+                                  {tariff.description}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <Badge tone="amber" className="text-[9px]">
+                                    {tariff.unit.replace("_", " ")}
+                                  </Badge>
+                                </td>
+                                <td
+                                  className={`px-3 py-2 text-right font-mono ${isDark ? "text-amber-300" : "text-amber-700"}`}
+                                >
+                                  {formatCurrency(
+                                    tariff.rate,
+                                    contract.currency,
+                                  )}
+                                </td>
+                                <td
+                                  className={`px-3 py-2 text-xs ${isDark ? "text-amber-400" : "text-amber-600"}`}
+                                >
+                                  <span className="flex items-center gap-1">
+                                    <span>📅</span>
+                                    <span>{tariff.valid_from}</span>
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </AnimatedCollapse>
+              </div>
+            )}
+
+            {/* 🔹 ARCHIVED TARIFFS */}
+            {archivedTariffsByVersion.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setIsArchivedCollapsed(!isArchivedCollapsed)}
+                  className={`w-full flex items-center justify-between mb-2 px-3 py-2 rounded-lg transition-all hover:scale-[1.01] ${
+                    isDark
+                      ? "bg-slate-800/50 hover:bg-slate-800 text-slate-300"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span>📦</span>
+                    <span className="text-xs font-semibold">
+                      Archived Tariffs - Previous Versions
+                    </span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        isDark
+                          ? "bg-slate-700 text-slate-400"
+                          : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {archivedTariffs.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                    >
+                      {isArchivedCollapsed ? "Show" : "Hide"}
+                    </span>
+                    <span
+                      className={`transition-transform duration-300 ${isArchivedCollapsed ? "" : "rotate-180"}`}
+                    >
+                      ▼
+                    </span>
+                  </div>
+                </button>
+
+                <AnimatedCollapse isOpen={!isArchivedCollapsed}>
+                  {archivedTariffsByVersion.map(
+                    ({ version, tariffs }, index) => (
+                      <div
+                        key={version}
+                        className="mb-4 animate-fadeIn"
+                        style={{ animationDelay: `${index * 100}ms` }}
+                      >
+                        <h5
+                          className={`text-[10px] font-bold mb-1 px-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                        >
+                          Version {version}
+                        </h5>
+                        <div
+                          className={`overflow-x-auto rounded-xl border opacity-75 ${isDark ? "border-slate-700/50" : "border-slate-200/70"}`}
+                        >
+                          <table className="w-full text-left text-xs">
+                            <thead
+                              className={`${isDark ? "bg-slate-800/50 text-slate-400" : "bg-slate-50/70 text-slate-500"} text-[10px] uppercase tracking-wide`}
+                            >
+                              <tr>
+                                <th className="px-3 py-2 font-semibold">
+                                  Description
+                                </th>
+                                <th className="px-3 py-2 font-semibold">
+                                  Unit
+                                </th>
+                                <th className="px-3 py-2 font-semibold text-right">
+                                  Rate
+                                </th>
+                                <th className="px-3 py-2 font-semibold text-center">
+                                  Performed
+                                </th>
+                                <th className="px-3 py-2 font-semibold text-right">
+                                  Total Value
+                                </th>
+                                <th className="px-3 py-2 font-semibold text-right">
+                                  Invoiced
+                                </th>
+                                <th className="px-3 py-2 font-semibold">
+                                  Valid Period
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody
+                              className={
+                                isDark
+                                  ? "divide-y divide-slate-700/50"
+                                  : "divide-y divide-slate-200/70"
+                              }
+                            >
+                              {tariffs.map((tariff: TariffLine) => {
+                                const rate =
+                                  typeof tariff.rate === "string"
+                                    ? Number(tariff.rate.replace(/,/g, "")) || 0
+                                    : tariff.rate || 0;
+                                const value =
+                                  (tariff.consumed_quantity || 0) * rate;
+                                const invoiced = (tariff as any).invoiced || 0;
+                                return (
+                                  <tr
+                                    key={tariff.id}
+                                    className={
+                                      isDark
+                                        ? "hover:bg-slate-800/30"
+                                        : "hover:bg-slate-50/50"
+                                    }
+                                  >
+                                    <td
+                                      className={`px-3 py-2 font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span>{tariff.description}</span>
+                                        <span
+                                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                            isDark
+                                              ? "bg-slate-700 text-slate-400"
+                                              : "bg-slate-200 text-slate-600"
+                                          }`}
+                                        >
+                                          v{tariff.version}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <Badge
+                                        tone="slate"
+                                        className="text-[9px]"
+                                      >
+                                        {tariff.unit.replace("_", " ")}
+                                      </Badge>
+                                    </td>
+                                    <td
+                                      className={`px-3 py-2 text-right font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                    >
+                                      {formatCurrency(
+                                        tariff.rate,
+                                        contract.currency,
+                                      )}
+                                    </td>
+                                    <td
+                                      className={`px-3 py-2 text-center font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                    >
+                                      {tariff.consumed_quantity || 0}
+                                    </td>
+                                    <td
+                                      className={`px-3 py-2 text-right font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                    >
+                                      {formatCurrency(value, contract.currency)}
+                                    </td>
+                                    <td
+                                      className={`px-3 py-2 text-right font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                    >
+                                      {formatCurrency(invoiced)}
+                                    </td>
+                                    <td
+                                      className={`px-3 py-2 text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
+                                    >
+                                      <div className="flex items-center gap-1">
+                                        <span>📅</span>
+                                        <span>
+                                          {tariff.valid_from || "—"} →{" "}
+                                          {tariff.valid_to || "—"}
+                                        </span>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ),
+                  )}
+                </AnimatedCollapse>
+              </div>
+            )}
+
+            {selectedTariffs.length === 0 && (
               <div
                 className={`text-center py-8 text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}
               >
-                No tariff lines defined for this contract
-              </div>
-            ) : canTariffsTable ? (
-              <div
-                className={`overflow-x-auto rounded-xl border ${
-                  isDark ? "border-slate-700/50" : "border-slate-200/70"
-                }`}
-              >
-                <table className="w-full text-left text-xs">
-                  <thead
-                    className={`${
-                      isDark
-                        ? "bg-slate-800/50 text-slate-400"
-                        : "bg-slate-50/70 text-slate-500"
-                    } text-[10px] uppercase tracking-wide`}
-                  >
-                    <tr>
-                      <th className="px-3 py-2 font-semibold">Description</th>
-                      <th className="px-3 py-2 font-semibold">Unit</th>
-                      <th className="px-3 py-2 font-semibold text-right">
-                        Rate
-                      </th>
-                      <th className="px-3 py-2 font-semibold text-center">
-                        Total Performed Work
-                      </th>
-                      {canTariffsFinancial && (
-                        <>
-                          <th className="px-3 py-2 font-semibold text-right">
-                            Total Value of Performed Works
-                          </th>
-                          <th className="px-3 py-2 font-semibold text-right">
-                            Total Invoiced
-                          </th>
-                        </>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody
-                    className={
-                      isDark
-                        ? "divide-y divide-slate-700/50"
-                        : "divide-y divide-slate-200/70"
-                    }
-                  >
-                    {tariffs.map((tariff) => {
-                      const consumed = tariff.consumed_quantity ?? 0;
-                      const rate =
-                        typeof tariff.rate === "string"
-                          ? Number(tariff.rate.replace(/,/g, "")) || 0
-                          : tariff.rate || 0;
-                      const value = consumed * rate;
-                      const invoiced = tariff.invoiced || 0;
-                      return (
-                        <tr
-                          key={tariff.id}
-                          className={
-                            isDark
-                              ? "hover:bg-slate-800/30"
-                              : "hover:bg-slate-50/50"
-                          }
-                        >
-                          <td
-                            className={`px-3 py-2 font-medium ${isDark ? "text-slate-200" : "text-slate-800"}`}
-                          >
-                            {tariff.description}
-                          </td>
-                          <td className="px-3 py-2">
-                            <Badge tone="indigo" className="text-[9px]">
-                              {tariff.unit.replace("_", " ")}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono">
-                            {formatCurrency(tariff.rate, contract.currency)}
-                          </td>
-                          <td className="px-3 py-2 text-center font-mono">
-                            {consumed}
-                          </td>
-                          {canTariffsFinancial && (
-                            <>
-                              <td
-                                className={`px-3 py-2 text-right font-mono font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
-                              >
-                                {formatCurrency(value, contract.currency)}
-                              </td>
-                              <td
-                                className={`px-3 py-2 text-right font-mono font-bold ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
-                              >
-                                {formatCurrency(invoiced)}
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot
-                    className={
-                      isDark
-                        ? "bg-slate-800/50 border-t-2 border-slate-600"
-                        : "bg-slate-50/70 border-t-2 border-slate-300"
-                    }
-                  >
-                    <tr>
-                      <td
-                        colSpan={canTariffsFinancial ? 6 : 4}
-                        className={`px-3 py-2.5 text-sm font-bold uppercase tracking-wider ${isDark ? "text-slate-200" : "text-slate-700"}`}
-                      >
-                        💰 Total
-                      </td>
-                      {canTariffsTotals && (
-                        <>
-                          <td
-                            className={`px-3 py-2.5 text-right font-mono font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
-                          >
-                            {formatCurrency(
-                              tariffs.reduce((sum, t) => {
-                                const rate =
-                                  typeof t.rate === "string"
-                                    ? Number(t.rate.replace(/,/g, "")) || 0
-                                    : t.rate || 0;
-                                return sum + (t.consumed_quantity || 0) * rate;
-                              }, 0),
-                              contract.currency,
-                            )}
-                          </td>
-                          <td
-                            className={`px-3 py-2.5 text-right font-mono font-bold ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
-                          >
-                            {formatCurrency(
-                              tariffs.reduce(
-                                (sum, t) => sum + (t.invoiced || 0),
-                                0,
-                              ),
-                            )}
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            ) : (
-              <div
-                className={`rounded-xl border-2 border-dashed p-8 text-center ${
-                  isDark
-                    ? "border-slate-700/50 bg-slate-800/30"
-                    : "border-slate-300/70 bg-slate-50/50"
-                }`}
-              >
-                <div className="text-4xl mb-3">🔒</div>
-                <h4
-                  className={`text-sm font-bold mb-2 ${isDark ? "text-slate-200" : "text-slate-700"}`}
-                >
-                  Tariff Table Locked
-                </h4>
+                <div className="text-4xl mb-2">📭</div>
+                <p>No tariff lines found for this contract</p>
               </div>
             )}
           </div>
@@ -444,8 +1125,24 @@ export function ContractDetailsModal({
             >
               Tariff Details Locked
             </h4>
+            <p
+              className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}
+            >
+              You need permission to view tariff details.
+            </p>
           </div>
         )}
+
+        {/* ═══════════════════════════════════════ */}
+        {/* 🔹 ACTIONS */}
+        {/* ═══════════════════════════════════════ */}
+        <div
+          className={`flex justify-end pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}
+        >
+          <Button variant="ghost" onClick={onClose}>
+            Close
+          </Button>
+        </div>
       </div>
     </Modal>
   );

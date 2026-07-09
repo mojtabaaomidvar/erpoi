@@ -12,76 +12,116 @@
   --bg-input: #ffffff;
   --bg-hover: #f1f5f9;
   --bg-muted: #f8fafc;
-  
+
   --text-primary: #0f172a;
   --text-secondary: #64748b;
   --text-muted: #94a3b8;
   --text-sidebar: #cbd5e1;
   --text-sidebar-active: #ffffff;
-  
+
   --border-color: #e2e8f0;
   --border-sidebar: rgba(30, 41, 59, 0.6);
   --border-input: #e2e8f0;
   --border-hover: #94a3b8;
-  
+
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  --shadow-3d: 0 10px 30px -10px rgba(0, 0, 0, 0.15), 0 4px 10px -4px rgba(0, 0, 0, 0.1);
-  --shadow-3d-hover: 0 20px 40px -12px rgba(0, 0, 0, 0.2), 0 8px 16px -6px rgba(0, 0, 0, 0.12);
+  --shadow-3d:
+    0 10px 30px -10px rgba(0, 0, 0, 0.15), 0 4px 10px -4px rgba(0, 0, 0, 0.1);
+  --shadow-3d-hover:
+    0 20px 40px -12px rgba(0, 0, 0, 0.2), 0 8px 16px -6px rgba(0, 0, 0, 0.12);
   --shadow-inset-light: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .dark {
   /* تم تاریک روشن‌تر */
-  --bg-app: #2d3748;        /* slate-700 - روشن‌تر از قبل */
-  --bg-card: #4a5568;       /* slate-600 - روشن‌تر */
-  --bg-header: #2d3748;     /* slate-700 */
-  --bg-sidebar: #2d3748;    /* slate-700 */
-  --bg-input: #5a6577;      /* روشن‌تر */
-  --bg-hover: #5a6577;      /* روشن‌تر */
-  --bg-muted: #4a5568;      /* slate-600 */
-  
-  --text-primary: #f7fafc;  /* slate-50 - روشن‌تر */
+  --bg-app: #2d3748; /* slate-700 - روشن‌تر از قبل */
+  --bg-card: #4a5568; /* slate-600 - روشن‌تر */
+  --bg-header: #2d3748; /* slate-700 */
+  --bg-sidebar: #2d3748; /* slate-700 */
+  --bg-input: #5a6577; /* روشن‌تر */
+  --bg-hover: #5a6577; /* روشن‌تر */
+  --bg-muted: #4a5568; /* slate-600 */
+
+  --text-primary: #f7fafc; /* slate-50 - روشن‌تر */
   --text-secondary: #cbd5e0; /* slate-300 - روشن‌تر */
-  --text-muted: #a0aec0;    /* slate-400 - روشن‌تر */
-  --text-sidebar: #e2e8f0;  /* slate-200 */
+  --text-muted: #a0aec0; /* slate-400 - روشن‌تر */
+  --text-sidebar: #e2e8f0; /* slate-200 */
   --text-sidebar-active: #ffffff;
-  
-  --border-color: #718096;  /* slate-500 - واضح‌تر */
+
+  --border-color: #718096; /* slate-500 - واضح‌تر */
   --border-sidebar: rgba(113, 128, 150, 0.6);
   --border-input: #718096;
   --border-hover: #a0aec0;
-  
+
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3);
-  --shadow-3d: 0 10px 30px -10px rgba(0, 0, 0, 0.4), 0 4px 10px -4px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --shadow-3d-hover: 0 20px 40px -12px rgba(0, 0, 0, 0.5), 0 8px 16px -6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --shadow-3d:
+    0 10px 30px -10px rgba(0, 0, 0, 0.4), 0 4px 10px -4px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --shadow-3d-hover:
+    0 20px 40px -12px rgba(0, 0, 0, 0.5), 0 8px 16px -6px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   --shadow-inset-light: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 /* ============ UTILITY CLASSES ============ */
-.bg-app { background-color: var(--bg-app); }
-.bg-card { background-color: var(--bg-card); }
-.bg-header { background-color: var(--bg-header); }
-.bg-sidebar { background-color: var(--bg-sidebar); }
-.bg-input { background-color: var(--bg-input); }
-.bg-hover { background-color: var(--bg-hover); }
-.bg-muted { background-color: var(--bg-muted); }
+.bg-app {
+  background-color: var(--bg-app);
+}
+.bg-card {
+  background-color: var(--bg-card);
+}
+.bg-header {
+  background-color: var(--bg-header);
+}
+.bg-sidebar {
+  background-color: var(--bg-sidebar);
+}
+.bg-input {
+  background-color: var(--bg-input);
+}
+.bg-hover {
+  background-color: var(--bg-hover);
+}
+.bg-muted {
+  background-color: var(--bg-muted);
+}
 
-.text-primary { color: var(--text-primary); }
-.text-secondary { color: var(--text-secondary); }
-.text-muted { color: var(--text-muted); }
-.text-sidebar { color: var(--text-sidebar); }
-.text-sidebar-active { color: var(--text-sidebar-active); }
+.text-primary {
+  color: var(--text-primary);
+}
+.text-secondary {
+  color: var(--text-secondary);
+}
+.text-muted {
+  color: var(--text-muted);
+}
+.text-sidebar {
+  color: var(--text-sidebar);
+}
+.text-sidebar-active {
+  color: var(--text-sidebar-active);
+}
 
-.border-theme { border-color: var(--border-color); }
-.border-sidebar { border-color: var(--border-sidebar); }
-.border-input { border-color: var(--border-input); }
+.border-theme {
+  border-color: var(--border-color);
+}
+.border-sidebar {
+  border-color: var(--border-sidebar);
+}
+.border-input {
+  border-color: var(--border-input);
+}
 
 /* ============ GLOBAL STYLES ============ */
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg-app);
@@ -200,7 +240,7 @@ body {
 }
 
 .panel-3d::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -211,8 +251,8 @@ body {
     rgba(255, 255, 255, 0) 50%,
     rgba(0, 0, 0, 0.05) 100%
   );
-  -webkit-mask: 
-    linear-gradient(#fff 0 0) content-box, 
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -245,7 +285,7 @@ body {
 /* دکمه سه‌بعدی */
 .btn-3d {
   position: relative;
-  box-shadow: 
+  box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 2px 4px -2px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -254,7 +294,7 @@ body {
 
 .btn-3d:hover {
   transform: translateY(-2px);
-  box-shadow: 
+  box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.2),
     0 4px 6px -4px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
@@ -262,20 +302,20 @@ body {
 
 .btn-3d:active {
   transform: translateY(0);
-  box-shadow: 
+  box-shadow:
     0 2px 4px -1px rgba(0, 0, 0, 0.1),
     inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .dark .btn-3d {
-  box-shadow: 
+  box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.4),
     0 2px 4px -2px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .dark .btn-3d:hover {
-  box-shadow: 
+  box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.5),
     0 4px 6px -4px rgba(0, 0, 0, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -319,7 +359,7 @@ body {
 }
 
 .glow::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -1px;
   border-radius: inherit;
@@ -375,7 +415,8 @@ body {
 
 /* ============ EXPIRING SOON ANIMATION ============ */
 @keyframes expiring-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4);
   }
@@ -434,13 +475,48 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
-@keyframes slideIn {
+
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateX(-10px);
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
   }
   to {
     opacity: 1;
     transform: translateX(0);
   }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.3s ease-out forwards;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.3s ease-out forwards;
 }

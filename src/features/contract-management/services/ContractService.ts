@@ -48,6 +48,10 @@ class ContractService {
   }
 
   async create(contract: Partial<Contract>): Promise<Contract> {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    console.log("[ContractService] User:", user?.id);
     const dbContract = this.contractToDb(contract);
 
     const { data, error } = await supabase
@@ -112,8 +116,8 @@ class ContractService {
       tariffs: dbContract.tariffs || 0,
       invoiced: Number(dbContract.invoiced) || 0,
       department: dbContract.department || "",
-      createdAt: dbContract.created_at,
-      updatedAt: dbContract.updated_at,
+      created_at: dbContract.created_at,
+      updated_at: dbContract.updated_at,
     };
   }
 

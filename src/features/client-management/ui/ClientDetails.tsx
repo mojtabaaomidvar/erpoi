@@ -132,6 +132,45 @@ export function ClientDetails({
           >
             Select a client from the list to view details and contracts
           </p>
+
+          <div className="flex items-center justify-center gap-6 mt-8">
+            <div className="flex flex-col items-center gap-2">
+              <div
+                className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-indigo-900/50" : "bg-indigo-100"}`}
+              >
+                👥
+              </div>
+              <span
+                className={`text-xs font-medium ${isDark ? "text-slate-300" : "text-slate-600"}`}
+              >
+                Clients
+              </span>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <div
+                className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-emerald-900/50" : "bg-emerald-100"}`}
+              >
+                📄
+              </div>
+              <span
+                className={`text-xs font-medium ${isDark ? "text-slate-300" : "text-slate-600"}`}
+              >
+                Contracts
+              </span>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <div
+                className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-amber-900/50" : "bg-amber-100"}`}
+              >
+                📧
+              </div>
+              <span
+                className={`text-xs font-medium ${isDark ? "text-slate-300" : "text-slate-600"}`}
+              >
+                Contacts
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     );

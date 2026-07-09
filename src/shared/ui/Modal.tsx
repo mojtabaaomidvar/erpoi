@@ -1,3 +1,5 @@
+// src/shared/ui/Modal.tsx
+
 import { cn } from"../lib/cn";
 import { useTheme } from"@app/providers/ThemeProvider";
 

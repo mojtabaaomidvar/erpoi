@@ -1,14 +1,18 @@
 // src/features/client-management/ui/ClientForm.tsx
 
-import { useState, useEffect } from 'react';
-import { Button, Badge, Modal } from '@design-system';
-import { useTheme } from '@app/providers/ThemeProvider';
-import type { Client } from '@entities/contract/types';
-import { validateNationalCode, validateNationalId, validateMobile } from '@shared/lib/validators';
+import { useState, useEffect } from "react";
+import { Button, Badge, Modal } from "@design-system";
+import { useTheme } from "@app/providers/ThemeProvider";
+import type { Client } from "@/types/contract";
+import {
+  validateNationalCode,
+  validateNationalId,
+  validateMobile,
+} from "@shared/lib/validators";
 
 // 🔐 RBAC Imports
-import { usePermission } from '@shared/authorization/hooks/usePermission';
-import { showToast } from '@shared/ui/ToastContainer';
+import { usePermission } from "@shared/authorization/hooks/usePermission";
+import { showToast } from "@shared/ui/ToastContainer";
 
 interface ClientFormProps {
   isOpen: boolean;
@@ -16,6 +20,8 @@ interface ClientFormProps {
   onSave: (client: any) => void;
   clients: Client[];
   currentDepartment: string;
+  mode?: "add" | "edit";
+  initialData?: Partial<Client>;
   onDuplicateWarning?: React.Dispatch<
     React.SetStateAction<{
       field: string;
@@ -31,28 +37,32 @@ export function ClientForm({
   onSave,
   clients,
   currentDepartment,
+  mode = "add",
+  initialData,
 }: ClientFormProps) {
   const { isDark } = useTheme();
-  
+
   // 🔐 RBAC: چک کردن permission
   const { can } = usePermission();
-  const canCreate = can('client:create');
+  const canCreate = can("client:create");
+  const canUpdate = can("client:update");
+  const hasPermission = mode === "add" ? canCreate : canUpdate;
 
   const [addForm, setAddForm] = useState({
-    name_en: '',
-    name_fa: '',
-    abbreviated_name: '',
-    company_type: 'Private Joint Stock',
-    national_id: '',
-    economic_code: '',
-    registration_no: '',
-    address_en: '',
-    address_fa: '',
-    primary_phone: '',
-    email_inbox: '',
-    category: 'OIL_GAS' as const,
+    name_en: "",
+    name_fa: "",
+    abbreviated_name: "",
+    company_type: "Private Joint Stock",
+    national_id: "",
+    economic_code: "",
+    registration_no: "",
+    address_en: "",
+    address_fa: "",
+    primary_phone: "",
+    email_inbox: "",
+    category: "OIL_GAS" as const,
     contactPersons: [
-      { id: '1', name: '', position: '', mobile: '', email: '' },
+      { id: "1", name: "", position: "", mobile: "", email: "" },
     ],
   });
 
@@ -63,65 +73,108 @@ export function ClientForm({
     message: string;
   } | null>(null);
 
-  // 🔐 RBAC: اگر دسترسی نداره، مودال رو نبند و پیام بده
+  // 🔐 RBAC: اگر دسترسی نداره، مودال رو ببند
   useEffect(() => {
-    if (isOpen && !canCreate) {
-      showToast('error', 'Access Denied', 'You do not have permission to create clients');
+    if (isOpen && !hasPermission) {
+      showToast(
+        "error",
+        "Access Denied",
+        `You do not have permission to ${mode === "add" ? "create" : "edit"} clients`,
+      );
       onClose();
     }
-  }, [isOpen, canCreate, onClose]);
+  }, [isOpen, hasPermission, mode, onClose]);
 
   // Reset form when modal opens
   useEffect(() => {
-    if (isOpen && canCreate) {
-      setAddForm({
-        name_en: '',
-        name_fa: '',
-        abbreviated_name: '',
-        company_type: 'Private Joint Stock',
-        national_id: '',
-        economic_code: '',
-        registration_no: '',
-        address_en: '',
-        address_fa: '',
-        primary_phone: '',
-        email_inbox: '',
-        category: 'OIL_GAS',
-        contactPersons: [
-          { id: '1', name: '', position: '', mobile: '', email: '' },
-        ],
-      });
+    if (isOpen && hasPermission) {
+      if (mode === "edit" && initialData) {
+        // حالت Edit: پر کردن فرم با داده‌های موجود
+        setAddForm({
+          name_en: initialData.name_en || "",
+          name_fa: initialData.name_fa || "",
+          abbreviated_name: initialData.abbreviated_name || "",
+          company_type:
+            initialData.type === "LEGAL"
+              ? (initialData as any).company_type || "Private Joint Stock"
+              : "",
+          national_id: initialData.national_id || "",
+          economic_code: initialData.economic_code || "",
+          registration_no: initialData.registration_no || "",
+          address_en: initialData.address_en || "",
+          address_fa: initialData.address_fa || "",
+          primary_phone: initialData.phone || "",
+          email_inbox: initialData.email || "",
+          category: (initialData as any).category || "OIL_GAS",
+          contactPersons:
+            initialData.contactPersons && initialData.contactPersons.length > 0
+              ? initialData.contactPersons.map((cp) => ({
+                  id: cp.id,
+                  name: cp.name,
+                  position: cp.position || "", // 🔧 FIX: fallback به empty string
+                  mobile: cp.mobile,
+                  email: cp.email || "",
+                }))
+              : [{ id: "1", name: "", position: "", mobile: "", email: "" }],
+        });
+      } else {
+        // حالت Add: فرم خالی
+        setAddForm({
+          name_en: "",
+          name_fa: "",
+          abbreviated_name: "",
+          company_type: "Private Joint Stock",
+          national_id: "",
+          economic_code: "",
+          registration_no: "",
+          address_en: "",
+          address_fa: "",
+          primary_phone: "",
+          email_inbox: "",
+          category: "OIL_GAS",
+          contactPersons: [
+            { id: "1", name: "", position: "", mobile: "", email: "" },
+          ],
+        });
+      }
       setAddErrors({});
       setDuplicateWarning(null);
     }
-  }, [isOpen, canCreate]);
+  }, [isOpen, hasPermission, mode, initialData]);
 
-  // Check for duplicates
+  // Check for duplicates (فقط در حالت add)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || mode === "edit") return;
 
     const timer = setTimeout(() => {
       let found: any = null;
-      let field = '';
-      const normalize = (str: string) => str.toLowerCase().replace(/\s+/g, '').trim();
+      let field = "";
+      const normalize = (str: string) =>
+        str.toLowerCase().replace(/\s+/g, "").trim();
 
       if (addForm.name_en.trim().length >= 3) {
-        found = clients.find((c) => normalize(c.name_en) === normalize(addForm.name_en));
-        if (found) field = 'name_en';
+        found = clients.find(
+          (c) => normalize(c.name_en) === normalize(addForm.name_en),
+        );
+        if (found) field = "name_en";
       }
 
       if (!found && addForm.national_id && addForm.national_id.length >= 10) {
-        found = clients.find((c) => c.national_id && c.national_id === addForm.national_id);
-        if (found) field = 'national_id';
+        found = clients.find(
+          (c) => c.national_id && c.national_id === addForm.national_id,
+        );
+        if (found) field = "national_id";
       }
 
       if (!found && addForm.company_type && addForm.registration_no.trim()) {
-        found = clients.find((c) => (c as any).registration_no === addForm.registration_no);
-        if (found) field = 'registration_no';
+        found = clients.find(
+          (c) => (c as any).registration_no === addForm.registration_no,
+        );
+        if (found) field = "registration_no";
       }
 
       if (found) {
-        const dept = (found as any).departments?.[0] || 'Unknown';
+        const dept = (found as any).departments?.[0] || "Unknown";
         const totalContacts = (found as any).contactPersons?.length || 0;
         setDuplicateWarning({
           field,
@@ -134,33 +187,47 @@ export function ClientForm({
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [addForm.national_id, addForm.name_en, addForm.registration_no, clients, addForm.company_type, isOpen]);
+  }, [
+    addForm.national_id,
+    addForm.name_en,
+    addForm.registration_no,
+    clients,
+    addForm.company_type,
+    isOpen,
+    mode,
+  ]);
 
   const validateAddForm = () => {
     const errors: any = {};
-    if (!addForm.name_en.trim()) errors.name_en = 'English name is required';
-    if (!addForm.name_fa.trim()) errors.name_fa = 'نام فارسی الزامی است';
-    if (!addForm.national_id) errors.national_id = 'National ID/Code is required';
+    if (!addForm.name_en.trim()) errors.name_en = "English name is required";
+    if (!addForm.name_fa.trim()) errors.name_fa = "نام فارسی الزامی است";
+    if (!addForm.national_id)
+      errors.national_id = "National ID/Code is required";
     else if (addForm.company_type && !validateNationalId(addForm.national_id))
-      errors.national_id = 'Must be exactly 11 digits';
-    else if (!addForm.company_type && !validateNationalCode(addForm.national_id))
-      errors.national_id = 'Invalid national code';
+      errors.national_id = "Must be exactly 11 digits";
+    else if (
+      !addForm.company_type &&
+      !validateNationalCode(addForm.national_id)
+    )
+      errors.national_id = "Invalid national code";
 
     if (addForm.company_type && !addForm.registration_no)
-      errors.registration_no = 'Registration number is required';
+      errors.registration_no = "Registration number is required";
 
-    if (!addForm.primary_phone) errors.primary_phone = 'Primary phone is required';
+    if (!addForm.primary_phone)
+      errors.primary_phone = "Primary phone is required";
     else if (!validateMobile(addForm.primary_phone))
-      errors.primary_phone = 'Invalid mobile format';
+      errors.primary_phone = "Invalid mobile format";
 
-    if (!addForm.address_en.trim()) errors.address_en = 'English address is required';
-    if (!addForm.address_fa.trim()) errors.address_fa = 'آدرس فارسی الزامی است';
+    if (!addForm.address_en.trim())
+      errors.address_en = "English address is required";
+    if (!addForm.address_fa.trim()) errors.address_fa = "آدرس فارسی الزامی است";
 
     const validContacts = addForm.contactPersons.filter(
-      (cp) => cp.name.trim() && validateMobile(cp.mobile)
+      (cp) => cp.name.trim() && validateMobile(cp.mobile),
     );
     if (addForm.company_type && validContacts.length === 0)
-      errors.contactPersons = 'At least one valid contact person required';
+      errors.contactPersons = "At least one valid contact person required";
 
     setAddErrors(errors);
     return Object.keys(errors).length === 0;
@@ -168,20 +235,27 @@ export function ClientForm({
 
   const handleSave = () => {
     // 🔐 RBAC: چک کردن permission قبل از submit
-    if (!canCreate) {
-      showToast('error', 'Access Denied', 'You do not have permission to create clients');
+    if (!hasPermission) {
+      showToast(
+        "error",
+        "Access Denied",
+        `You do not have permission to ${mode === "add" ? "create" : "edit"} clients`,
+      );
       return;
     }
 
     if (!validateAddForm()) return;
-    if (duplicateWarning) {
-      showToast('warning', 'Duplicate Warning', 'Please resolve the duplicate client warning first.');
+    if (duplicateWarning && mode === "add") {
+      showToast(
+        "warning",
+        "Duplicate Warning",
+        "Please resolve the duplicate client warning first.",
+      );
       return;
     }
 
-    const newClient: any = {
-      id: `c${Date.now()}`,
-      type: addForm.company_type ? 'LEGAL' : 'INDIVIDUAL',
+    const clientData: any = {
+      type: addForm.company_type ? "LEGAL" : "INDIVIDUAL",
       name_en: addForm.name_en,
       name_fa: addForm.name_fa,
       national_id: addForm.national_id,
@@ -189,13 +263,14 @@ export function ClientForm({
       contacts: addForm.company_type
         ? addForm.contactPersons.filter((cp) => cp.name.trim()).length
         : 0,
-      contracts: 0,
-      logoColor: 'from-indigo-500 to-violet-600',
+      contracts: initialData?.contracts || 0,
+      logoColor: initialData?.logoColor || "from-indigo-500 to-violet-600",
       email: addForm.email_inbox,
+      emails: addForm.email_inbox ? [addForm.email_inbox] : [],
       phone: addForm.primary_phone,
       address_en: addForm.address_en,
       address_fa: addForm.address_fa,
-      departments: [currentDepartment],
+      departments: initialData?.departments || [currentDepartment],
       contactPersons: addForm.company_type
         ? addForm.contactPersons
             .filter((cp) => cp.name.trim())
@@ -204,13 +279,20 @@ export function ClientForm({
     };
 
     if (addForm.company_type) {
-      newClient.company_type = addForm.company_type;
-      newClient.registration_no = addForm.registration_no;
-      newClient.economic_code = addForm.economic_code;
-      newClient.abbreviated_name = addForm.abbreviated_name;
+      clientData.company_type = addForm.company_type;
+      clientData.registration_no = addForm.registration_no;
+      clientData.economic_code = addForm.economic_code;
+      clientData.abbreviated_name = addForm.abbreviated_name;
     }
 
-    onSave(newClient);
+    // اگر حالت edit است، id را اضافه کن
+    if (mode === "edit" && initialData?.id) {
+      clientData.id = initialData.id;
+    } else {
+      clientData.id = `c${Date.now()}`;
+    }
+
+    onSave(clientData);
     onClose();
   };
 
@@ -219,7 +301,13 @@ export function ClientForm({
       ...addForm,
       contactPersons: [
         ...addForm.contactPersons,
-        { id: Date.now().toString(), name: '', position: '', mobile: '', email: '' },
+        {
+          id: Date.now().toString(),
+          name: "",
+          position: "",
+          mobile: "",
+          email: "",
+        },
       ],
     });
 
@@ -233,9 +321,14 @@ export function ClientForm({
     setAddForm({
       ...addForm,
       contactPersons: addForm.contactPersons.map((cp) =>
-        cp.id === id ? { ...cp, [field]: value } : cp
+        cp.id === id ? { ...cp, [field]: value } : cp,
       ),
     });
+
+  // 🔐 RBAC: اگر دسترسی نداره، هیچی رندر نکن
+  if (!hasPermission) {
+    return null;
+  }
 
   return (
     <Modal
@@ -244,39 +337,45 @@ export function ClientForm({
         onClose();
         setDuplicateWarning(null);
       }}
-      title="Entity Onboarding"
+      title={mode === "add" ? "🏢 Entity Onboarding" : "✏️ Edit Client"}
       size="xl"
     >
       <div className="space-y-6">
         {/* Type Selector */}
         <div
           className={`flex gap-2 p-1.5 rounded-xl border w-fit ${
-            isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'
+            isDark
+              ? "bg-slate-800 border-slate-700"
+              : "bg-slate-50 border-slate-200"
           }`}
         >
           <button
             type="button"
-            onClick={() => setAddForm({ ...addForm, company_type: 'Private Joint Stock' })}
+            onClick={() =>
+              setAddForm({ ...addForm, company_type: "Private Joint Stock" })
+            }
+            disabled={mode === "edit"}
             className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${
               addForm.company_type
-                ? 'bg-indigo-600 text-white shadow-md'
+                ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md"
                 : isDark
-                ? 'text-slate-300 hover:bg-slate-700'
-                : 'text-slate-600 hover:bg-white'
-            }`}
+                  ? "text-slate-300 hover:bg-slate-700"
+                  : "text-slate-600 hover:bg-white"
+            } ${mode === "edit" ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             🏢 LEGAL
           </button>
           <button
             type="button"
-            onClick={() => setAddForm({ ...addForm, company_type: '' })}
+            onClick={() => setAddForm({ ...addForm, company_type: "" })}
+            disabled={mode === "edit"}
             className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${
               !addForm.company_type
-                ? 'bg-indigo-600 text-white shadow-md'
+                ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md"
                 : isDark
-                ? 'text-slate-300 hover:bg-slate-700'
-                : 'text-slate-600 hover:bg-white'
-            }`}
+                  ? "text-slate-300 hover:bg-slate-700"
+                  : "text-slate-600 hover:bg-white"
+            } ${mode === "edit" ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             👤 INDIVIDUAL
           </button>
@@ -285,12 +384,14 @@ export function ClientForm({
         {/* Basic Identity */}
         <div
           className={`rounded-2xl border p-6 ${
-            isDark ? 'border-slate-700' : 'border-slate-200'
+            isDark
+              ? "border-slate-700 bg-slate-800/30"
+              : "border-slate-200 bg-slate-50/50"
           }`}
         >
           <h2
             className={`text-lg font-bold mb-6 flex items-center gap-2 ${
-              isDark ? 'text-slate-100' : 'text-slate-900'
+              isDark ? "text-slate-100" : "text-slate-900"
             }`}
           >
             🌐 BASIC IDENTITY
@@ -300,23 +401,25 @@ export function ClientForm({
             <div>
               <label
                 className={`mb-1.5 block text-xs font-semibold ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? "text-slate-300" : "text-slate-700"
                 }`}
               >
                 Full Name (English) *
               </label>
               <input
                 value={addForm.name_en}
-                onChange={(e) => setAddForm({ ...addForm, name_en: e.target.value })}
-                className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 ${
+                onChange={(e) =>
+                  setAddForm({ ...addForm, name_en: e.target.value })
+                }
+                className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 transition-all ${
                   addErrors.name_en
-                    ? 'border-rose-300 focus:ring-rose-100'
+                    ? "border-rose-300 focus:ring-rose-100"
                     : isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900'
-                    : 'border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100'
+                      ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900"
+                      : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
                 }`}
               />
-              {duplicateWarning?.field === 'name_en' && (
+              {duplicateWarning?.field === "name_en" && (
                 <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
                   <p className="text-xs font-medium text-amber-900 mb-2">
                     {duplicateWarning.message}
@@ -334,20 +437,22 @@ export function ClientForm({
             <div dir="rtl">
               <label
                 className={`mb-1.5 block text-xs font-semibold text-left ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? "text-slate-300" : "text-slate-700"
                 }`}
               >
                 Full Name (Farsi) *
               </label>
               <input
                 value={addForm.name_fa}
-                onChange={(e) => setAddForm({ ...addForm, name_fa: e.target.value })}
-                className={`w-full rounded-lg border py-2.5 px-3 text-sm text-right focus:outline-none focus:ring-2 ${
+                onChange={(e) =>
+                  setAddForm({ ...addForm, name_fa: e.target.value })
+                }
+                className={`w-full rounded-lg border py-2.5 px-3 text-sm text-right focus:outline-none focus:ring-2 transition-all ${
                   addErrors.name_fa
-                    ? 'border-rose-300 focus:ring-rose-100'
+                    ? "border-rose-300 focus:ring-rose-100"
                     : isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900'
-                    : 'border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100'
+                      ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900"
+                      : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
                 }`}
               />
               {addErrors.name_fa && (
@@ -362,7 +467,7 @@ export function ClientForm({
               <div>
                 <label
                   className={`mb-1.5 block text-xs font-semibold ${
-                    isDark ? 'text-slate-300' : 'text-slate-700'
+                    isDark ? "text-slate-300" : "text-slate-700"
                   }`}
                 >
                   Abbreviated Name
@@ -372,10 +477,10 @@ export function ClientForm({
                   onChange={(e) =>
                     setAddForm({ ...addForm, abbreviated_name: e.target.value })
                   }
-                  className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
+                  className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 transition-all ${
                     isDark
-                      ? 'border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400'
-                      : 'border-slate-200 bg-white focus:border-indigo-400'
+                      ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900"
+                      : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
                   }`}
                 />
               </div>
@@ -386,7 +491,7 @@ export function ClientForm({
               <div>
                 <label
                   className={`mb-1.5 block text-xs font-semibold ${
-                    isDark ? 'text-slate-300' : 'text-slate-700'
+                    isDark ? "text-slate-300" : "text-slate-700"
                   }`}
                 >
                   Company Type *
@@ -396,13 +501,15 @@ export function ClientForm({
                   onChange={(e) =>
                     setAddForm({ ...addForm, company_type: e.target.value })
                   }
-                  className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
+                  className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 transition-all ${
                     isDark
-                      ? 'border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400'
-                      : 'border-slate-200 bg-white focus:border-indigo-400'
+                      ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900"
+                      : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
                   }`}
                 >
-                  <option value="Private Joint Stock">Private Joint Stock</option>
+                  <option value="Private Joint Stock">
+                    Private Joint Stock
+                  </option>
                   <option value="Public Joint Stock">Public Joint Stock</option>
                   <option value="Limited Liability">Limited Liability</option>
                 </select>
@@ -413,31 +520,31 @@ export function ClientForm({
             <div>
               <label
                 className={`mb-1.5 block text-xs font-semibold ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? "text-slate-300" : "text-slate-700"
                 }`}
               >
                 {addForm.company_type
-                  ? 'National ID (11 digits) *'
-                  : 'National Code (10 digits) *'}
+                  ? "National ID (11 digits) *"
+                  : "National Code (10 digits) *"}
               </label>
               <input
                 value={addForm.national_id}
                 onChange={(e) =>
                   setAddForm({
                     ...addForm,
-                    national_id: e.target.value.replace(/\D/g, ''),
+                    national_id: e.target.value.replace(/\D/g, ""),
                   })
                 }
                 maxLength={addForm.company_type ? 11 : 10}
-                className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 ${
+                className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 transition-all ${
                   addErrors.national_id
-                    ? 'border-rose-300 focus:ring-rose-100'
+                    ? "border-rose-300 focus:ring-rose-100"
                     : isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900'
-                    : 'border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100'
+                      ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900"
+                      : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
                 }`}
               />
-              {duplicateWarning?.field === 'national_id' && (
+              {duplicateWarning?.field === "national_id" && (
                 <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
                   <p className="text-xs font-medium text-amber-900 mb-2">
                     {duplicateWarning.message}
@@ -456,7 +563,7 @@ export function ClientForm({
               <div>
                 <label
                   className={`mb-1.5 block text-xs font-semibold ${
-                    isDark ? 'text-slate-300' : 'text-slate-700'
+                    isDark ? "text-slate-300" : "text-slate-700"
                   }`}
                 >
                   Economic Code
@@ -466,13 +573,13 @@ export function ClientForm({
                   onChange={(e) =>
                     setAddForm({
                       ...addForm,
-                      economic_code: e.target.value.replace(/\D/g, ''),
+                      economic_code: e.target.value.replace(/\D/g, ""),
                     })
                   }
-                  className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
+                  className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 transition-all ${
                     isDark
-                      ? 'border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400'
-                      : 'border-slate-200 bg-white focus:border-indigo-400'
+                      ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900"
+                      : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
                   }`}
                 />
               </div>
@@ -483,7 +590,7 @@ export function ClientForm({
               <div>
                 <label
                   className={`mb-1.5 block text-xs font-semibold ${
-                    isDark ? 'text-slate-300' : 'text-slate-700'
+                    isDark ? "text-slate-300" : "text-slate-700"
                   }`}
                 >
                   Registration Number *
@@ -493,15 +600,15 @@ export function ClientForm({
                   onChange={(e) =>
                     setAddForm({ ...addForm, registration_no: e.target.value })
                   }
-                  className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 ${
+                  className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 transition-all ${
                     addErrors.registration_no
-                      ? 'border-rose-300 focus:ring-rose-100'
+                      ? "border-rose-300 focus:ring-rose-100"
                       : isDark
-                      ? 'border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900'
-                      : 'border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100'
+                        ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900"
+                        : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
                   }`}
                 />
-                {duplicateWarning?.field === 'registration_no' && (
+                {duplicateWarning?.field === "registration_no" && (
                   <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
                     <p className="text-xs font-medium text-amber-900 mb-2">
                       {duplicateWarning.message}
@@ -521,12 +628,14 @@ export function ClientForm({
         {/* Contact Hub */}
         <div
           className={`rounded-2xl border p-6 ${
-            isDark ? 'border-slate-700' : 'border-slate-200'
+            isDark
+              ? "border-slate-700 bg-slate-800/30"
+              : "border-slate-200 bg-slate-50/50"
           }`}
         >
           <h2
             className={`text-lg font-bold mb-6 flex items-center gap-2 ${
-              isDark ? 'text-slate-100' : 'text-slate-900'
+              isDark ? "text-slate-100" : "text-slate-900"
             }`}
           >
             📞 CONTACT HUB
@@ -535,7 +644,7 @@ export function ClientForm({
             <div>
               <label
                 className={`mb-1.5 block text-xs font-semibold ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? "text-slate-300" : "text-slate-700"
                 }`}
               >
                 Primary Phone *
@@ -545,16 +654,16 @@ export function ClientForm({
                 onChange={(e) =>
                   setAddForm({
                     ...addForm,
-                    primary_phone: e.target.value.replace(/\D/g, ''),
+                    primary_phone: e.target.value.replace(/\D/g, ""),
                   })
                 }
                 maxLength={11}
-                className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 ${
+                className={`w-full rounded-lg border py-2.5 px-3 text-sm font-mono focus:outline-none focus:ring-2 transition-all ${
                   addErrors.primary_phone
-                    ? 'border-rose-300 focus:ring-rose-100'
+                    ? "border-rose-300 focus:ring-rose-100"
                     : isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900'
-                    : 'border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100'
+                      ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900"
+                      : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
                 }`}
               />
               {addErrors.primary_phone && (
@@ -566,7 +675,7 @@ export function ClientForm({
             <div>
               <label
                 className={`mb-1.5 block text-xs font-semibold ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? "text-slate-300" : "text-slate-700"
                 }`}
               >
                 Email Inbox
@@ -577,10 +686,10 @@ export function ClientForm({
                 onChange={(e) =>
                   setAddForm({ ...addForm, email_inbox: e.target.value })
                 }
-                className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
+                className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 transition-all ${
                   isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400'
-                    : 'border-slate-200 bg-white focus:border-indigo-400'
+                    ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900"
+                    : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
                 }`}
               />
             </div>
@@ -590,12 +699,14 @@ export function ClientForm({
         {/* Official Address */}
         <div
           className={`rounded-2xl border p-6 ${
-            isDark ? 'border-slate-700' : 'border-slate-200'
+            isDark
+              ? "border-slate-700 bg-slate-800/30"
+              : "border-slate-200 bg-slate-50/50"
           }`}
         >
           <h2
             className={`text-lg font-bold mb-6 flex items-center gap-2 ${
-              isDark ? 'text-slate-100' : 'text-slate-900'
+              isDark ? "text-slate-100" : "text-slate-900"
             }`}
           >
             🏠 OFFICIAL ADDRESS
@@ -604,7 +715,7 @@ export function ClientForm({
             <div>
               <label
                 className={`mb-1.5 block text-xs font-semibold ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? "text-slate-300" : "text-slate-700"
                 }`}
               >
                 Address (English) *
@@ -615,12 +726,12 @@ export function ClientForm({
                   setAddForm({ ...addForm, address_en: e.target.value })
                 }
                 rows={3}
-                className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 ${
+                className={`w-full rounded-lg border py-2.5 px-3 text-sm focus:outline-none focus:ring-2 transition-all ${
                   addErrors.address_en
-                    ? 'border-rose-300 focus:ring-rose-100'
+                    ? "border-rose-300 focus:ring-rose-100"
                     : isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900'
-                    : 'border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100'
+                      ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900"
+                      : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
                 }`}
               />
               {addErrors.address_en && (
@@ -632,7 +743,7 @@ export function ClientForm({
             <div dir="rtl">
               <label
                 className={`mb-1.5 block text-xs font-semibold text-left ${
-                  isDark ? 'text-slate-300' : 'text-slate-700'
+                  isDark ? "text-slate-300" : "text-slate-700"
                 }`}
               >
                 Address (Farsi) *
@@ -643,12 +754,12 @@ export function ClientForm({
                   setAddForm({ ...addForm, address_fa: e.target.value })
                 }
                 rows={3}
-                className={`w-full rounded-lg border py-2.5 px-3 text-sm text-right focus:outline-none focus:ring-2 ${
+                className={`w-full rounded-lg border py-2.5 px-3 text-sm text-right focus:outline-none focus:ring-2 transition-all ${
                   addErrors.address_fa
-                    ? 'border-rose-300 focus:ring-rose-100'
+                    ? "border-rose-300 focus:ring-rose-100"
                     : isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900'
-                    : 'border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100'
+                      ? "border-slate-700 bg-slate-800 text-slate-100 focus:border-indigo-400 focus:ring-indigo-900"
+                      : "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
                 }`}
               />
               {addErrors.address_fa && (
@@ -664,21 +775,23 @@ export function ClientForm({
         {addForm.company_type && (
           <div
             className={`rounded-2xl border p-6 ${
-              isDark ? 'border-slate-700' : 'border-slate-200'
+              isDark
+                ? "border-slate-700 bg-slate-800/30"
+                : "border-slate-200 bg-slate-50/50"
             }`}
           >
             <div className="flex items-center justify-between mb-6">
               <h2
                 className={`text-lg font-bold flex items-center gap-2 ${
-                  isDark ? 'text-slate-100' : 'text-slate-900'
+                  isDark ? "text-slate-100" : "text-slate-900"
                 }`}
               >
                 👥 CONTACT PERSONS
                 <span
                   className={`text-xs font-bold px-2 py-1 rounded-full ${
                     isDark
-                      ? 'bg-indigo-900/50 text-indigo-300'
-                      : 'bg-indigo-100 text-indigo-700'
+                      ? "bg-indigo-900/50 text-indigo-300"
+                      : "bg-indigo-100 text-indigo-700"
                   }`}
                 >
                   {addForm.contactPersons.length}
@@ -703,16 +816,16 @@ export function ClientForm({
               {addForm.contactPersons.map((cp) => (
                 <div
                   key={cp.id}
-                  className={`grid grid-cols-12 gap-3 p-4 rounded-xl border ${
+                  className={`grid grid-cols-12 gap-3 p-4 rounded-xl border transition-all ${
                     isDark
-                      ? 'border-slate-700 bg-slate-800/50'
-                      : 'border-slate-200 bg-slate-50/50'
+                      ? "border-slate-700 bg-slate-800/50 hover:border-slate-600"
+                      : "border-slate-200 bg-slate-50/50 hover:border-slate-300"
                   }`}
                 >
                   <div className="col-span-4">
                     <label
                       className={`mb-1 block text-[10px] font-semibold ${
-                        isDark ? 'text-slate-300' : 'text-slate-600'
+                        isDark ? "text-slate-300" : "text-slate-600"
                       }`}
                     >
                       Liaison Name *
@@ -720,19 +833,19 @@ export function ClientForm({
                     <input
                       value={cp.name}
                       onChange={(e) =>
-                        updateContactPerson(cp.id, 'name', e.target.value)
+                        updateContactPerson(cp.id, "name", e.target.value)
                       }
-                      className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none ${
+                      className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none transition-all ${
                         isDark
-                          ? 'border-slate-700 bg-slate-800 text-slate-100'
-                          : 'border-slate-200 bg-white'
+                          ? "border-slate-700 bg-slate-800 text-slate-100"
+                          : "border-slate-200 bg-white"
                       }`}
                     />
                   </div>
                   <div className="col-span-3">
                     <label
                       className={`mb-1 block text-[10px] font-semibold ${
-                        isDark ? 'text-slate-300' : 'text-slate-600'
+                        isDark ? "text-slate-300" : "text-slate-600"
                       }`}
                     >
                       Position/Rank
@@ -740,19 +853,19 @@ export function ClientForm({
                     <input
                       value={cp.position}
                       onChange={(e) =>
-                        updateContactPerson(cp.id, 'position', e.target.value)
+                        updateContactPerson(cp.id, "position", e.target.value)
                       }
-                      className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none ${
+                      className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none transition-all ${
                         isDark
-                          ? 'border-slate-700 bg-slate-800 text-slate-100'
-                          : 'border-slate-200 bg-white'
+                          ? "border-slate-700 bg-slate-800 text-slate-100"
+                          : "border-slate-200 bg-white"
                       }`}
                     />
                   </div>
                   <div className="col-span-3">
                     <label
                       className={`mb-1 block text-[10px] font-semibold ${
-                        isDark ? 'text-slate-300' : 'text-slate-600'
+                        isDark ? "text-slate-300" : "text-slate-600"
                       }`}
                     >
                       Mobile *
@@ -762,14 +875,14 @@ export function ClientForm({
                       onChange={(e) =>
                         updateContactPerson(
                           cp.id,
-                          'mobile',
-                          e.target.value.replace(/\D/g, '')
+                          "mobile",
+                          e.target.value.replace(/\D/g, ""),
                         )
                       }
-                      className={`w-full rounded border px-2 py-1.5 text-xs font-mono focus:border-indigo-400 focus:outline-none ${
+                      className={`w-full rounded border px-2 py-1.5 text-xs font-mono focus:border-indigo-400 focus:outline-none transition-all ${
                         isDark
-                          ? 'border-slate-700 bg-slate-800 text-slate-100'
-                          : 'border-slate-200 bg-white'
+                          ? "border-slate-700 bg-slate-800 text-slate-100"
+                          : "border-slate-200 bg-white"
                       }`}
                     />
                   </div>
@@ -777,7 +890,7 @@ export function ClientForm({
                     <div className="flex-1">
                       <label
                         className={`mb-1 block text-[10px] font-semibold ${
-                          isDark ? 'text-slate-300' : 'text-slate-600'
+                          isDark ? "text-slate-300" : "text-slate-600"
                         }`}
                       >
                         Direct Email
@@ -785,12 +898,12 @@ export function ClientForm({
                       <input
                         value={cp.email}
                         onChange={(e) =>
-                          updateContactPerson(cp.id, 'email', e.target.value)
+                          updateContactPerson(cp.id, "email", e.target.value)
                         }
-                        className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none ${
+                        className={`w-full rounded border px-2 py-1.5 text-xs focus:border-indigo-400 focus:outline-none transition-all ${
                           isDark
-                            ? 'border-slate-700 bg-slate-800 text-slate-100'
-                            : 'border-slate-200 bg-white'
+                            ? "border-slate-700 bg-slate-800 text-slate-100"
+                            : "border-slate-200 bg-white"
                         }`}
                       />
                     </div>
@@ -813,7 +926,7 @@ export function ClientForm({
         {/* Actions */}
         <div
           className={`flex justify-end gap-3 pt-4 border-t ${
-            isDark ? 'border-slate-700' : 'border-slate-100'
+            isDark ? "border-slate-700" : "border-slate-100"
           }`}
         >
           <Button
@@ -825,7 +938,9 @@ export function ClientForm({
           >
             Cancel
           </Button>
-          <Button onClick={handleSave}>💾 Save Entity</Button>
+          <Button onClick={handleSave}>
+            💾 {mode === "add" ? "Save Entity" : "Update Client"}
+          </Button>
         </div>
       </div>
     </Modal>

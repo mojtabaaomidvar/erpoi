@@ -1,7 +1,7 @@
 // src/features/client-management/services/ClientService.ts
 
 import { supabase } from "@shared/database/supabase";
-import type { Client } from "@entities/contract/types";
+import type { Client } from "@/types/contract";
 
 class ClientService {
   async getAll(): Promise<Client[]> {

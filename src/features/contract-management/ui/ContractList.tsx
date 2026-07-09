@@ -3,8 +3,11 @@
 import { useMemo } from "react";
 import { Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
+import { usePermission } from "@shared/authorization/hooks/usePermission";
+import { PermissionGuard } from "@shared/authorization/ui/PermissionGuard";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { showToast } from "@shared/ui/ToastContainer";
+import { FloatingSearch } from "@shared/ui/FloatingSearch";
 import type { Contract } from "@entities/contract/types";
 import { formatCurrency } from "@shared/lib/formatters";
 import {
@@ -15,6 +18,7 @@ import {
   isExpiringSoon,
   getDaysProgressColor,
 } from "@entities/contract/services/contractCalculations";
+import { contractPermissionGroups } from "../elements";
 
 interface ContractListProps {
   contracts: Contract[];
@@ -36,7 +40,10 @@ interface ContractListProps {
   loading?: boolean;
 }
 
-// 🔧 Skeleton Component
+// ═══════════════════════════════════════
+// 🔹 Skeleton Component
+// ═══════════════════════════════════════
+
 function ContractSkeleton({ isDark }: { isDark: boolean }) {
   return (
     <div
@@ -78,6 +85,10 @@ function ContractSkeleton({ isDark }: { isDark: boolean }) {
   );
 }
 
+// ═══════════════════════════════════════
+// 🔹 Main Component
+// ═══════════════════════════════════════
+
 export function ContractList({
   contracts,
   filteredContracts,
@@ -96,23 +107,14 @@ export function ContractList({
   loading = false,
 }: ContractListProps) {
   const { isDark } = useTheme();
+  const { canAny } = usePermission();
   const { canAccessElement } = usePermissionMapping();
-
-  // 🔐 Element-Level Access
-  const canClickItem = canAccessElement("contract_list_item_click");
-  const canSearch = canAccessElement("contract_search_box");
-  const canSort = canAccessElement("contract_sort_select");
-  const canFilterType = canAccessElement("contract_filter_type");
-  const canFilterStatus = canAccessElement("contract_filter_status");
-  const canStatusBadge = canAccessElement("contract_status_badge");
-  const canListValue = canAccessElement("contract_list_value");
-  const canProgressBar = canAccessElement("contract_progress_bar");
-  const canContractDates = canAccessElement("contract_dates");
-  const canAdd = canAccessElement("contract_btn_add");
-  const canExport = canAccessElement("contract_btn_export");
+  const canViewFinancial = contractPermissionGroups.financial.some(
+    (elementId: string) => canAccessElement(elementId),
+  );
 
   const handleContractClick = (contract: Contract) => {
-    if (!canClickItem) {
+    if (!canAccessElement("contract_list_item_click")) {
       showToast(
         "error",
         "Access Denied",
@@ -123,15 +125,24 @@ export function ContractList({
     setSelectedContract(contract);
   };
 
+  const canFilterType = canAccessElement("contract_filter_type");
+  const canFilterStatus = canAccessElement("contract_filter_status");
+  const canSearch = canAccessElement("contract_search_box");
+  const canSort = canAccessElement("contract_sort_select");
+  const canAdd = canAccessElement("contract_btn_add");
+  const canExport = canAccessElement("contract_btn_export");
+
   return (
     <div
-      className={`col-span-1 lg:col-span-4 flex flex-col rounded-2xl overflow-hidden transition-all duration-300 ${
+      className={`col-span-1 lg:col-span-4 relative flex flex-col rounded-2xl overflow-hidden transition-all duration-300 ${
         isDark
           ? "bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-700/50 shadow-2xl shadow-black/30"
           : "bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/70 shadow-xl shadow-slate-200/50"
       }`}
     >
-      {/* Header با Gradient */}
+      {/* ═══════════════════════════════════════ */}
+      {/* 🔹 HEADER - همیشه نمایش داده می‌شود */}
+      {/* ═══════════════════════════════════════ */}
       <div
         className={`relative px-5 py-4 border-b ${
           isDark
@@ -164,9 +175,24 @@ export function ContractList({
               >
                 Agreements
               </h2>
+              <p
+                className={`text-[10px] ${isDark ? "text-slate-400" : "text-slate-500"}`}
+              >
+                {contracts.length} total
+              </p>
             </div>
           </div>
+
+          {/* 🔧 دکمه‌های Search, Export, Add در کنار هم */}
           <div className="flex gap-1.5">
+            {canSearch && (
+              <FloatingSearch
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search contracts..."
+                icon="🔍"
+              />
+            )}
             {canExport && (
               <Button
                 variant="secondary"
@@ -183,7 +209,7 @@ export function ContractList({
                 variant="secondary"
                 size="sm"
                 onClick={onAddClick}
-                title="Add Agreement"
+                title="Add Contract"
                 className="transition-all hover:scale-105 shadow-md shadow-slate-700/50"
               >
                 ➕
@@ -191,26 +217,11 @@ export function ContractList({
             )}
           </div>
         </div>
-
-        {/* Search */}
-        {canSearch && (
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="🔍 Search contracts..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full rounded-xl px-4 py-2.5 text-sm transition-all focus:ring-2 ${
-                isDark
-                  ? "bg-slate-800/50 border border-slate-700/50 text-slate-100 placeholder-slate-500 focus:ring-indigo-500/50 focus:border-indigo-500/50"
-                  : "bg-white/70 border border-slate-200/70 text-slate-900 placeholder-slate-400 focus:ring-indigo-500/30 focus:border-indigo-300 shadow-sm"
-              }`}
-            />
-          </div>
-        )}
       </div>
 
-      {/* Type Filter Tabs */}
+      {/* ═══════════════════════════════════════ */}
+      {/* 🔹 TYPE FILTER TABS */}
+      {/* ═══════════════════════════════════════ */}
       {canFilterType && (
         <div
           className={`px-4 py-2.5 border-b ${
@@ -224,7 +235,10 @@ export function ContractList({
               const count =
                 t === "ALL"
                   ? contracts.length
-                  : contracts.filter((c) => c.type === t).length;
+                  : t === "CONTRACT"
+                    ? contracts.filter((c) => c.type === "CONTRACT").length
+                    : contracts.filter((c) => c.type === "WORK_ORDER").length;
+
               return (
                 <button
                   key={t}
@@ -243,7 +257,7 @@ export function ContractList({
                     ? `All (${count})`
                     : t === "CONTRACT"
                       ? `📄 Contracts (${count})`
-                      : `📦 W/Orders (${count})`}
+                      : `📦 Work Orders (${count})`}
                 </button>
               );
             })}
@@ -251,7 +265,9 @@ export function ContractList({
         </div>
       )}
 
-      {/* Status Filter Tabs */}
+      {/* ═══════════════════════════════════════ */}
+      {/* 🔹 STATUS FILTER TABS */}
+      {/* ═══════════════════════════════════════ */}
       {canFilterStatus && (
         <div
           className={`px-4 py-2 border-b ${
@@ -274,11 +290,21 @@ export function ContractList({
                   : contracts.filter((c) => c.type === typeFilter);
               let count = 0;
               if (t === "ALL") count = baseFiltered.length;
-              else
+              else if (t === "ACTIVE")
                 count = baseFiltered.filter(
-                  (c) =>
-                    getContractFinancialStatus(c) ===
-                    t.toLowerCase().replace("_", "_"),
+                  (c) => getContractFinancialStatus(c) === "active",
+                ).length;
+              else if (t === "NOT_STARTED")
+                count = baseFiltered.filter(
+                  (c) => getContractFinancialStatus(c) === "not_started",
+                ).length;
+              else if (t === "NEEDS_REVIEW")
+                count = baseFiltered.filter(
+                  (c) => getContractFinancialStatus(c) === "needs_review",
+                ).length;
+              else if (t === "COMPLETED")
+                count = baseFiltered.filter(
+                  (c) => getContractFinancialStatus(c) === "completed",
                 ).length;
 
               return (
@@ -311,39 +337,21 @@ export function ContractList({
         </div>
       )}
 
-      {/* Sort */}
-      {canSort && (
-        <div
-          className={`px-4 py-2 border-b ${
-            isDark ? "border-slate-700/50" : "border-slate-200/70"
-          }`}
-        >
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className={`w-full rounded-lg px-3 py-1.5 text-[11px] transition-all focus:ring-2 ${
-              isDark
-                ? "bg-slate-800/50 border border-slate-700/50 text-slate-300 focus:ring-indigo-500/50"
-                : "bg-white/70 border border-slate-200/70 text-slate-700 focus:ring-indigo-500/30 shadow-sm"
-            }`}
-          >
-            <option value="date">📅 Sort by Date</option>
-            <option value="value">💰 Sort by Value</option>
-            <option value="status">🏷️ Sort by Status</option>
-          </select>
-        </div>
-      )}
-
-      {/* Contract List */}
+      {/* ═══════════════════════════════════════ */}
+      {/* 🔹 CONTRACT LIST - با Skeleton */}
+      {/* ═══════════════════════════════════════ */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
+          // 🔧 Skeleton هنگام loading اولیه
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
+            <ContractSkeleton isDark={isDark} />
             <ContractSkeleton isDark={isDark} />
             <ContractSkeleton isDark={isDark} />
             <ContractSkeleton isDark={isDark} />
             <ContractSkeleton isDark={isDark} />
           </div>
         ) : filteredContracts.length === 0 ? (
+          // Empty State
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
             <div
               className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${
@@ -364,6 +372,7 @@ export function ContractList({
             </p>
           </div>
         ) : (
+          // لیست واقعی
           <div className="p-2 space-y-1.5">
             {filteredContracts.map((contract) => {
               const isSelected = selectedContract?.id === contract.id;
@@ -372,17 +381,13 @@ export function ContractList({
               const daysProgress = calculateDaysProgress(contract);
               const daysLeft = calculateDaysLeft(contract.end_date);
               const isExpired = daysLeft < 0;
+              const notStarted = daysProgress === null || daysProgress === 0;
 
               return (
                 <button
                   key={contract.id}
                   onClick={() => handleContractClick(contract)}
-                  disabled={!canClickItem}
                   className={`group relative w-full text-left rounded-xl p-3 transition-all duration-200 ${
-                    !canClickItem
-                      ? "cursor-not-allowed opacity-60"
-                      : "cursor-pointer"
-                  } ${
                     isSelected
                       ? isDark
                         ? "bg-gradient-to-r from-indigo-900/50 to-violet-900/50 border border-indigo-500/50 shadow-lg shadow-indigo-500/20"
@@ -415,7 +420,7 @@ export function ContractList({
                             : "📦 Work Order"}
                         </Badge>
                         <span
-                          className={`font-mono text-[11px] ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                          className={`font-mono text-[11px] truncate ${isDark ? "text-slate-400" : "text-slate-600"}`}
                         >
                           {contract.contract_no}
                         </span>
@@ -426,54 +431,50 @@ export function ContractList({
                         {contract.contract_title}
                       </h3>
                       <p
-                        className={`text-[11px] truncate mt-0.5 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                        className={`text-[11px] truncate ${isDark ? "text-slate-400" : "text-slate-600"}`}
                       >
                         {contract.client_name}
                       </p>
                     </div>
 
                     {/* Status Badge */}
-                    {canStatusBadge && (
-                      <div className="shrink-0 ml-2">
-                        {contract.status === "COMPLETED" ? (
-                          <Badge tone="slate" className="text-[9px]">
-                            ✓ Completed
-                          </Badge>
-                        ) : expiringInfo.expiring ? (
-                          <Badge
-                            tone="danger"
-                            className="text-[9px] gap-1 animate-pulse"
-                          >
-                            <span>⚠️</span>
-                            <span>Expiring</span>
-                          </Badge>
-                        ) : financialStatus === "not_started" ? (
-                          <Badge tone="amber" className="text-[9px]">
-                            ⏳ Not Started
-                          </Badge>
-                        ) : financialStatus === "needs_review" ? (
-                          <Badge tone="amber" className="text-[9px]">
-                            ⚠️ Review
-                          </Badge>
-                        ) : (
-                          <Badge tone="emerald" className="text-[9px]">
-                            🟢 Active
-                          </Badge>
-                        )}
-                      </div>
-                    )}
+                    <div className="shrink-0 ml-2">
+                      {contract.status === "COMPLETED" ? (
+                        <Badge tone="slate" className="text-[9px]">
+                          ✓ Completed
+                        </Badge>
+                      ) : expiringInfo.expiring ? (
+                        <Badge
+                          tone="danger"
+                          className="text-[9px] gap-1 animate-pulse"
+                        >
+                          <span>⚠️</span>
+                          <span>Expiring</span>
+                        </Badge>
+                      ) : financialStatus === "not_started" ? (
+                        <Badge tone="amber" className="text-[9px]">
+                          ⏳ Not Started
+                        </Badge>
+                      ) : financialStatus === "needs_review" ? (
+                        <Badge tone="amber" className="text-[9px]">
+                          ⚠️ Review
+                        </Badge>
+                      ) : (
+                        <Badge tone="emerald" className="text-[9px]">
+                          🟢 Active
+                        </Badge>
+                      )}
+                    </div>
                   </div>
 
                   {/* Dates & Value */}
-                  <div className="flex items-center justify-between text-[11px]">
-                    {canContractDates && (
-                      <span
-                        className={isDark ? "text-slate-400" : "text-slate-500"}
-                      >
-                        📅 {contract.start_date} → {contract.end_date}
-                      </span>
-                    )}
-                    {canListValue && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span
+                      className={isDark ? "text-slate-400" : "text-slate-500"}
+                    >
+                      📅 {contract.start_date} → {contract.end_date}
+                    </span>
+                    {canViewFinancial ? (
                       <span
                         className={`font-semibold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
                       >
@@ -482,11 +483,17 @@ export function ContractList({
                           contract.currency,
                         )}
                       </span>
+                    ) : (
+                      <span
+                        className={`font-semibold ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                      >
+                        🔒 Locked
+                      </span>
                     )}
                   </div>
 
                   {/* Progress Bar */}
-                  {canProgressBar && contract.status !== "COMPLETED" && (
+                  {contract.status !== "COMPLETED" && daysProgress !== null && (
                     <div className="mt-2">
                       <div
                         className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700/50" : "bg-slate-200/70"}`}
@@ -506,60 +513,41 @@ export function ContractList({
                         </span>
                         <span
                           className={`font-semibold ${
-                            isExpired
+                            notStarted
                               ? isDark
-                                ? "text-rose-400"
-                                : "text-rose-600"
-                              : daysLeft <= 30
+                                ? "text-amber-400"
+                                : "text-amber-600"
+                              : isExpired
                                 ? isDark
-                                  ? "text-amber-400"
-                                  : "text-amber-600"
-                                : isDark
-                                  ? "text-emerald-400"
-                                  : "text-emerald-600"
+                                  ? "text-rose-400"
+                                  : "text-rose-600"
+                                : daysLeft <= 30
+                                  ? isDark
+                                    ? "text-amber-400"
+                                    : "text-amber-600"
+                                  : isDark
+                                    ? "text-emerald-400"
+                                    : "text-emerald-600"
                           }`}
                         >
-                          {isExpired
-                            ? `${Math.abs(daysLeft)} days overdue`
-                            : daysLeft === 0
-                              ? "Expires today"
-                              : `${daysLeft} days left`}
-                          <span
-                            className={`ml-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}
-                          >
-                            ({daysProgress.toFixed(0)}%)
-                          </span>
+                          {notStarted
+                            ? "⏳ Not Started"
+                            : isExpired
+                              ? `${Math.abs(daysLeft)} days overdue`
+                              : daysLeft === 0
+                                ? "Expires today"
+                                : `${daysLeft} days left`}
+                          {!notStarted && (
+                            <span
+                              className={`ml-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                            >
+                              ({daysProgress.toFixed(0)}%)
+                            </span>
+                          )}
                         </span>
                       </div>
                     </div>
                   )}
-
-                  {/* Arrow Icon */}
-                  <div
-                    className={`absolute right-3 top-1/2 -translate-y-1/2 shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                      isSelected
-                        ? isDark
-                          ? "bg-indigo-500/20 text-indigo-400"
-                          : "bg-indigo-500/20 text-indigo-600"
-                        : isDark
-                          ? "bg-slate-700/50 text-slate-500 group-hover:bg-slate-700 group-hover:text-slate-300"
-                          : "bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600"
-                    }`}
-                  >
-                    <svg
-                      className="w-3 h-3"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
                 </button>
               );
             })}
@@ -567,7 +555,9 @@ export function ContractList({
         )}
       </div>
 
-      {/* Footer Stats */}
+      {/* ═══════════════════════════════════════ */}
+      {/* 🔹 FOOTER STATS */}
+      {/* ═══════════════════════════════════════ */}
       <div
         className={`px-4 py-2.5 border-t ${
           isDark
@@ -577,7 +567,7 @@ export function ContractList({
       >
         <div className="flex items-center justify-between text-[10px]">
           <span className={isDark ? "text-slate-400" : "text-slate-600"}>
-            Showing {filteredContracts.length} of {contracts.length} contracts
+            {filteredContracts.length} Agreements
           </span>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">

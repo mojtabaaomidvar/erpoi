@@ -55,6 +55,13 @@ export interface TariffLine {
   currency?: string;
   total?: number;
   isLumpSum?: boolean;
+
+  valid_from?: string;
+  valid_to?: string;
+  is_archived?: boolean;
+  parent_tariff_id?: string;
+  version?: number;
+
   created_at?: string;
   updated_at?: string;
 }
@@ -177,10 +184,86 @@ export interface Contract {
   guarantees?: Guarantee[];
   modifications?: ContractModification[];
   adjustments?: Adjustment[];
+  created_at?: string;
+  updated_at?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
+// ═══════════════════════════════════════
+// 🔄 Contract Amendment
+// ═══════════════════════════════════════
+export type AmendmentType =
+  | "DATE_EXTENSION"
+  | "VALUE_INCREASE"
+  | "TARIFF_ADJUSTMENT";
+
+export type TariffAdjustmentMode = "PERCENTAGE" | "MANUAL";
+
+export interface TariffAdjustment {
+  id: string;
+  amendment_id: string;
+  tariff_line_id: string;
+  adjustment_mode: TariffAdjustmentMode;
+  adjustment_percentage?: number;
+  previous_rate: number;
+  new_rate: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// ═══════════════════════════════════════
+// 🔄 Contract Amendment Approval
+// ═══════════════════════════════════════
+export type AmendmentApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface ContractAmendment {
+  id: string;
+  contract_id: string;
+  amendment_no?: string;
+  amendment_types: AmendmentType[];
+  effective_date: string;
+
+  previous_end_date?: string;
+  new_end_date?: string;
+  previous_value?: number;
+  new_value?: number;
+  description?: string;
+  attachment_urls?: string[];
+  attachment_names?: string[];
+  approval_status: AmendmentApprovalStatus;
+  approved_by?: string;
+  approved_at?: string;
+  rejection_reason?: string;
+  created_at?: string;
+  created_by?: string;
+  updated_at?: string;
+  tariff_adjustments?: TariffAdjustment[];
+}
+
+export interface CreateAmendmentData {
+  contract_id: string;
+  amendment_no?: string;
+  amendment_types: AmendmentType[];
+  effective_date: string;
+
+  previous_end_date?: string;
+  new_end_date?: string;
+  previous_value?: number;
+  new_value?: number;
+
+  description?: string;
+  attachment_urls?: string[]; // 🔧 FIX: array
+  attachment_names?: string[]; // 🔧 FIX: array
+
+  tariff_adjustments?: Array<{
+    tariff_line_id: string;
+    adjustment_mode: "PERCENTAGE" | "MANUAL";
+    adjustment_percentage?: number;
+    previous_rate: number;
+    new_rate: number;
+  }>;
+}
 // ═══════════════════════════════════════
 // 👷 Inspector
 // ═══════════════════════════════════════
@@ -234,7 +317,7 @@ export interface Inspection {
 }
 
 // ═══════════════════════════════════════
-// ⚠️ NCR (Non-Conformance Report)
+// ⚠️ NCR
 // ═══════════════════════════════════════
 export interface NCR {
   id: string;

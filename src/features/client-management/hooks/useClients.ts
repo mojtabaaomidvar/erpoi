@@ -15,19 +15,24 @@ export function useClients() {
 
   const userDepartmentId = user?.department || "";
 
-  // 🔐 RBAC
+  // 🔐 RBAC Permissions
   const canViewAllClients = can("client:view_all");
   const canViewOwnClients = can("client:view_own");
   const canRead = can("client:read");
   const canViewAllContracts = can("contract:view_all");
   const canViewOwnContracts = can("contract:view_own");
 
+  // 📊 Data State
   const [clients, setClientsState] = useState<Client[]>([]);
   const [contracts, setContractsState] = useState<Contract[]>([]);
   const [tariffs, setTariffsState] = useState<TariffLine[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  // 🔧 Progressive Loading State
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 🎯 UI State
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [filter, setFilter] = useState<"ALL" | "LEGAL" | "INDIVIDUAL">("ALL");
@@ -41,12 +46,20 @@ export function useClients() {
     "name" | "contracts" | "value" | "recent"
   >("contracts");
 
-  // 🔧 NEW: Load data از Supabase
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // ═══════════════════════════════════════
+  // 💾 Load Data
+  // ═══════════════════════════════════════
 
+  const loadData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setInitialLoading(true);
+    }
+
+    setError(null);
+
+    try {
       const [dbClients, dbContracts, dbTariffs] = await Promise.all([
         clientService.getAll(),
         contractService.getAll(),
@@ -57,16 +70,17 @@ export function useClients() {
       setContractsState(dbContracts);
       setTariffsState(dbTariffs);
 
-      console.log("[useClients] ✅ Loaded from Supabase:", {
+      console.log("[useClients] ✅ Loaded:", {
         clients: dbClients.length,
         contracts: dbContracts.length,
         tariffs: dbTariffs.length,
       });
     } catch (err: any) {
-      console.error("[useClients] Failed to load data:", err);
+      console.error("[useClients] Failed:", err);
       setError(err.message || "Failed to load data");
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -74,12 +88,15 @@ export function useClients() {
     loadData();
   }, [loadData]);
 
-  // 🔧 NEW: Refresh function برای manual refresh
+  // 🔧 Refresh function
   const refresh = useCallback(() => {
-    loadData();
+    loadData(true);
   }, [loadData]);
 
-  // 🔧 NEW: setClients با Supabase
+  // ═══════════════════════════════════════
+  // 📝 CRUD Operations
+  // ═══════════════════════════════════════
+
   const setClients = useCallback(
     async (action: Client[] | ((prev: Client[]) => Client[])) => {
       try {
@@ -88,12 +105,12 @@ export function useClients() {
         const currentIds = new Set(clients.map((c) => c.id));
         const newIds = new Set(newClients.map((c) => c.id));
 
-        // Create new clients
+        // Create new
         for (const client of newClients.filter((c) => !currentIds.has(c.id))) {
           await clientService.create(client);
         }
 
-        // Delete removed clients
+        // Delete removed
         for (const client of clients.filter((c) => !newIds.has(c.id))) {
           try {
             await clientService.delete(client.id);
@@ -102,7 +119,7 @@ export function useClients() {
           }
         }
 
-        // Update changed clients
+        // Update changed
         for (const client of newClients.filter((c) => {
           const prev = clients.find((pc) => pc.id === c.id);
           return prev && JSON.stringify(prev) !== JSON.stringify(c);
@@ -110,8 +127,7 @@ export function useClients() {
           await clientService.update(client.id, client);
         }
 
-        // Reload data
-        await loadData();
+        await loadData(true);
       } catch (err: any) {
         console.error("[useClients] Failed to update clients:", err);
         throw err;
@@ -121,7 +137,7 @@ export function useClients() {
   );
 
   // ═══════════════════════════════════════
-  // 🔐 RBAC: فیلتر مشتری‌ها بر اساس دپارتمان
+  // 🔐 RBAC Filtering
   // ═══════════════════════════════════════
 
   const accessibleClients = useMemo(() => {
@@ -149,10 +165,6 @@ export function useClients() {
     userDepartmentId,
   ]);
 
-  // ═══════════════════════════════════════
-  // 🔐 RBAC: فیلتر قراردادها
-  // ═══════════════════════════════════════
-
   const accessibleContracts = useMemo(() => {
     if (canViewAllContracts) {
       return contracts;
@@ -170,13 +182,16 @@ export function useClients() {
     accessibleClients,
   ]);
 
-  // 🔧 NEW: فیلتر تعرفه‌ها بر اساس قراردادهای قابل دسترسی
   const accessibleTariffs = useMemo(() => {
     const accessibleContractIds = accessibleContracts.map((c) => c.id);
     return tariffs.filter(
       (t) => t.contract_id && accessibleContractIds.includes(t.contract_id),
     );
   }, [tariffs, accessibleContracts]);
+
+  // ═══════════════════════════════════════
+  // 🎯 Derived State
+  // ═══════════════════════════════════════
 
   useEffect(() => {
     setContractTab("ALL");
@@ -258,13 +273,18 @@ export function useClients() {
       ? clientContracts
       : clientContracts.filter((c) => c.type === contractTab);
 
+  // ═══════════════════════════════════════
+  // 📤 Return
+  // ═══════════════════════════════════════
+
   return {
     clients: accessibleClients,
     setClients,
     contracts: accessibleContracts,
-    loading,
+    loading: initialLoading, // 🔧 فقط initial loading
+    refreshing, // 🔧 برای refresh indicator
     error,
-    refresh,
+    refresh, // 🔧 refresh function
     searchQuery,
     setSearchQuery,
     selectedClient,
@@ -281,7 +301,7 @@ export function useClients() {
     filteredClients,
     clientContracts,
     filteredContracts,
-    contractTariffs: accessibleTariffs, // 🔧 NEW: از Supabase
+    contractTariffs: accessibleTariffs,
     currentDepartment: userDepartmentId,
   };
 }

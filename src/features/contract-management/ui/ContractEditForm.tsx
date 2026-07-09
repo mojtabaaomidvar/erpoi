@@ -1,0 +1,1273 @@
+// src/features/contract-management/ui/ContractEditForm.tsx
+
+import { useState, useEffect } from "react";
+import { Button, Modal } from "@design-system";
+import { useTheme } from "@app/providers/ThemeProvider";
+import { usePermission } from "@shared/authorization/hooks/usePermission";
+import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
+import { showToast } from "@shared/ui/ToastContainer";
+import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
+import { ClientSelectorModal } from "@entities/client/ui/ClientSelectorModal";
+import { ContractAttachmentsEditor } from "@entities/contract/ui/ContractAttachmentsEditor";
+import { TariffEditor } from "@entities/contract/ui/TariffEditor";
+import type {
+  Contract,
+  TariffLine,
+  Adjustment,
+  ContractModification,
+  Guarantee,
+  ContractAttachment,
+} from "@/types/contract";
+import { formatCurrency } from "@shared/lib/formatters";
+import {
+  formatNumberInput,
+  parseNumberInput,
+  getNextJalaaliYearStart,
+} from "@entities/contract/services/contractCalculations";
+
+interface ContractEditFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (formData: any) => void;
+  contract: Contract;
+  onNavigateToClients: () => void;
+}
+
+export function ContractEditForm({
+  isOpen,
+  onClose,
+  onSave,
+  contract,
+  onNavigateToClients,
+}: ContractEditFormProps) {
+  const { isDark } = useTheme();
+
+  // 🔐 RBAC: چک کردن permission
+  const { can } = usePermission();
+  const { canAccessElement } = usePermissionMapping();
+  const canUpdate = can("contract:update");
+
+  // 🔐 Element-Level Access
+  const canEditType = canAccessElement("contract_form_field_type");
+  const canEditClient = canAccessElement("contract_form_field_client");
+  const canEditTitle = canAccessElement("contract_form_field_title");
+  const canEditServiceDescription = canAccessElement(
+    "contract_form_field_service_description",
+  );
+  const canEditDates = canAccessElement("contract_form_field_dates");
+  const canEditContractNo = canAccessElement("contract_form_field_contract_no");
+  const canEditTotalValue = canAccessElement("contract_form_field_total_value");
+  const canEditCurrency = canAccessElement("contract_form_field_currency");
+  const canEditTariffs = canAccessElement("contract_form_field_tariffs");
+  const canEditFinancialTerms = canAccessElement(
+    "contract_form_field_financial_terms",
+  );
+  const canEditAdjustment = canAccessElement("contract_form_field_adjustment");
+  const canEditModification = canAccessElement(
+    "contract_form_field_modification",
+  );
+  const canEditGuarantee = canAccessElement("contract_form_field_guarantee");
+  const canEditGoodPerformance = canAccessElement(
+    "contract_form_field_good_performance",
+  );
+  const canEditInsurance = canAccessElement("contract_form_field_insurance");
+  const canEditAttachments = canAccessElement(
+    "contract_form_field_attachments",
+  );
+  const canEditDescription = canAccessElement(
+    "contract_form_field_description",
+  );
+  const canEditSourceType = canAccessElement("contract_form_field_source_type");
+  const canEditLetter = canAccessElement("contract_form_field_letter");
+  const canEditEmailSource = canAccessElement(
+    "contract_form_field_email_source",
+  );
+
+  // 🔧 NEW: Loading state
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [formData, setFormData] = useState({
+    contract_no: contract.contract_no,
+    external_contract_no: contract.external_contract_no || "",
+    source_type: (contract.source_type || "LETTER") as "EMAIL" | "LETTER",
+    source_ref: contract.source_ref || "",
+    source_file: contract.source_file || "",
+    source_file_object: null as File | null,
+    source_letter_date: contract.source_letter_date || "",
+    source_letter_image: contract.source_letter_image || "",
+    source_letter_image_object: null as File | null,
+    source_letter_image_preview: contract.source_letter_image_preview || "",
+    source_email_from: contract.source_email_from || "",
+    source_email_date:
+      contract.source_email_date || new Date().toISOString().split("T")[0],
+    client_id: contract.client_id,
+    contract_title: contract.contract_title,
+    start_date: contract.start_date,
+    end_date: contract.end_date,
+    total_value: contract.total_value,
+    currency: contract.currency,
+    status: contract.status,
+    type: contract.type,
+    contract_count: contract.contract_count || 1,
+    description: contract.description || "",
+    tariffs:
+      contract.tariffLines ||
+      ([
+        {
+          id: "1",
+          description: "",
+          unit: "MAN_DAY",
+          rate: "",
+          currency: "IRR",
+          total: 0,
+          isLumpSum: false,
+        },
+      ] as TariffLine[]),
+    adjustment:
+      contract.financial_terms?.adjustment ||
+      ({
+        enabled: false,
+        mode: "FIXED" as "FIXED" | "TBD",
+        percentage: 0,
+        effective_date: "",
+      } as Adjustment),
+    contract_modification: {
+      percentage: 0,
+    } as ContractModification,
+    guarantee: {
+      has_guarantee: false,
+      percentage: 0,
+      type: "BANK_GUARANTEE" as
+        | "CHECK"
+        | "BANK_GUARANTEE"
+        | "PROMISSORY_NOTE"
+        | "CASH_BLOCK",
+    } as Guarantee,
+    good_performance_percentage: 10,
+    insurance_deduction_percentage: 16.67,
+    attachments: (contract as any).attachments || ([] as ContractAttachment[]),
+    service_description:
+      (contract as any).service_description ||
+      ("" as "TPI" | "MWS" | "TPER" | "OTHER" | ""),
+  });
+
+  const [errors, setErrors] = useState<any>({});
+
+  const handleTypeChange = (type: "CONTRACT" | "WORK_ORDER") => {
+    if (!canEditType) return;
+    setFormData({ ...formData, type });
+  };
+
+  const validateForm = () => {
+    const newErrors: any = {};
+
+    if (formData.type === "WORK_ORDER") {
+      if (formData.source_type === "LETTER") {
+        if (!formData.source_ref.trim())
+          newErrors.source_ref = "Letter number is required";
+        if (!formData.source_letter_date)
+          newErrors.source_letter_date = "Letter date is required";
+      } else if (formData.source_type === "EMAIL") {
+        if (!formData.source_email_from.trim())
+          newErrors.source_email_from = "Email address is required";
+      }
+      if (!formData.client_id)
+        newErrors.client_id = "Client selection is required";
+      if (!formData.contract_title.trim())
+        newErrors.contract_title = "Work order title is required";
+      if (
+        canEditTariffs &&
+        (!formData.tariffs || formData.tariffs.length === 0)
+      ) {
+        newErrors.tariffs = "At least one tariff line is required";
+      }
+    } else {
+      if (!formData.contract_title.trim())
+        newErrors.contract_title = "Contract title is required";
+      if (!formData.client_id)
+        newErrors.client_id = "Client selection is required";
+      if (canEditDates) {
+        if (!formData.start_date)
+          newErrors.start_date = "Start date is required";
+        if (!formData.end_date) newErrors.end_date = "End date is required";
+        if (
+          formData.start_date &&
+          formData.end_date &&
+          formData.end_date < formData.start_date
+        ) {
+          newErrors.end_date = "End date cannot be before start date";
+        }
+      }
+      if (canEditTotalValue && formData.total_value <= 0) {
+        newErrors.total_value = "Amount must be greater than zero";
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // 🔧 FIX: handleSave با loading state
+  const handleSave = async () => {
+    if (!canUpdate) {
+      showToast(
+        "error",
+        "Access Denied",
+        "You do not have permission to edit contracts",
+      );
+      return;
+    }
+
+    if (!validateForm()) return;
+
+    setIsSaving(true);
+
+    try {
+      await onSave({ ...formData, id: contract.id });
+      onClose();
+    } catch (err: any) {
+      console.error("[ContractEditForm] Save failed:", err);
+      showToast(
+        "error",
+        "Save Failed",
+        err.message || "Failed to update contract",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 🔐 RBAC: اگر دسترسی نداره، هیچی رندر نکن
+  if (!canUpdate) {
+    return null;
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Edit Contract" size="lg">
+      <div className="space-y-3">
+        {/* ═══════════════════════════════════════ */}
+        {/* 🔹 TYPE SELECTOR - با permission check */}
+        {/* ═══════════════════════════════════════ */}
+        {canEditType && (
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-primary">
+              Type *
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleTypeChange("CONTRACT")}
+                className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  formData.type === "CONTRACT"
+                    ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/30"
+                    : isDark
+                      ? "bg-slate-800/50 text-slate-400 hover:bg-slate-700/50"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                📄 Contract
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTypeChange("WORK_ORDER")}
+                className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  formData.type === "WORK_ORDER"
+                    ? "bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md shadow-amber-500/30"
+                    : isDark
+                      ? "bg-slate-800/50 text-slate-400 hover:bg-slate-700/50"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                📦 Work Order
+              </button>
+            </div>
+          </div>
+        )}
+
+        {formData.type === "CONTRACT" ? (
+          <>
+            {/* ═══════════════════════════════════════ */}
+            {/* 🔹 CONTRACT FORM FIELDS - با permission check */}
+            {/* ═══════════════════════════════════════ */}
+            <div
+              className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/50"} space-y-1`}
+            >
+              <div className="grid grid-cols-3 gap-4">
+                {canEditClient && (
+                  <div>
+                    <ClientSelectorModal
+                      value={formData.client_id}
+                      onChange={(clientId) =>
+                        setFormData({ ...formData, client_id: clientId })
+                      }
+                      onAddNew={onNavigateToClients}
+                      error={errors.client_id}
+                    />
+                  </div>
+                )}
+                {canEditTitle && (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-primary">
+                      Contract Title *
+                    </label>
+                    <input
+                      value={formData.contract_title}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          contract_title: e.target.value,
+                        })
+                      }
+                      className={`w-full rounded-lg px-3 py-2 text-sm input-themed ${errors.contract_title ? "border-rose-300" : ""}`}
+                      placeholder="e.g., South Pars Phase 22 — Inspection Services"
+                    />
+                    {errors.contract_title && (
+                      <p className="mt-1 text-[11px] font-medium text-rose-600">
+                        ✕ {errors.contract_title}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {canEditServiceDescription && (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-primary">
+                      Service Description *
+                    </label>
+                    <select
+                      value={formData.service_description}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          service_description: e.target.value as any,
+                        })
+                      }
+                      className={`w-full rounded-lg px-3 py-2 text-sm input-themed ${!formData.service_description ? "text-muted" : ""}`}
+                    >
+                      <option value="">Select service type...</option>
+                      <option value="TPI">
+                        🔍 TPI - Third Party Inspection
+                      </option>
+                      <option value="MWS">
+                        🔧 MWS - Marine Warranty Survey
+                      </option>
+                      <option value="TPER">
+                        📊 TPER - Technical Performance Evaluation Report
+                      </option>
+                      <option value="OTHER">📋 Other</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ═══════════════════════════════════════ */}
+            {/* 🔹 DATES AND VALUE - با permission check */}
+            {/* ═══════════════════════════════════════ */}
+            <div
+              className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/50"}`}
+            >
+              <div className="grid grid-cols-4 gap-4">
+                {canEditDates && (
+                  <>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-primary">
+                        Start Date *
+                      </label>
+                      <JalaaliDatePicker
+                        value={formData.start_date}
+                        onChange={(date) => {
+                          let effectiveDate =
+                            formData.adjustment.effective_date;
+                          if (
+                            formData.adjustment.enabled &&
+                            !effectiveDate &&
+                            date
+                          ) {
+                            effectiveDate = getNextJalaaliYearStart(date);
+                          }
+                          setFormData({
+                            ...formData,
+                            start_date: date,
+                            adjustment: {
+                              ...formData.adjustment,
+                              effective_date: effectiveDate,
+                            },
+                          });
+                        }}
+                        placeholder="Select start date"
+                      />
+                      {errors.start_date && (
+                        <p className="mt-1 text-[11px] font-medium text-rose-600">
+                          ✕ {errors.start_date}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-primary">
+                        End Date *
+                      </label>
+                      <JalaaliDatePicker
+                        value={formData.end_date}
+                        onChange={(date) =>
+                          setFormData({ ...formData, end_date: date })
+                        }
+                        minDate={formData.start_date}
+                        placeholder={
+                          formData.start_date
+                            ? "Select end date"
+                            : "Select start date first"
+                        }
+                        disabled={!formData.start_date}
+                      />
+                      {errors.end_date && (
+                        <p className="mt-1 text-[11px] font-medium text-rose-600">
+                          ✕ {errors.end_date}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+                {canEditTotalValue && (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-primary">
+                      Total Value *
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={
+                        formData.total_value
+                          ? formatNumberInput(String(formData.total_value))
+                          : ""
+                      }
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          total_value: parseNumberInput(e.target.value),
+                        })
+                      }
+                      className={`w-full rounded-lg px-3 py-2 text-sm font-mono text-right input-themed ${errors.total_value ? "border-rose-300" : ""}`}
+                      placeholder="0"
+                    />
+                    {errors.total_value && (
+                      <p className="mt-1 text-[11px] font-medium text-rose-600">
+                        ✕ {errors.total_value}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {canEditCurrency && (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-primary">
+                      Currency
+                    </label>
+                    <select
+                      value={formData.currency}
+                      onChange={(e) =>
+                        setFormData({ ...formData, currency: e.target.value })
+                      }
+                      className="w-full rounded-lg px-3 py-2 text-sm input-themed"
+                    >
+                      <option value="IRR">IRR</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ═══════════════════════════════════════ */}
+            {/* 🔹 TARIFF EDITOR - با permission check */}
+            {/* ═══════════════════════════════════════ */}
+            {canEditTariffs && (
+              <TariffEditor
+                tariffs={formData.tariffs}
+                onChange={(tariffs) =>
+                  setFormData({ ...formData, tariffs: tariffs as any })
+                }
+                error={errors.tariffs}
+                showTotals={false}
+              />
+            )}
+
+            {/* ═══════════════════════════════════════ */}
+            {/* 🔹 CONTRACT NUMBERS - با permission check */}
+            {/* ═══════════════════════════════════════ */}
+            {canEditContractNo && (
+              <div
+                className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/50"}`}
+              >
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-primary">
+                      Internal Contract No. (ICS)
+                    </label>
+                    <div className="w-full rounded-lg border border-theme bg-card py-2.5 px-3 text-sm font-mono font-semibold text-primary">
+                      {formData.contract_no}
+                    </div>
+                    <p className="text-[10px] text-secondary mt-1">
+                      Auto-generated, Unique per ICS Department
+                    </p>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-primary">
+                      External Contract No (Optional)
+                    </label>
+                    <input
+                      value={formData.external_contract_no}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          external_contract_no: e.target.value,
+                        })
+                      }
+                      className="w-full rounded-lg border border-theme bg-card py-2.5 px-3 text-sm font-mono font-semibold text-primary"
+                      placeholder="Client's Contract No."
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ═══════════════════════════════════════ */}
+            {/* 🔹 FINANCIAL & LEGAL TERMS - با permission check */}
+            {/* ═══════════════════════════════════════ */}
+            {canEditFinancialTerms && (
+              <div
+                className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/50"}`}
+              >
+                <h3
+                  className={`text-sm font-bold mb-4 flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                >
+                  💼 Financial & Legal Terms
+                </h3>
+                <div className="space-y-2">
+                  {/* Price Adjustment & Contract Modification */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {canEditAdjustment && (
+                      <div
+                        className={`rounded-lg border p-4 ${
+                          formData.adjustment.enabled
+                            ? isDark
+                              ? "border-indigo-700 bg-indigo-950/30"
+                              : "border-indigo-200 bg-indigo-50/30"
+                            : isDark
+                              ? "border-slate-700 bg-slate-800/20"
+                              : "border-slate-200 bg-slate-50/20"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">📊</span>
+                            <h4
+                              className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                            >
+                              Price Adjustment
+                            </h4>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newEnabled = !formData.adjustment.enabled;
+                              const effectiveDate =
+                                newEnabled &&
+                                !formData.adjustment.effective_date &&
+                                formData.start_date
+                                  ? getNextJalaaliYearStart(formData.start_date)
+                                  : formData.adjustment.effective_date;
+                              setFormData({
+                                ...formData,
+                                adjustment: {
+                                  ...formData.adjustment,
+                                  enabled: newEnabled,
+                                  effective_date: effectiveDate,
+                                },
+                              });
+                            }}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              formData.adjustment.enabled
+                                ? "bg-indigo-600"
+                                : isDark
+                                  ? "bg-slate-700"
+                                  : "bg-slate-300"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                formData.adjustment.enabled
+                                  ? "translate-x-6"
+                                  : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                        {formData.adjustment.enabled && (
+                          <div className="space-y-3">
+                            <div
+                              className={`rounded-lg border p-3 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/30"}`}
+                            >
+                              <label
+                                className={`mb-2 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                              >
+                                Adjustment Mode
+                              </label>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setFormData({
+                                      ...formData,
+                                      adjustment: {
+                                        ...formData.adjustment,
+                                        mode: "FIXED",
+                                      },
+                                    })
+                                  }
+                                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                                    formData.adjustment.mode === "FIXED"
+                                      ? "bg-indigo-600 text-white shadow-md"
+                                      : isDark
+                                        ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                        : "bg-slate-200 text-slate-600 hover:bg-slate-300"
+                                  }`}
+                                >
+                                  ✅ Fixed
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setFormData({
+                                      ...formData,
+                                      adjustment: {
+                                        ...formData.adjustment,
+                                        mode: "TBD",
+                                        percentage: 0,
+                                      },
+                                    })
+                                  }
+                                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                                    formData.adjustment.mode === "TBD"
+                                      ? "bg-amber-600 text-white shadow-md"
+                                      : isDark
+                                        ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                                        : "bg-slate-200 text-slate-600 hover:bg-slate-300"
+                                  }`}
+                                >
+                                  ⏳ TBD
+                                </button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label
+                                  className={`mb-1 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                                >
+                                  Percentage (%)
+                                </label>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={
+                                    formData.adjustment.percentage
+                                      ? formatNumberInput(
+                                          String(
+                                            formData.adjustment.percentage,
+                                          ),
+                                        )
+                                      : ""
+                                  }
+                                  onChange={(e) =>
+                                    setFormData({
+                                      ...formData,
+                                      adjustment: {
+                                        ...formData.adjustment,
+                                        percentage: parseNumberInput(
+                                          e.target.value,
+                                        ),
+                                      },
+                                    })
+                                  }
+                                  disabled={formData.adjustment.mode === "TBD"}
+                                  className={`w-full rounded-lg border px-3 py-2 text-sm font-mono text-right input-themed ${
+                                    formData.adjustment.mode === "TBD"
+                                      ? "opacity-50 cursor-not-allowed"
+                                      : ""
+                                  }`}
+                                  placeholder="0.00"
+                                />
+                              </div>
+                              <div>
+                                <label
+                                  className={`mb-1 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                                >
+                                  Effective Date
+                                </label>
+                                <JalaaliDatePicker
+                                  value={
+                                    formData.adjustment.effective_date || ""
+                                  }
+                                  onChange={(date) =>
+                                    setFormData({
+                                      ...formData,
+                                      adjustment: {
+                                        ...formData.adjustment,
+                                        effective_date: date,
+                                      },
+                                    })
+                                  }
+                                  placeholder="Select date"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {canEditModification && (
+                      <div
+                        className={`rounded-lg border p-4 ${
+                          (formData.contract_modification.percentage || 0) > 0
+                            ? isDark
+                              ? "border-indigo-700 bg-indigo-950/30"
+                              : "border-indigo-200 bg-indigo-50/30"
+                            : isDark
+                              ? "border-slate-700 bg-slate-800/20"
+                              : "border-slate-200 bg-slate-50/20"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-base">🔄</span>
+                          <h4
+                            className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                          >
+                            Contract Modification
+                          </h4>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={
+                              formData.contract_modification?.percentage
+                                ? formatNumberInput(
+                                    String(
+                                      formData.contract_modification
+                                        .percentage || 0,
+                                    ),
+                                  )
+                                : ""
+                            }
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(
+                                /[^0-9.]/g,
+                                "",
+                              );
+                              const parts = raw.split(".");
+                              const clean =
+                                parts.length > 2
+                                  ? parts[0] + "." + parts.slice(1).join("")
+                                  : raw;
+                              setFormData({
+                                ...formData,
+                                contract_modification: {
+                                  percentage: Number(clean) || 0,
+                                },
+                              });
+                            }}
+                            className="w-full rounded-lg border px-3 py-2 pr-8 text-sm font-mono text-right input-themed"
+                            placeholder="0"
+                          />
+                          <span
+                            className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                          >
+                            %
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {canEditGuarantee && (
+                    <div
+                      className={`rounded-lg border p-4 ${
+                        formData.guarantee.has_guarantee
+                          ? isDark
+                            ? "border-emerald-700 bg-emerald-950/30"
+                            : "border-emerald-200 bg-emerald-50/30"
+                          : isDark
+                            ? "border-slate-700 bg-slate-800/20"
+                            : "border-slate-200 bg-slate-50/20"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🏦</span>
+                          <h4
+                            className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                          >
+                            Performance Guarantee
+                          </h4>
+                          {formData.total_value <= 0 && (
+                            <span
+                              className={`text-[10px] font-normal ${isDark ? "text-amber-400" : "text-amber-600"}`}
+                            >
+                              ⚠️ Enter Total Value first
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (formData.total_value <= 0) return;
+                            setFormData({
+                              ...formData,
+                              guarantee: {
+                                ...formData.guarantee,
+                                has_guarantee:
+                                  !formData.guarantee.has_guarantee,
+                              },
+                            });
+                          }}
+                          disabled={formData.total_value <= 0}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            formData.total_value <= 0
+                              ? "opacity-40 cursor-not-allowed bg-slate-400"
+                              : formData.guarantee.has_guarantee
+                                ? "bg-emerald-600"
+                                : isDark
+                                  ? "bg-slate-700"
+                                  : "bg-slate-300"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              formData.guarantee.has_guarantee
+                                ? "translate-x-6"
+                                : "translate-x-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                      {formData.guarantee.has_guarantee && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label
+                              className={`mb-1 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                            >
+                              Percentage (%)
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={
+                                formData.guarantee.percentage
+                                  ? formatNumberInput(
+                                      String(formData.guarantee.percentage),
+                                    )
+                                  : ""
+                              }
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  guarantee: {
+                                    ...formData.guarantee,
+                                    percentage: parseNumberInput(
+                                      e.target.value,
+                                    ),
+                                  },
+                                })
+                              }
+                              className="w-full rounded-lg border px-3 py-2 text-sm font-mono text-right input-themed"
+                              placeholder="0.00"
+                            />
+                            {formData.total_value > 0 &&
+                              (formData.guarantee.percentage || 0) > 0 && (
+                                <p
+                                  className={`text-[10px] mt-1 font-semibold ${isDark ? "text-emerald-400" : "text-emerald-700"}`}
+                                >
+                                  ≈{" "}
+                                  {formatCurrency(
+                                    (formData.total_value *
+                                      (formData.guarantee.percentage || 0)) /
+                                      100,
+                                    formData.currency,
+                                  )}
+                                </p>
+                              )}
+                          </div>
+                          <div>
+                            <label
+                              className={`mb-1 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                            >
+                              Guarantee Type
+                            </label>
+                            <select
+                              value={formData.guarantee.type}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  guarantee: {
+                                    ...formData.guarantee,
+                                    type: e.target.value as any,
+                                  },
+                                })
+                              }
+                              className="w-full rounded-lg border px-3 py-2 text-sm input-themed"
+                            >
+                              <option value="BANK_GUARANTEE">
+                                🏦 Bank Guarantee
+                              </option>
+                              <option value="CHECK">📝 Check</option>
+                              <option value="PROMISSORY_NOTE">
+                                📄 Promissory Note
+                              </option>
+                              <option value="CASH_BLOCK">💰 Cash Block</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {canEditGoodPerformance && (
+                      <div
+                        className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/20" : "border-slate-200 bg-slate-50/20"}`}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-base">✅</span>
+                          <h4
+                            className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                          >
+                            Good Performance
+                          </h4>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={
+                              formData.good_performance_percentage
+                                ? formatNumberInput(
+                                    String(
+                                      formData.good_performance_percentage,
+                                    ),
+                                  )
+                                : ""
+                            }
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                good_performance_percentage: parseNumberInput(
+                                  e.target.value,
+                                ),
+                              })
+                            }
+                            className="w-full rounded-lg border px-3 py-2 pr-8 text-sm font-mono text-right input-themed"
+                            placeholder="10.00"
+                          />
+                          <span
+                            className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                          >
+                            %
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    {canEditInsurance && (
+                      <div
+                        className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/20" : "border-slate-200 bg-slate-50/20"}`}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-base">🏥</span>
+                          <h4
+                            className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                          >
+                            Insurance Deduction
+                          </h4>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={
+                              formData.insurance_deduction_percentage
+                                ? formatNumberInput(
+                                    String(
+                                      formData.insurance_deduction_percentage,
+                                    ),
+                                  )
+                                : ""
+                            }
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                insurance_deduction_percentage:
+                                  parseNumberInput(e.target.value),
+                              })
+                            }
+                            className="w-full rounded-lg border px-3 py-2 pr-8 text-sm font-mono text-right input-themed"
+                            placeholder="16.67"
+                          />
+                          <span
+                            className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                          >
+                            %
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {canEditAttachments && (
+              <ContractAttachmentsEditor
+                attachments={formData.attachments as any}
+                onChange={(attachments) =>
+                  setFormData({ ...formData, attachments })
+                }
+              />
+            )}
+
+            {canEditDescription && (
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-primary">
+                  Description
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  rows={3}
+                  className="w-full rounded-lg px-3 py-2 text-sm input-themed"
+                  placeholder="Optional description..."
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* ═══════════════════════════════════════ */}
+            {/* 🔹 WORK ORDER FORM - با permission check */}
+            {/* ═══════════════════════════════════════ */}
+            {canEditSourceType && (
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-primary">
+                  Source Type *
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({ ...formData, source_type: "LETTER" })
+                    }
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      formData.source_type === "LETTER"
+                        ? "bg-emerald-600 text-white shadow-md"
+                        : isDark
+                          ? "bg-muted text-secondary hover:bg-slate-700"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    📄 Letter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({ ...formData, source_type: "EMAIL" })
+                    }
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      formData.source_type === "EMAIL"
+                        ? "bg-blue-600 text-white shadow-md"
+                        : isDark
+                          ? "bg-muted text-secondary hover:bg-slate-700"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    📧 Email
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {formData.source_type === "LETTER"
+              ? canEditLetter && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-primary">
+                          Letter Number *
+                        </label>
+                        <input
+                          value={formData.source_ref}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              source_ref: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-lg bg-card px-3 py-2.5 text-sm font-mono input-themed"
+                          placeholder="e.g., 1404/1234"
+                        />
+                        {errors.source_ref && (
+                          <p className="mt-1 text-[11px] font-medium text-rose-600">
+                            ✕ {errors.source_ref}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-primary">
+                          Letter Date *
+                        </label>
+                        <JalaaliDatePicker
+                          value={formData.source_letter_date || ""}
+                          onChange={(date) =>
+                            setFormData({
+                              ...formData,
+                              source_letter_date: date,
+                            })
+                          }
+                          placeholder="Select letter date"
+                        />
+                        {errors.source_letter_date && (
+                          <p className="mt-1 text-[11px] font-medium text-rose-600">
+                            ✕ {errors.source_letter_date}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              : canEditEmailSource && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-primary">
+                          From Email Address *
+                        </label>
+                        <input
+                          type="email"
+                          value={formData.source_email_from || ""}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              source_email_from: e.target.value,
+                            })
+                          }
+                          className={`w-full rounded-lg bg-card px-3 py-2.5 text-sm font-mono input-themed ${errors.source_email_from ? "border-rose-300" : ""}`}
+                          placeholder="sender@example.com"
+                        />
+                        {errors.source_email_from && (
+                          <p className="mt-1 text-[11px] font-medium text-rose-600">
+                            ✕ {errors.source_email_from}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-primary">
+                          Email Date
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.source_email_date || ""}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              source_email_date: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-lg bg-card px-3 py-2.5 text-sm input-themed"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+            {canEditClient && (
+              <ClientSelectorModal
+                value={formData.client_id}
+                onChange={(clientId) =>
+                  setFormData({ ...formData, client_id: clientId })
+                }
+                onAddNew={onNavigateToClients}
+                error={errors.client_id}
+              />
+            )}
+
+            {canEditTitle && (
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-primary">
+                  Work Order Title *
+                </label>
+                <input
+                  value={formData.contract_title}
+                  onChange={(e) =>
+                    setFormData({ ...formData, contract_title: e.target.value })
+                  }
+                  className={`w-full rounded-lg px-3 py-2 text-sm input-themed ${errors.contract_title ? "border-rose-300" : ""}`}
+                  placeholder="Brief title of the work order"
+                />
+                {errors.contract_title && (
+                  <p className="mt-1 text-[11px] font-medium text-rose-600">
+                    ✕ {errors.contract_title}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {canEditTariffs && (
+              <TariffEditor
+                tariffs={formData.tariffs}
+                onChange={(tariffs) =>
+                  setFormData({ ...formData, tariffs: tariffs as any })
+                }
+                error={errors.tariffs}
+                showTotals={false}
+              />
+            )}
+
+            {canEditDescription && (
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-primary">
+                  Description (Optional)
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  rows={3}
+                  className="w-full rounded-lg px-3 py-2 text-sm input-themed"
+                  placeholder="Additional details..."
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ═══════════════════════════════════════ */}
+        {/* 🔹 ACTIONS - دکمه‌های Save با loading state */}
+        {/* ═══════════════════════════════════════ */}
+        <div
+          className={`flex justify-end gap-3 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}
+        >
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            className={isSaving ? "opacity-70 cursor-wait" : ""}
+          >
+            {isSaving ? "⏳ Saving..." : "💾 Update Contract"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}

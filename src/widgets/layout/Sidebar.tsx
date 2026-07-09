@@ -1,5 +1,6 @@
 // src/widgets/layout/Sidebar.tsx
 
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -10,12 +11,11 @@ import {
   BarChart3,
   ShieldCheck,
   Shield,
-  Settings,
 } from "lucide-react";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { UserDropdown } from "./UserDropdown";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { usePermission } from "@shared/authorization/hooks/usePermission";
+import { supabase } from "@shared/database/supabase"; // 🔧 NEW
 
 export type ViewKey =
   | "dashboard"
@@ -34,7 +34,6 @@ interface SidebarProps {
   onSelect: (view: ViewKey) => void;
   isExpanded: boolean;
   expiringContractsCount?: number;
-  onLogout?: () => void | Promise<void>;
 }
 
 const navItems: Array<{
@@ -43,15 +42,34 @@ const navItems: Array<{
   icon: typeof LayoutDashboard;
   badge?: string;
   entity?: string;
+  gradient: string;
 }> = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { key: "clients", label: "Clients", icon: Users, entity: "client" },
-  { key: "contracts", label: "Agreements", icon: FileText, entity: "contract" },
+  {
+    key: "dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    gradient: "from-blue-500 to-indigo-600",
+  },
+  {
+    key: "clients",
+    label: "Clients",
+    icon: Users,
+    entity: "client",
+    gradient: "from-emerald-500 to-teal-600",
+  },
+  {
+    key: "contracts",
+    label: "Agreements",
+    icon: FileText,
+    entity: "contract",
+    gradient: "from-violet-500 to-purple-600",
+  },
   {
     key: "inspectors",
     label: "Inspectors",
     icon: UserCheck,
     entity: "inspector",
+    gradient: "from-amber-500 to-orange-600",
   },
   {
     key: "inspections",
@@ -59,10 +77,29 @@ const navItems: Array<{
     icon: ClipboardCheck,
     badge: "3",
     entity: "inspection",
+    gradient: "from-cyan-500 to-blue-600",
   },
-  { key: "billing", label: "Billing", icon: Receipt, entity: "invoice" },
-  { key: "reports", label: "Reports", icon: BarChart3, entity: "report" },
-  { key: "audit", label: "Audit Log", icon: ShieldCheck, entity: "audit" },
+  {
+    key: "billing",
+    label: "Billing",
+    icon: Receipt,
+    entity: "invoice",
+    gradient: "from-pink-500 to-rose-600",
+  },
+  {
+    key: "reports",
+    label: "Reports",
+    icon: BarChart3,
+    entity: "report",
+    gradient: "from-indigo-500 to-violet-600",
+  },
+  {
+    key: "audit",
+    label: "Audit Log",
+    icon: ShieldCheck,
+    entity: "audit",
+    gradient: "from-slate-500 to-gray-600",
+  },
 ];
 
 export function Sidebar({
@@ -70,161 +107,254 @@ export function Sidebar({
   onSelect,
   isExpanded,
   expiringContractsCount,
-  onLogout,
 }: SidebarProps) {
   const { isDark } = useTheme();
   const { user } = useAuth();
+  const { canAccessEntity, isAdmin } = usePermission();
 
-  const { canAccessEntity, isAdmin, customPermissions } = usePermission();
+  const [pendingAmendmentsCount, setPendingAmendmentsCount] = useState(0);
 
-  console.log("[Sidebar] 🔍 User:", user);
-  console.log("[Sidebar] 🔍 Custom Permissions:", customPermissions);
-  console.log("[Sidebar] 🔍 Is Admin:", isAdmin);
-  console.log(
-    '[Sidebar] 🔍 canAccessEntity("client"):',
-    canAccessEntity("client"),
-  );
-  console.log(
-    '[Sidebar] 🔍 canAccessEntity("contract"):',
-    canAccessEntity("contract"),
-  );
+  const loadPendingAmendmentsCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from("contract_amendments")
+        .select("*", { count: "exact", head: true })
+        .eq("approval_status", "PENDING");
 
-  // 🔧 FIX: فیلتر کردن آیتم‌ها بر اساس دسترسی entity
+      if (!error) {
+        setPendingAmendmentsCount(count || 0);
+      }
+    } catch (error) {
+      console.error(
+        "[Sidebar] Failed to load pending amendments count:",
+        error,
+      );
+    }
+  };
+
+  // 🔧 بارگذاری تعداد amendments در انتظار
+  useEffect(() => {
+    loadPendingAmendmentsCount();
+
+    // Refresh هر 10 ثانیه
+    const interval = setInterval(loadPendingAmendmentsCount, 10000);
+    return () => clearInterval(interval);
+  }, []);
   const visibleNavItems = navItems.filter((item) => {
-    // Dashboard همیشه نمایش داده میشه
     if (item.key === "dashboard") return true;
-
-    // اگه entity نداره، نمایش داده میشه
     if (!item.entity) return true;
-
-    // 🔧 FIX: چک کردن دسترسی به entity
     return canAccessEntity(item.entity);
   });
 
   return (
     <aside
-      className={`fixed left-0 top-16 z-30 flex flex-col border-r transition-all duration-300 ${
+      className={`fixed left-0 top-16 z-30 flex flex-col transition-all duration-300 ${
         isExpanded ? "w-64" : "w-20"
       } ${
         isDark
-          ? "bg-slate-900/95 border-slate-800 shadow-xl shadow-black/30 backdrop-blur-xl"
-          : "bg-white/95 border-slate-200 shadow-xl shadow-slate-200/50 backdrop-blur-xl"
+          ? "bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-r border-slate-800/50"
+          : "bg-gradient-to-b from-white via-slate-50 to-white border-r border-slate-200/70"
       }`}
       style={{ height: "calc(100vh - 4rem)" }}
     >
-      <div className="flex items-center gap-3 px-5 py-5"></div>
-
-      <nav className="flex-1 space-y-0.5 px-3 overflow-y-auto">
+      {/* Navigation Items */}
+      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
         {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.key;
-          const showBadge =
-            item.key === "contracts"
-              ? (expiringContractsCount ?? 0) > 0
-              : !!item.badge;
-          const badgeText =
-            item.key === "contracts" ? expiringContractsCount : item.badge;
+
+          // 🔧 FIX: محاسبه badge
+          const isContracts = item.key === "contracts";
+          const hasExpiringContracts = (expiringContractsCount ?? 0) > 0;
+          const hasPendingAmendments = pendingAmendmentsCount > 0;
+
+          // 🔧 FIX: نمایش badge اگر expiring contracts یا pending amendments داشته باشیم
+          const showBadge = isContracts
+            ? hasExpiringContracts || hasPendingAmendments
+            : !!item.badge;
+
+          // 🔧 FIX: متن badge
+          const badgeText = isContracts
+            ? hasPendingAmendments
+              ? pendingAmendmentsCount
+              : expiringContractsCount
+            : item.badge;
+
+          // 🔧 FIX: رنگ badge
+          const isAmendmentBadge = isContracts && hasPendingAmendments;
           const isAlert =
-            item.key === "contracts" && (expiringContractsCount ?? 0) > 0;
+            isContracts && hasExpiringContracts && !hasPendingAmendments;
 
           return (
             <button
               key={item.key}
               onClick={() => onSelect(item.key)}
               title={!isExpanded ? item.label : undefined}
-              className={`group flex w-full items-center rounded-lg transition-all ${
-                isExpanded
-                  ? "gap-3 px-2.5 py-2 text-sm"
-                  : "justify-center px-2 py-2.5"
+              className={`group relative w-full flex items-center rounded-xl transition-all duration-300 ${
+                isExpanded ? "gap-3 px-3 py-2.5" : "justify-center px-2 py-2.5"
               } ${
                 isActive
-                  ? "bg-gradient-to-r from-indigo-500/15 to-violet-500/10 text-indigo-600 shadow-md shadow-indigo-500/20"
+                  ? isDark
+                    ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg`
+                    : `bg-gradient-to-r ${item.gradient} text-white shadow-lg`
                   : isDark
                     ? "text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
             >
-              <Icon
-                className={`h-4 w-4 shrink-0 ${
-                  isActive
-                    ? "text-indigo-500"
-                    : isDark
-                      ? "text-slate-500"
-                      : "text-slate-400"
-                }`}
-              />
-              {isExpanded && (
-                <span className="flex-1 text-left">{item.label}</span>
-              )}
-
-              {showBadge && (
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${
-                    isAlert
-                      ? "bg-rose-500/20 text-rose-500 ring-rose-500/40 animate-pulse"
-                      : "bg-rose-500/15 text-rose-500 ring-rose-500/30"
-                  }`}
-                >
-                  {badgeText}
-                </span>
-              )}
-
+              {/* Active Indicator */}
               {isActive && (
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/80" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full bg-white shadow-lg" />
+              )}
+
+              {/* Icon */}
+              <div
+                className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
+                  isActive
+                    ? "bg-white/20 shadow-inner"
+                    : isDark
+                      ? "bg-slate-800/50 group-hover:bg-slate-700/50"
+                      : "bg-slate-100 group-hover:bg-white group-hover:shadow-sm"
+                }`}
+              >
+                <Icon
+                  className={`h-4 w-4 transition-all ${
+                    isActive
+                      ? "text-white"
+                      : isDark
+                        ? "text-slate-400 group-hover:text-slate-200"
+                        : "text-slate-500 group-hover:text-slate-700"
+                  }`}
+                />
+              </div>
+
+              {isExpanded && (
+                <>
+                  <span className="flex-1 text-left text-sm font-medium truncate">
+                    {item.label}
+                  </span>
+
+                  {showBadge && (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset ${
+                        isAmendmentBadge
+                          ? "bg-amber-500/20 text-amber-300 ring-amber-500/40 animate-pulse"
+                          : isAlert
+                            ? "bg-rose-500/20 text-rose-300 ring-rose-500/40 animate-pulse"
+                            : isActive
+                              ? "bg-white/20 text-white ring-white/30"
+                              : isDark
+                                ? "bg-slate-700 text-slate-300 ring-slate-600"
+                                : "bg-slate-200 text-slate-700 ring-slate-300"
+                      }`}
+                    >
+                      {badgeText}
+                    </span>
+                  )}
+                </>
+              )}
+
+              {/* Notification Dot for collapsed mode */}
+              {!isExpanded && showBadge && (
+                <span
+                  className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                    isAmendmentBadge
+                      ? "bg-amber-500 animate-pulse"
+                      : isAlert
+                        ? "bg-rose-500 animate-pulse"
+                        : isActive
+                          ? "bg-white"
+                          : "bg-indigo-500"
+                  }`}
+                />
               )}
             </button>
           );
         })}
-
-        {/* 🔧 FIX: User Management فقط برای admin */}
-        {isAdmin && (
-          <button
-            onClick={() => onSelect("user-management")}
-            title={!isExpanded ? "User Management" : undefined}
-            className={`group flex w-full items-center rounded-lg transition-all ${
-              isExpanded
-                ? "gap-3 px-2.5 py-2 text-sm"
-                : "justify-center px-2 py-2.5"
-            } ${
-              active === "user-management"
-                ? "bg-gradient-to-r from-purple-500/15 to-pink-500/10 text-purple-600 shadow-md shadow-purple-500/20"
-                : isDark
-                  ? "text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            }`}
-          >
-            <Shield
-              className={`h-4 w-4 shrink-0 ${
-                active === "user-management"
-                  ? "text-purple-500"
-                  : isDark
-                    ? "text-slate-500"
-                    : "text-slate-400"
-              }`}
-            />
-            {isExpanded && (
-              <>
-                <span className="flex-1 text-left">User Management</span>
-                <span className="px-1.5 py-0.5 bg-purple-500 text-white text-[10px] rounded-full font-bold">
-                  ADMIN
-                </span>
-              </>
-            )}
-            {active === "user-management" && (
-              <span className="h-1.5 w-1.5 rounded-full bg-purple-500 shadow-lg shadow-purple-500/80" />
-            )}
-          </button>
-        )}
       </nav>
 
-      <div className="p-3 border-t border-slate-200 dark:border-slate-700">
-        <UserDropdown
-          userName={user?.fullName || "Admin User"}
-          userEmail={user?.email || "admin@ics.com"}
-          onNavigateSettings={() => onSelect("settings")}
-          onLogout={onLogout}
-          isExpanded={isExpanded}
-        />
+      {/* ═══════════════════════════════════════ */}
+      {/* 🔹 FOOTER - User Management (Admin Only) */}
+      {/* ═══════════════════════════════════════ */}
+      <div
+        className={`border-t ${isDark ? "border-slate-800/50" : "border-slate-200/70"}`}
+      >
+        {isAdmin ? (
+          // Admin: User Management با استایل خاص
+          <div className="p-3">
+            <button
+              onClick={() => onSelect("user-management")}
+              title={!isExpanded ? "User Management" : undefined}
+              className={`group relative w-full flex items-center rounded-xl transition-all duration-300 ${
+                isExpanded ? "gap-3 px-3 py-2.5" : "justify-center px-2 py-2.5"
+              } ${
+                active === "user-management"
+                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/30"
+                  : isDark
+                    ? "text-slate-400 hover:bg-gradient-to-r hover:from-purple-900/30 hover:to-pink-900/30 hover:text-purple-300"
+                    : "text-slate-600 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:text-purple-700"
+              }`}
+            >
+              {active === "user-management" && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full bg-white shadow-lg" />
+              )}
+
+              <div
+                className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
+                  active === "user-management"
+                    ? "bg-white/20 shadow-inner"
+                    : isDark
+                      ? "bg-purple-900/30 group-hover:bg-purple-800/40"
+                      : "bg-purple-100 group-hover:bg-purple-200"
+                }`}
+              >
+                <Shield
+                  className={`h-4 w-4 transition-all ${
+                    active === "user-management"
+                      ? "text-white"
+                      : isDark
+                        ? "text-purple-400"
+                        : "text-purple-600"
+                  }`}
+                />
+              </div>
+
+              {isExpanded && (
+                <>
+                  <span className="flex-1 text-left text-sm font-medium">
+                    User Management
+                  </span>
+                  <span
+                    className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                      active === "user-management"
+                        ? "bg-white/20 text-white"
+                        : isDark
+                          ? "bg-purple-900/50 text-purple-300"
+                          : "bg-purple-100 text-purple-700"
+                    }`}
+                  >
+                    ADMIN
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
+        ) : (
+          // Non-Admin: Spacer ساده مثل بقیه سایدبار
+          <div className="p-3">
+            <div
+              className={`flex items-center justify-center rounded-xl py-2.5 ${
+                isDark ? "text-slate-600" : "text-slate-400"
+              }`}
+            >
+              {isExpanded && (
+                <span className="text-[10px] uppercase font-semibold tracking-wider">
+                  {user?.role || "User"}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );
