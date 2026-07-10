@@ -8,7 +8,6 @@ import { amendmentService } from "../services/AmendmentService";
 import type { Contract, ContractAmendment } from "@/types/contract";
 import { formatCurrency } from "@shared/lib/formatters";
 import { useAuth } from "@features/auth/hooks/useAuth";
-import { ModalFooter } from "@shared/ui/Modal";
 
 interface ApprovalModalProps {
   isOpen: boolean;
@@ -34,7 +33,6 @@ export function ApprovalModal({
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
 
-  //  State برای وضعیت فعلی amendment
   const [currentAmendment, setCurrentAmendment] =
     useState<ContractAmendment>(amendment);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,13 +58,12 @@ export function ApprovalModal({
     }
   };
 
-  // 🔧 NEW: بارگذاری مجدد وضعیت amendment
   useEffect(() => {
     if (isOpen && amendment.id) {
       loadLatestAmendment();
     }
   }, [isOpen, amendment.id]);
-  // 🔧 NEW: بررسی آیا اکشن می‌تواند انجام شود
+
   const canTakeAction = currentAmendment.approval_status === "PENDING";
   const isApproved = currentAmendment.approval_status === "APPROVED";
   const isRejected = currentAmendment.approval_status === "REJECTED";
@@ -89,12 +86,9 @@ export function ApprovalModal({
       );
       showToast("success", "Approved", "Amendment approved successfully");
 
-      // 🔧 NEW: بارگذاری مجدد وضعیت
       await loadLatestAmendment();
-
       onSuccess();
 
-      // بستن مودال بعد از 2 ثانیه
       setTimeout(() => {
         onClose();
       }, 2000);
@@ -133,12 +127,9 @@ export function ApprovalModal({
       );
       showToast("success", "Rejected", "Amendment rejected");
 
-      // 🔧 NEW: بارگذاری مجدد وضعیت
       await loadLatestAmendment();
-
       onSuccess();
 
-      // بستن مودال بعد از 2 ثانیه
       setTimeout(() => {
         onClose();
       }, 2000);
@@ -149,7 +140,6 @@ export function ApprovalModal({
     }
   };
 
-  // 🔧 استخراج مدارک
   const documents = useMemo(() => {
     const docs: Array<{ id: string; name: string; url: string; type: string }> =
       [];
@@ -189,7 +179,6 @@ export function ApprovalModal({
     { key: "history", label: "Contract Info", icon: "📄" },
   ];
 
-  // 🔧 NEW: Badge برای وضعیت
   const getStatusBadge = () => {
     if (isApproved) {
       return (
@@ -221,6 +210,62 @@ export function ApprovalModal({
       onClose={onClose}
       title="🔍 Review Amendment"
       size="xl"
+      // 🔧 FIX: دکمه‌ها در footer prop - ثابت در پایین
+      footer={
+        <div className="flex justify-end gap-3">
+          {canTakeAction ? (
+            <>
+              <Button variant="ghost" onClick={onClose} disabled={isProcessing}>
+                Cancel
+              </Button>
+
+              {!showRejectInput ? (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowRejectInput(true)}
+                    disabled={isProcessing}
+                    className="text-rose-600 border-rose-600 hover:bg-rose-50"
+                  >
+                    ✕ Reject
+                  </Button>
+                  <Button
+                    onClick={handleApprove}
+                    disabled={isProcessing}
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    {isProcessing ? "⏳ Processing..." : "✓ Approve"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowRejectInput(false);
+                      setRejectionReason("");
+                    }}
+                    disabled={isProcessing}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleReject}
+                    disabled={isProcessing || !rejectionReason.trim()}
+                    className="bg-rose-600 hover:bg-rose-700"
+                  >
+                    {isProcessing ? "⏳ Processing..." : "✕ Confirm Rejection"}
+                  </Button>
+                </>
+              )}
+            </>
+          ) : (
+            <Button variant="ghost" onClick={onClose}>
+              Close
+            </Button>
+          )}
+        </div>
+      }
     >
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
@@ -368,7 +413,7 @@ export function ApprovalModal({
           </div>
 
           {/* Tab Content */}
-          <div className="min-h-[300px] max-h-[500px] overflow-y-auto">
+          <div className="min-h-[300px]">
             {/* Overview Tab */}
             {activeTab === "overview" && (
               <div className="space-y-3">
@@ -469,8 +514,8 @@ export function ApprovalModal({
             {/* Changes Tab */}
             {activeTab === "changes" && (
               <div className="space-y-3">
-                {amendment.amendment_types.includes("DATE_EXTENSION") &&
-                  amendment.new_end_date && (
+                {currentAmendment.amendment_types.includes("DATE_EXTENSION") &&
+                  currentAmendment.new_end_date && (
                     <div
                       className={`p-3 rounded-lg border ${isDark ? "border-indigo-700 bg-indigo-950/30" : "border-indigo-200 bg-indigo-50"}`}
                     >
@@ -489,7 +534,7 @@ export function ApprovalModal({
                           <div
                             className={`text-sm font-mono ${isDark ? "text-slate-200" : "text-slate-800"}`}
                           >
-                            {amendment.previous_end_date}
+                            {currentAmendment.previous_end_date}
                           </div>
                         </div>
                         <div>
@@ -501,15 +546,15 @@ export function ApprovalModal({
                           <div
                             className={`text-sm font-mono font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
                           >
-                            {amendment.new_end_date}
+                            {currentAmendment.new_end_date}
                           </div>
                         </div>
                       </div>
                     </div>
                   )}
 
-                {amendment.amendment_types.includes("VALUE_INCREASE") &&
-                  amendment.new_value !== undefined && (
+                {currentAmendment.amendment_types.includes("VALUE_INCREASE") &&
+                  currentAmendment.new_value !== undefined && (
                     <div
                       className={`p-3 rounded-lg border ${isDark ? "border-emerald-700 bg-emerald-950/30" : "border-emerald-200 bg-emerald-50"}`}
                     >
@@ -529,7 +574,7 @@ export function ApprovalModal({
                             className={`text-sm font-mono ${isDark ? "text-slate-200" : "text-slate-800"}`}
                           >
                             {formatCurrency(
-                              amendment.previous_value || 0,
+                              currentAmendment.previous_value || 0,
                               contract.currency,
                             )}
                           </div>
@@ -544,7 +589,7 @@ export function ApprovalModal({
                             className={`text-sm font-mono font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
                           >
                             {formatCurrency(
-                              amendment.new_value,
+                              currentAmendment.new_value,
                               contract.currency,
                             )}
                           </div>
@@ -560,8 +605,8 @@ export function ApprovalModal({
                           >
                             +
                             {formatCurrency(
-                              (amendment.new_value || 0) -
-                                (amendment.previous_value || 0),
+                              (currentAmendment.new_value || 0) -
+                                (currentAmendment.previous_value || 0),
                               contract.currency,
                             )}
                           </div>
@@ -570,8 +615,10 @@ export function ApprovalModal({
                     </div>
                   )}
 
-                {amendment.amendment_types.includes("TARIFF_ADJUSTMENT") &&
-                  amendment.tariff_adjustments && (
+                {currentAmendment.amendment_types.includes(
+                  "TARIFF_ADJUSTMENT",
+                ) &&
+                  currentAmendment.tariff_adjustments && (
                     <div
                       className={`p-3 rounded-lg border ${isDark ? "border-amber-700 bg-amber-950/30" : "border-amber-200 bg-amber-50"}`}
                     >
@@ -610,55 +657,60 @@ export function ApprovalModal({
                                 : "divide-y divide-slate-200"
                             }
                           >
-                            {amendment.tariff_adjustments.map((adj, idx) => {
-                              const change = adj.new_rate - adj.previous_rate;
-                              const changePercent = (
-                                (change / adj.previous_rate) *
-                                100
-                              ).toFixed(1);
-                              return (
-                                <tr key={idx}>
-                                  <td
-                                    className={`px-2 py-1.5 ${isDark ? "text-slate-200" : "text-slate-800"}`}
-                                  >
-                                    Tariff #{idx + 1}
-                                  </td>
-                                  <td
-                                    className={`px-2 py-1.5 text-right font-mono ${isDark ? "text-slate-300" : "text-slate-700"}`}
-                                  >
-                                    {formatCurrency(
-                                      adj.previous_rate,
-                                      contract.currency,
-                                    )}
-                                  </td>
-                                  <td className="px-2 py-1.5 text-center">
-                                    <Badge tone="slate" className="text-[9px]">
-                                      {adj.adjustment_mode === "PERCENTAGE"
-                                        ? `${adj.adjustment_percentage}%`
-                                        : "Manual"}
-                                    </Badge>
-                                  </td>
-                                  <td
-                                    className={`px-2 py-1.5 text-right font-mono font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
-                                  >
-                                    {formatCurrency(
-                                      adj.new_rate,
-                                      contract.currency,
-                                    )}
-                                  </td>
-                                  <td
-                                    className={`px-2 py-1.5 text-right font-mono ${change > 0 ? (isDark ? "text-emerald-400" : "text-emerald-600") : isDark ? "text-rose-400" : "text-rose-600"}`}
-                                  >
-                                    {change > 0 ? "+" : ""}
-                                    {formatCurrency(
-                                      change,
-                                      contract.currency,
-                                    )}{" "}
-                                    ({changePercent}%)
-                                  </td>
-                                </tr>
-                              );
-                            })}
+                            {currentAmendment.tariff_adjustments.map(
+                              (adj, idx) => {
+                                const change = adj.new_rate - adj.previous_rate;
+                                const changePercent = (
+                                  (change / adj.previous_rate) *
+                                  100
+                                ).toFixed(1);
+                                return (
+                                  <tr key={idx}>
+                                    <td
+                                      className={`px-2 py-1.5 ${isDark ? "text-slate-200" : "text-slate-800"}`}
+                                    >
+                                      Tariff #{idx + 1}
+                                    </td>
+                                    <td
+                                      className={`px-2 py-1.5 text-right font-mono ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                                    >
+                                      {formatCurrency(
+                                        adj.previous_rate,
+                                        contract.currency,
+                                      )}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-center">
+                                      <Badge
+                                        tone="slate"
+                                        className="text-[9px]"
+                                      >
+                                        {adj.adjustment_mode === "PERCENTAGE"
+                                          ? `${adj.adjustment_percentage}%`
+                                          : "Manual"}
+                                      </Badge>
+                                    </td>
+                                    <td
+                                      className={`px-2 py-1.5 text-right font-mono font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
+                                    >
+                                      {formatCurrency(
+                                        adj.new_rate,
+                                        contract.currency,
+                                      )}
+                                    </td>
+                                    <td
+                                      className={`px-2 py-1.5 text-right font-mono ${change > 0 ? (isDark ? "text-emerald-400" : "text-emerald-600") : isDark ? "text-rose-400" : "text-rose-600"}`}
+                                    >
+                                      {change > 0 ? "+" : ""}
+                                      {formatCurrency(
+                                        change,
+                                        contract.currency,
+                                      )}{" "}
+                                      ({changePercent}%)
+                                    </td>
+                                  </tr>
+                                );
+                              },
+                            )}
                           </tbody>
                         </table>
                       </div>
@@ -819,7 +871,7 @@ export function ApprovalModal({
                   </div>
                 </div>
 
-                {amendment.created_at && (
+                {currentAmendment.created_at && (
                   <div
                     className={`p-3 rounded-lg ${isDark ? "bg-slate-800/50" : "bg-slate-50"}`}
                   >
@@ -831,7 +883,9 @@ export function ApprovalModal({
                     <div
                       className={`text-xs ${isDark ? "text-slate-200" : "text-slate-800"}`}
                     >
-                      {new Date(amendment.created_at).toLocaleString("fa-IR")}
+                      {new Date(currentAmendment.created_at).toLocaleString(
+                        "fa-IR",
+                      )}
                     </div>
                   </div>
                 )}
@@ -839,96 +893,27 @@ export function ApprovalModal({
             )}
           </div>
 
-          {/* 🔧 NEW: Actions - فقط اگر PENDING است */}
-          {canTakeAction ? (
-            <>
-              {/* Reject Input */}
-              {showRejectInput && (
-                <div
-                  className={`rounded-xl border-2 p-4 ${isDark ? "border-rose-700 bg-rose-950/30" : "border-rose-200 bg-rose-50"}`}
-                >
-                  <label
-                    className={`mb-2 block text-xs font-semibold ${isDark ? "text-rose-300" : "text-rose-700"}`}
-                  >
-                    Rejection Reason *
-                  </label>
-                  <textarea
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    rows={3}
-                    className={`w-full rounded-lg border px-3 py-2 text-sm ${
-                      isDark
-                        ? "border-slate-700 bg-slate-800 text-slate-100"
-                        : "border-slate-200 bg-white"
-                    }`}
-                    placeholder="Please provide a reason for rejection..."
-                  />
-                </div>
-              )}
-
-              {/* Actions */}
-              <div
-                className={`flex justify-end gap-3 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}
-              >
-                <Button
-                  variant="ghost"
-                  onClick={onClose}
-                  disabled={isProcessing}
-                >
-                  Cancel
-                </Button>
-
-                {!showRejectInput ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowRejectInput(true)}
-                      disabled={isProcessing}
-                      className="text-rose-600 border-rose-600 hover:bg-rose-50"
-                    >
-                      ✕ Reject
-                    </Button>
-                    <Button
-                      onClick={handleApprove}
-                      disabled={isProcessing}
-                      className="bg-emerald-600 hover:bg-emerald-700"
-                    >
-                      {isProcessing ? "⏳ Processing..." : "✓ Approve"}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowRejectInput(false);
-                        setRejectionReason("");
-                      }}
-                      disabled={isProcessing}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleReject}
-                      disabled={isProcessing || !rejectionReason.trim()}
-                      className="bg-rose-600 hover:bg-rose-700"
-                    >
-                      {isProcessing
-                        ? "⏳ Processing..."
-                        : "✕ Confirm Rejection"}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            // 🔧 NEW: فقط دکمه Close اگر اکشن قبلاً انجام شده
+          {/* 🔧 Reject Input - در content (scrollable) */}
+          {canTakeAction && showRejectInput && (
             <div
-              className={`flex justify-end pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}
+              className={`rounded-xl border-2 p-4 ${isDark ? "border-rose-700 bg-rose-950/30" : "border-rose-200 bg-rose-50"}`}
             >
-              <Button variant="ghost" onClick={onClose}>
-                Close
-              </Button>
+              <label
+                className={`mb-2 block text-xs font-semibold ${isDark ? "text-rose-300" : "text-rose-700"}`}
+              >
+                Rejection Reason *
+              </label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={3}
+                className={`w-full rounded-lg border px-3 py-2 text-sm ${
+                  isDark
+                    ? "border-slate-700 bg-slate-800 text-slate-100"
+                    : "border-slate-200 bg-white"
+                }`}
+                placeholder="Please provide a reason for rejection..."
+              />
             </div>
           )}
         </div>

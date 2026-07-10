@@ -96,6 +96,10 @@ class ClientService {
       registration_no: dbClient.registration_no,
       economic_code: dbClient.economic_code,
       abbreviated_name: dbClient.abbreviated_name,
+      category: dbClient.category || "OIL_GAS",
+      address_en: dbClient.address_en || "",
+      address_fa: dbClient.address_fa || "",
+      company_type: dbClient.company_type,
       createdAt: dbClient.created_at,
       updatedAt: dbClient.updated_at,
     };
@@ -116,6 +120,12 @@ class ClientService {
       registration_no: client.registration_no,
       economic_code: client.economic_code,
       abbreviated_name: client.abbreviated_name,
+      category: client.category,
+      address_en: client.address_en,
+      address_fa: client.address_fa,
+      company_type: client.company_type,
+      contracts: client.contracts,
+      contacts: client.contacts,
     };
   }
 }

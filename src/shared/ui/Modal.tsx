@@ -1,6 +1,6 @@
 // src/shared/ui/Modal.tsx
 
-import { useEffect, useRef, useState, useCallback, Children } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../lib/cn";
 import { useTheme } from "@app/providers/ThemeProvider";
@@ -18,24 +18,9 @@ export interface ModalProps {
   closeOnEscape?: boolean;
   headerClassName?: string;
   contentClassName?: string;
-  footer?: React.ReactNode;
+  footer?: React.ReactNode; // 🔧 فقط از این استفاده می‌کنیم
   ariaLabel?: string;
   ariaDescribedBy?: string;
-}
-
-// 🔧 NEW: کامپوننت ModalFooter برای استفاده در مودال‌ها
-export function ModalFooter({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div data-modal-footer className={className}>
-      {children}
-    </div>
-  );
 }
 
 export function Modal({
@@ -49,7 +34,7 @@ export function Modal({
   closeOnEscape = true,
   headerClassName,
   contentClassName,
-  footer,
+  footer, // 🔧 footer prop
   ariaLabel,
   ariaDescribedBy,
 }: ModalProps) {
@@ -58,34 +43,6 @@ export function Modal({
   const [shouldRender, setShouldRender] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<Element | null>(null);
-
-  // 🔧 NEW: استخراج footer از children اگر footer prop داده نشد
-  const { mainContent, extractedFooter } = (() => {
-    if (footer) {
-      return { mainContent: children, extractedFooter: footer };
-    }
-
-    // بررسی آیا children شامل ModalFooter است
-    const childArray = Children.toArray(children);
-    const footerIndex = childArray.findIndex(
-      (child) =>
-        typeof child === "object" &&
-        child !== null &&
-        "props" in child &&
-        (child.props as any)["data-modal-footer"] !== undefined,
-    );
-
-    if (footerIndex !== -1) {
-      const footerChild = childArray[footerIndex];
-      const mainChildren = childArray.filter((_, i) => i !== footerIndex);
-      return {
-        mainContent: mainChildren,
-        extractedFooter: footerChild,
-      };
-    }
-
-    return { mainContent: children, extractedFooter: null };
-  })();
 
   useEffect(() => {
     if (isOpen) {
@@ -214,7 +171,7 @@ export function Modal({
             : "bg-white border border-slate-200 shadow-slate-500/20",
         )}
       >
-        {/* 🔧 Header - Fixed */}
+        {/* 🔧 Header - ثابت بالا */}
         <div
           className={cn(
             "flex-shrink-0 flex items-center justify-between px-6 py-4 border-b",
@@ -262,24 +219,24 @@ export function Modal({
           )}
         </div>
 
-        {/* 🔧 Content - Scrollable */}
+        {/* 🔧 Content - Scrollable وسط */}
         <div
           className={cn("flex-1 overflow-y-auto min-h-0 p-6", contentClassName)}
         >
-          {mainContent}
+          {children}
         </div>
 
-        {/* 🔧 Footer - Fixed */}
-        {extractedFooter && (
+        {/* 🔧 Footer - ثابت پایین */}
+        {footer && (
           <div
             className={cn(
               "flex-shrink-0 px-6 py-4 border-t",
               isDark
-                ? "border-slate-700/50 bg-slate-900/95 backdrop-blur-sm"
-                : "border-slate-100 bg-white/95 backdrop-blur-sm",
+                ? "border-slate-700/50 bg-slate-900"
+                : "border-slate-100 bg-white",
             )}
           >
-            {extractedFooter}
+            {footer}
           </div>
         )}
       </div>

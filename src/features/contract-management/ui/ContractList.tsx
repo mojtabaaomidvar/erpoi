@@ -260,7 +260,7 @@ export function ContractList({
                     ? `All (${count})`
                     : t === "CONTRACT"
                       ? `📄 Contracts (${count})`
-                      : `📦 Work Orders (${count})`}
+                      : `📦 W/Orders (${count})`}
                 </button>
               );
             })}
