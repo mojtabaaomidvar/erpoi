@@ -35,6 +35,8 @@ import { showToast } from "@shared/ui/ToastContainer";
 import { AnimatedCollapse } from "@shared/ui/AnimatedCollapse";
 import { ContractDocumentsModal } from "./ContractDocumentsModal";
 import { ApprovalModal } from "./ApprovalModal";
+import { useEvent, EVENT_TYPES } from "@infra/events";
+import type { DomainEvent } from "@infra/events";
 
 interface ContractDocument {
   id: string;
@@ -251,6 +253,45 @@ export function ContractDetails({
     }
   };
 
+  useEvent<{ contractId: string; amendmentId: string }>(
+    EVENT_TYPES.AMENDMENT_CREATED,
+    (event: DomainEvent<{ contractId: string; amendmentId: string }>) => {
+      if (event.payload.contractId === contract?.id) {
+        console.log("[ContractDetails] Amendment created for this contract");
+        loadAmendments();
+      }
+    },
+  );
+
+  useEvent<{ contractId: string; amendmentId: string }>(
+    EVENT_TYPES.AMENDMENT_APPROVED,
+    (event: DomainEvent<{ contractId: string; amendmentId: string }>) => {
+      if (event.payload.contractId === contract?.id) {
+        console.log("[ContractDetails] Amendment approved for this contract");
+        loadAmendments();
+      }
+    },
+  );
+
+  useEvent<{ contractId: string; amendmentId: string }>(
+    EVENT_TYPES.AMENDMENT_REJECTED,
+    (event: DomainEvent<{ contractId: string; amendmentId: string }>) => {
+      if (event.payload.contractId === contract?.id) {
+        console.log("[ContractDetails] Amendment rejected for this contract");
+        loadAmendments();
+      }
+    },
+  );
+
+  useEffect(() => {
+    if (contract) {
+      loadAmendments();
+    } else {
+      setAmendments([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contract?.id]);
+
   // Handle amendment success
   const handleAmendmentSuccess = () => {
     loadAmendments();
@@ -258,11 +299,10 @@ export function ContractDetails({
 
   //  استخراج مدارک
   const documents = useMemo((): ContractDocument[] => {
-    if (!contract) return []; // 🔧 NEW: Guard clause
+    if (!contract) return [];
 
     const docs: ContractDocument[] = [];
 
-    // 🔧 FIX: source_file ممکن است string یا array باشد
     if (contract.source_file) {
       const files = Array.isArray(contract.source_file)
         ? contract.source_file
@@ -301,8 +341,12 @@ export function ContractDetails({
       });
     }
 
-    // 🔧 FIX: چند فایل برای هر amendment
-    amendments.forEach((amendment) => {
+    // فقط amendments تایید شده
+    const approvedAmendments = amendments.filter(
+      (a) => a.approval_status === "APPROVED",
+    );
+
+    approvedAmendments.forEach((amendment) => {
       if (amendment.attachment_urls && amendment.attachment_urls.length > 0) {
         amendment.attachment_urls.forEach((url, index) => {
           docs.push({
@@ -321,15 +365,6 @@ export function ContractDetails({
 
     return docs;
   }, [contract, amendments]);
-  const filteredDocuments = useMemo(() => {
-    if (activeDocumentTab === "all") return documents;
-    if (activeDocumentTab === "documents") {
-      return documents.filter(
-        (d) => d.type === "contract" || d.type === "letter",
-      );
-    }
-    return documents.filter((d) => d.type === "amendment");
-  }, [documents, activeDocumentTab]);
 
   // Empty State
   if (!contract) {
@@ -563,12 +598,16 @@ export function ContractDetails({
                   </button>
                 )}
 
-                {amendments.length > 0 && (
-                  <Badge tone="indigo" className="text-[10px]">
-                    🔄 {amendments.length} Amendment
-                    {amendments.length > 1 ? "s" : ""}
-                  </Badge>
-                )}
+                {(() => {
+                  const approvedCount = amendments.filter(
+                    (a) => a.approval_status === "APPROVED",
+                  ).length;
+                  return approvedCount > 0 ? (
+                    <Badge tone="indigo" className="text-[10px]">
+                      🔄 {approvedCount} Amendment{approvedCount > 1 ? "s" : ""}
+                    </Badge>
+                  ) : null;
+                })()}
               </div>
             </div>
           </div>
@@ -596,17 +635,25 @@ export function ContractDetails({
               className="gap-2 shadow-sm transition-all hover:scale-105 whitespace-nowrap"
             >
               <span>📎</span> Documents
-              {documents.length + amendments.length > 0 && (
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded ${
-                    isDark
-                      ? "bg-slate-700 text-slate-300"
-                      : "bg-slate-200 text-slate-700"
-                  }`}
-                >
-                  {documents.length + amendments.length}
-                </span>
-              )}
+              {(() => {
+                // 🔧 محاسبه تعداد amendments تایید شده
+                const approvedAmendmentsCount = amendments.filter(
+                  (a) => a.approval_status === "APPROVED",
+                ).length;
+                const totalCount = documents.length + approvedAmendmentsCount;
+
+                return totalCount > 0 ? (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      isDark
+                        ? "bg-slate-700 text-slate-300"
+                        : "bg-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {totalCount}
+                  </span>
+                ) : null;
+              })()}
             </Button>
 
             {canBtnEdit && isUnitManager && (

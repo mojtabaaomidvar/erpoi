@@ -68,6 +68,9 @@ function AppContent() {
   const [view, setView] = useState<ViewKey>("dashboard");
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
 
+  // 🔧 FIX: این خط باید قبل از return شرطی باشد
+  const expiringCount = 0;
+
   const handleLogout = useCallback(async () => {
     await logout();
     setView("dashboard");
@@ -93,15 +96,12 @@ function AppContent() {
     return <LoginPage />;
   }
 
-  const expiringCount = 0;
-
   return (
     <div
       className={`min-h-screen transition-colors duration-300 ${
         isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
       }`}
     >
-      {/* 🔧 FIX: استفاده از نام‌های صحیح state */}
       <Header
         activeView={view}
         onToggleSidebar={() => setSidebarExpanded(!sidebarExpanded)}

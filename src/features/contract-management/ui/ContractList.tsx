@@ -19,10 +19,12 @@ import {
   getDaysProgressColor,
 } from "@entities/contract/services/contractCalculations";
 import { contractPermissionGroups } from "../elements";
+import type { ActionPriority } from "../utils/contractPriority";
 
 interface ContractListProps {
   contracts: Contract[];
   filteredContracts: Contract[];
+  contractPriorities?: Map<string, ActionPriority>;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   typeFilter: "ALL" | "CONTRACT" | "WORK_ORDER";
@@ -92,6 +94,7 @@ function ContractSkeleton({ isDark }: { isDark: boolean }) {
 export function ContractList({
   contracts,
   filteredContracts,
+  contractPriorities,
   searchQuery,
   setSearchQuery,
   typeFilter,
@@ -383,6 +386,11 @@ export function ContractList({
               const isExpired = daysLeft < 0;
               const notStarted = daysProgress === null || daysProgress === 0;
 
+              // 🔧 NEW: دریافت اولویت اکشن
+              const priority = contractPriorities?.get(contract.id);
+              const hasAction =
+                priority && priority.level > 0 && priority.level <= 4;
+
               return (
                 <button
                   key={contract.id}
@@ -395,8 +403,43 @@ export function ContractList({
                       : isDark
                         ? "bg-slate-800/30 border border-transparent hover:bg-slate-800/60 hover:border-slate-700/50 hover:shadow-md"
                         : "bg-white/50 border border-transparent hover:bg-white hover:border-slate-200/70 hover:shadow-md"
+                  } ${
+                    // 🔧 NEW: Border رنگی برای اکشن‌ها
+                    hasAction && priority?.color === "amber"
+                      ? "border-l-4 border-l-amber-500"
+                      : ""
+                  } ${
+                    hasAction && priority?.color === "rose"
+                      ? "border-l-4 border-l-rose-500"
+                      : ""
+                  } ${
+                    hasAction && priority?.color === "indigo"
+                      ? "border-l-4 border-l-indigo-500"
+                      : ""
                   }`}
                 >
+                  {/* 🔧 NEW: Badge اکشن در بالای کارت */}
+                  {hasAction && (
+                    <div
+                      className={`flex items-center gap-1 mb-2 px-2 py-0.5 rounded text-[10px] font-semibold w-fit ${
+                        priority?.color === "amber"
+                          ? isDark
+                            ? "bg-amber-900/50 text-amber-300"
+                            : "bg-amber-100 text-amber-700"
+                          : priority?.color === "rose"
+                            ? isDark
+                              ? "bg-rose-900/50 text-rose-300"
+                              : "bg-rose-100 text-rose-700"
+                            : isDark
+                              ? "bg-indigo-900/50 text-indigo-300"
+                              : "bg-indigo-100 text-indigo-700"
+                      }`}
+                    >
+                      <span>{priority?.icon}</span>
+                      <span>{priority?.label}</span>
+                    </div>
+                  )}
+
                   {/* Selection Indicator */}
                   {isSelected && (
                     <div
@@ -440,7 +483,7 @@ export function ContractList({
                     {/* Status Badge */}
                     <div className="shrink-0 ml-2">
                       {contract.status === "COMPLETED" ? (
-                        <Badge tone="slate" className="text-[9px]">
+                        <Badge tone="slate" className="text-[10px]">
                           ✓ Completed
                         </Badge>
                       ) : expiringInfo.expiring ? (
@@ -452,15 +495,15 @@ export function ContractList({
                           <span>Expiring</span>
                         </Badge>
                       ) : financialStatus === "not_started" ? (
-                        <Badge tone="amber" className="text-[9px]">
+                        <Badge tone="amber" className="text-[10px]">
                           ⏳ Not Started
                         </Badge>
                       ) : financialStatus === "needs_review" ? (
-                        <Badge tone="amber" className="text-[9px]">
+                        <Badge tone="amber" className="text-[10px]">
                           ⚠️ Review
                         </Badge>
                       ) : (
-                        <Badge tone="emerald" className="text-[9px]">
+                        <Badge tone="emerald" className="text-[10px]">
                           🟢 Active
                         </Badge>
                       )}
@@ -569,20 +612,6 @@ export function ContractList({
           <span className={isDark ? "text-slate-400" : "text-slate-600"}>
             {filteredContracts.length} Agreements
           </span>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className={isDark ? "text-slate-400" : "text-slate-600"}>
-                Active
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-amber-500" />
-              <span className={isDark ? "text-slate-400" : "text-slate-600"}>
-                Expiring
-              </span>
-            </div>
-          </div>
         </div>
       </div>
     </div>

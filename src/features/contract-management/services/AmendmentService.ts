@@ -9,6 +9,7 @@ import type {
   TariffLine,
   CreateAmendmentData,
 } from "@/types/contract";
+import { publishEvent, EVENT_TYPES } from "@infra/events";
 
 class AmendmentService {
   /**
@@ -95,60 +96,112 @@ class AmendmentService {
   /**
    * دریافت یک الحاقیه خاص
    */
+  // src/features/contract-management/services/AmendmentService.ts
+
   async getById(amendmentId: string): Promise<ContractAmendment | null> {
     try {
-      const { data, error } = await supabase
+      console.log(
+        "[AmendmentService] 🔍 Getting amendment by ID:",
+        amendmentId,
+      );
+
+      const { data: amendment, error } = await supabase
         .from("contract_amendments")
         .select(
           `
-          *,
-          tariff_adjustments:amendment_tariff_adjustments(*)
-        `,
+        *,
+        tariff_adjustments:amendment_tariff_adjustments(*)
+      `,
         )
         .eq("id", amendmentId)
         .single();
 
       if (error) {
-        console.error("[AmendmentService] Failed to get amendment:", error);
+        console.error("[AmendmentService] ❌ Failed to get amendment:", error);
         return null;
       }
 
-      return data;
+      if (!amendment) {
+        console.warn("[AmendmentService] ⚠️ Amendment not found:", amendmentId);
+        return null;
+      }
+
+      console.log("[AmendmentService] 📦 Raw amendment data:", {
+        id: amendment.id,
+        attachment_urls: amendment.attachment_urls,
+        attachment_names: amendment.attachment_names,
+      });
+
+      const result: ContractAmendment = {
+        id: amendment.id,
+        contract_id: amendment.contract_id,
+        amendment_no: amendment.amendment_no,
+        amendment_types: amendment.amendment_types || [],
+        effective_date: amendment.effective_date,
+        previous_end_date: amendment.previous_end_date,
+        new_end_date: amendment.new_end_date,
+        previous_value: amendment.previous_value,
+        new_value: amendment.new_value,
+        description: amendment.description,
+        attachment_urls: amendment.attachment_urls || [],
+        attachment_names: amendment.attachment_names || [],
+        approval_status: amendment.approval_status,
+        created_by: amendment.created_by,
+        approved_by: amendment.approved_by,
+        approved_at: amendment.approved_at,
+        rejected_by: amendment.rejected_by,
+        rejection_reason: amendment.rejection_reason,
+        created_at: amendment.created_at,
+        updated_at: amendment.updated_at,
+        tariff_adjustments: amendment.tariff_adjustments || [],
+      };
+
+      return result;
     } catch (error: any) {
-      console.error("[AmendmentService] Failed to get amendment:", error);
+      console.error("[AmendmentService] ❌ Failed to get amendment:", error);
       return null;
     }
   }
 
   // متد به‌روزرسانی فایل‌های ضمیمه
+
   async updateAttachments(
     amendmentId: string,
     urls: string[],
     names: string[],
   ): Promise<void> {
     try {
-      const { error } = await supabase
+      console.log("[AmendmentService] 📝 Updating attachments:", {
+        amendmentId,
+        urlsCount: urls.length,
+        namesCount: names.length,
+        urls,
+        names,
+      });
+
+      const { data, error } = await supabase
         .from("contract_amendments")
         .update({
           attachment_urls: urls,
           attachment_names: names,
         })
-        .eq("id", amendmentId);
+        .eq("id", amendmentId)
+        .select();
 
       if (error) {
         console.error(
-          "[AmendmentService] Failed to update attachments:",
+          "[AmendmentService] ❌ Failed to update attachments:",
           error,
         );
         throw new Error(error.message);
       }
 
-      console.log("[AmendmentService] Attachments updated:", {
-        amendmentId,
-        count: urls.length,
-      });
+      console.log("[AmendmentService] ✅ Attachments updated:", data);
     } catch (error: any) {
-      console.error("[AmendmentService] Failed to update attachments:", error);
+      console.error(
+        "[AmendmentService] ❌ Failed to update attachments:",
+        error,
+      );
       throw new Error(error.message);
     }
   }
@@ -156,6 +209,8 @@ class AmendmentService {
   /**
    * ایجاد الحاقیه جدید
    */
+  // src/features/contract-management/services/AmendmentService.ts
+
   async create(amendmentData: CreateAmendmentData): Promise<ContractAmendment> {
     try {
       let amendment_no = amendmentData.amendment_no;
@@ -170,19 +225,10 @@ class AmendmentService {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      console.log("[AmendmentService] Auth status:", {
-        user: user?.id,
-        email: user?.email,
-        role: user?.role,
-      });
 
-      if (!user) {
-        const { data: session } = await supabase.auth.getSession();
-      }
+      // اگر created_by ارسال نشده، از user فعلی استفاده کن
+      const createdBy = amendmentData.created_by || user?.id || undefined;
 
-      if (!user) {
-        const { data: session } = await supabase.auth.getSession();
-      }
       const { data: amendment, error: amendmentError } = await supabase
         .from("contract_amendments")
         .insert({
@@ -199,17 +245,26 @@ class AmendmentService {
           attachment_urls: amendmentData.attachment_urls || [],
           attachment_names: amendmentData.attachment_names || [],
           approval_status: "PENDING",
+          created_by: createdBy,
         })
         .select()
         .single();
 
       if (amendmentError) {
-        console.error(
-          "[AmendmentService] Failed to create amendment:",
-          amendmentError,
-        );
         throw new Error(amendmentError.message);
       }
+
+      publishEvent(
+        EVENT_TYPES.AMENDMENT_CREATED,
+        {
+          amendmentId: amendment.id,
+          contractId: amendment.contract_id,
+          amendmentNo: amendment.amendment_no || "",
+          types: amendment.amendment_types,
+          createdBy: createdBy || "",
+        },
+        { source: "AmendmentService", userId: createdBy },
+      );
 
       // ذخیره تعدیل تعرفه‌ها
       if (
@@ -218,15 +273,6 @@ class AmendmentService {
       ) {
         for (const adjustment of amendmentData.tariff_adjustments) {
           const adjustmentId = `adj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
-          console.log("[AmendmentService] Auth status:", {
-            user: user?.id,
-            email: user?.email,
-            role: user?.role,
-          });
 
           const { error: adjustmentError } = await supabase
             .from("amendment_tariff_adjustments")
@@ -241,15 +287,12 @@ class AmendmentService {
             });
 
           if (adjustmentError) {
-            console.error(
-              "[AmendmentService] Failed to create tariff adjustment:",
-              adjustmentError,
-            );
             throw new Error(adjustmentError.message);
           }
         }
       }
 
+      //دریافت اطلاعات قرارداد
       const { data: contract } = await supabase
         .from("contracts")
         .select("contract_no, contract_title")
@@ -266,20 +309,61 @@ class AmendmentService {
         )
         .join(", ");
 
-      notificationService.create({
-        type: "warning",
-        category: "contract",
-        title: `New Amendment: ${amendment_no}`,
-        message: `Amendment for contract ${contract?.contract_no || amendmentData.contract_id} is pending approval. Types: ${typeLabels}`,
-        actionUrl: `/contracts/${amendmentData.contract_id}`,
-        metadata: {
-          contractId: amendmentData.contract_id,
-          amendmentId: amendment.id,
-          contractNo: contract?.contract_no,
-          amendmentNo: amendment_no,
-          amendmentTypes: amendmentData.amendment_types,
-        },
-      });
+      // 🔧 FIX: نوتیفیکیشن فقط برای مدیران (به جز creator)
+      if (createdBy) {
+        const { data: managers } = await supabase
+          .from("users")
+          .select("id, role")
+          .in("role", ["admin", "unit_manager"]);
+
+        if (managers && managers.length > 0) {
+          // 🔧 فیلتر: حذف creator از لیست مدیران
+          const managersToNotify = managers.filter((m) => m.id !== createdBy);
+
+          for (const manager of managersToNotify) {
+            await notificationService.create({
+              type: "warning",
+              category: "contract",
+              title: `New Amendment: ${amendment_no}`,
+              message: `Amendment for contract ${contract?.contract_no || amendmentData.contract_id} is pending approval. Types: ${typeLabels}`,
+              actionUrl: `/contracts/${amendmentData.contract_id}`,
+              metadata: {
+                contractId: amendmentData.contract_id,
+                amendmentId: amendment.id,
+                contractNo: contract?.contract_no,
+                amendmentNo: amendment_no,
+                amendmentTypes: amendmentData.amendment_types,
+                createdBy: createdBy,
+              },
+            });
+          }
+        }
+      } else {
+        // 🔧 اگر creator مشخص نیست، برای همه مدیران نوتیفیکیشن بفرست
+        const { data: managers } = await supabase
+          .from("users")
+          .select("id, role")
+          .in("role", ["admin", "unit_manager"]);
+
+        if (managers && managers.length > 0) {
+          for (const manager of managers) {
+            await notificationService.create({
+              type: "warning",
+              category: "contract",
+              title: `New Amendment: ${amendment_no}`,
+              message: `Amendment for contract ${contract?.contract_no || amendmentData.contract_id} is pending approval. Types: ${typeLabels}`,
+              actionUrl: `/contracts/${amendmentData.contract_id}`,
+              metadata: {
+                contractId: amendmentData.contract_id,
+                amendmentId: amendment.id,
+                contractNo: contract?.contract_no,
+                amendmentNo: amendment_no,
+                amendmentTypes: amendmentData.amendment_types,
+              },
+            });
+          }
+        }
+      }
 
       return amendment;
     } catch (error: any) {
@@ -287,12 +371,14 @@ class AmendmentService {
       throw new Error(error.message);
     }
   }
+
   async approve(amendmentId: string, approvedBy: string): Promise<void> {
     try {
       const amendment = await this.getById(amendmentId);
       if (!amendment) {
         throw new Error("Amendment not found");
       }
+
       const { error } = await supabase
         .from("contract_amendments")
         .update({
@@ -308,71 +394,113 @@ class AmendmentService {
 
       await this.applyAmendment(amendmentId);
 
-      const { data: contract } = await supabase
-        .from("contracts")
-        .select("contract_no")
-        .eq("id", amendment.contract_id)
-        .single();
-
-      notificationService.create({
-        type: "success",
-        category: "contract",
-        title: `Amendment Approved: ${amendment.amendment_no}`,
-        message: `Amendment for contract ${contract?.contract_no || amendment.contract_id} has been approved.`,
-        actionUrl: `/contracts/${amendment.contract_id}`,
-        metadata: {
+      publishEvent(
+        EVENT_TYPES.AMENDMENT_APPROVED,
+        {
+          amendmentId,
           contractId: amendment.contract_id,
-          amendmentId: amendment.id,
-          contractNo: contract?.contract_no,
-          amendmentNo: amendment.amendment_no,
+          amendmentNo: amendment.amendment_no || "",
+          approvedBy,
         },
-      });
+        { source: "AmendmentService", userId: approvedBy },
+      );
+
+      // نوتیفیکیشن فقط برای creator (اگر creator ≠ approver)
+      if (amendment.created_by && amendment.created_by !== approvedBy) {
+        const { data: contract } = await supabase
+          .from("contracts")
+          .select("contract_no")
+          .eq("id", amendment.contract_id)
+          .single();
+
+        await notificationService.create({
+          type: "success",
+          category: "contract",
+          title: `Amendment Approved: ${amendment.amendment_no}`,
+          message: `Your amendment for contract ${contract?.contract_no || amendment.contract_id} has been approved.`,
+          actionUrl: `/contracts/${amendment.contract_id}`,
+          metadata: {
+            contractId: amendment.contract_id,
+            amendmentId: amendment.id,
+            contractNo: contract?.contract_no,
+            amendmentNo: amendment.amendment_no,
+            approvedBy: approvedBy,
+          },
+        });
+      }
+
+      console.log("[AmendmentService] Amendment approved:", amendmentId);
     } catch (error: any) {
       console.error("[AmendmentService] Failed to approve amendment:", error);
       throw new Error(error.message);
     }
   }
 
-  // 🔧 NEW: متد رد الحاقیه
-  async reject(amendmentId: string, rejectionReason: string): Promise<void> {
+  async reject(
+    amendmentId: string,
+    rejectedBy: string,
+    rejectionReason: string,
+  ): Promise<void> {
     try {
       const amendment = await this.getById(amendmentId);
       if (!amendment) {
         throw new Error("Amendment not found");
       }
+
+      // اطمینان از اینکه applyAmendment اجرا نشده
+      if (amendment.approval_status === "APPROVED") {
+        throw new Error("Cannot reject an already approved amendment");
+      }
+
       const { error } = await supabase
         .from("contract_amendments")
         .update({
           approval_status: "REJECTED",
+          rejected_by: rejectedBy,
           rejection_reason: rejectionReason,
         })
         .eq("id", amendmentId);
 
       if (error) {
-        console.error("[AmendmentService] Failed to reject amendment:", error);
         throw new Error(error.message);
       }
 
-      const { data: contract } = await supabase
-        .from("contracts")
-        .select("contract_no")
-        .eq("id", amendment.contract_id)
-        .single();
-
-      notificationService.create({
-        type: "error",
-        category: "contract",
-        title: `Amendment Rejected: ${amendment.amendment_no}`,
-        message: `Amendment for contract ${contract?.contract_no || amendment.contract_id} has been rejected. Reason: ${rejectionReason}`,
-        actionUrl: `/contracts/${amendment.contract_id}`,
-        metadata: {
+      publishEvent(
+        EVENT_TYPES.AMENDMENT_REJECTED,
+        {
+          amendmentId,
           contractId: amendment.contract_id,
-          amendmentId: amendment.id,
-          contractNo: contract?.contract_no,
-          amendmentNo: amendment.amendment_no,
-          rejectionReason,
+          amendmentNo: amendment.amendment_no || "",
+          rejectedBy,
+          reason: rejectionReason,
         },
-      });
+        { source: "AmendmentService", userId: rejectedBy },
+      );
+
+      //  نوتیفیکیشن فقط برای creator (اگر creator ≠ rejecter)
+      if (amendment.created_by && amendment.created_by !== rejectedBy) {
+        const { data: contract } = await supabase
+          .from("contracts")
+          .select("contract_no")
+          .eq("id", amendment.contract_id)
+          .single();
+
+        await notificationService.create({
+          type: "error",
+          category: "contract",
+          title: `Amendment Rejected: ${amendment.amendment_no}`,
+          message: `Your amendment for contract ${contract?.contract_no || amendment.contract_id} has been rejected. Reason: ${rejectionReason}`,
+          actionUrl: `/contracts/${amendment.contract_id}`,
+          metadata: {
+            contractId: amendment.contract_id,
+            amendmentId: amendment.id,
+            contractNo: contract?.contract_no,
+            amendmentNo: amendment.amendment_no,
+            rejectedBy: rejectedBy,
+            rejectionReason,
+          },
+        });
+      }
 
       console.log("[AmendmentService] Amendment rejected:", amendmentId);
     } catch (error: any) {
@@ -381,9 +509,7 @@ class AmendmentService {
     }
   }
 
-  // src/features/contract-management/services/AmendmentService.ts
-
-  // 🔧 NEW: متد همگام‌سازی amendments قدیمی
+  // متد همگام‌سازی amendments قدیمی
   async syncPendingAmendments(): Promise<void> {
     try {
       console.log("[AmendmentService] 🔄 Syncing pending amendments...");

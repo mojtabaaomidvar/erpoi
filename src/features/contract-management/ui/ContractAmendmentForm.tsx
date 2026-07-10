@@ -19,6 +19,7 @@ import {
   formatNumberInput,
   parseNumberInput,
 } from "@entities/contract/services/contractCalculations";
+import { useAuth } from "@features/auth/hooks/useAuth";
 
 interface ContractAmendmentFormProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export function ContractAmendmentForm({
   const { isDark } = useTheme();
   const { can } = usePermission();
   const canUpdate = can("contract:update");
+  const { user } = useAuth();
 
   const [isSaving, setIsSaving] = useState(false);
   const [amendmentTypes, setAmendmentTypes] = useState<AmendmentType[]>([]);
@@ -178,7 +180,7 @@ export function ContractAmendmentForm({
     }
   };
 
-  // 🔧 FIX: حذف یک فایل
+  //  حذف یک فایل
   const removeFile = (index: number) => {
     setAttachmentFiles((prev) => prev.filter((_, i) => i !== index));
     setAttachmentNames((prev) => prev.filter((_, i) => i !== index));
@@ -188,7 +190,8 @@ export function ContractAmendmentForm({
     if (input) input.value = "";
   };
 
-  // 🔧 FIX: Background Upload
+  //  Background Upload
+
   const handleSave = async () => {
     if (!canUpdate) {
       showToast(
@@ -211,7 +214,86 @@ export function ContractAmendmentForm({
     setIsSaving(true);
 
     try {
-      // 1. ایجاد الحاقیه بدون فایل
+      // 🔧 FIX: ابتدا فایل‌ها را آپلود کنیم
+      console.log("[ContractAmendmentForm] 📤 Uploading files first...");
+
+      const uploadedUrls: string[] = [];
+      const uploadedNames: string[] = [];
+
+      // بررسی Supabase session
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        showToast("error", "Upload Failed", "Please logout and login again.");
+        setIsSaving(false);
+        return;
+      }
+
+      // آپلود فایل‌ها
+      for (let i = 0; i < attachmentFiles.length; i++) {
+        const file = attachmentFiles[i];
+        const fileExt = file.name.split(".").pop() || "file";
+        const tempId = `temp_${Date.now()}_${i}`;
+        const fileName = `${contract.id}/${tempId}/${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+
+        try {
+          console.log(
+            `[ContractAmendmentForm] 📤 Uploading file ${i + 1}/${attachmentFiles.length}:`,
+            file.name,
+          );
+
+          const { data: uploadData, error: uploadError } =
+            await supabase.storage.from("amendments").upload(fileName, file, {
+              cacheControl: "3600",
+              upsert: false,
+              contentType: file.type,
+            });
+
+          if (uploadError) {
+            console.error(
+              `[ContractAmendmentForm] ❌ Upload failed:`,
+              uploadError,
+            );
+            showToast(
+              "error",
+              "Upload Failed",
+              `Failed to upload ${file.name}: ${uploadError.message}`,
+            );
+            setIsSaving(false);
+            return;
+          }
+
+          const { data: urlData } = supabase.storage
+            .from("amendments")
+            .getPublicUrl(uploadData.path);
+
+          uploadedUrls.push(urlData.publicUrl);
+          uploadedNames.push(file.name);
+
+          console.log(
+            `[ContractAmendmentForm] ✅ File ${i + 1} uploaded:`,
+            urlData.publicUrl,
+          );
+        } catch (error: any) {
+          console.error(
+            `[ContractAmendmentForm] ❌ Error uploading ${file.name}:`,
+            error,
+          );
+          showToast(
+            "error",
+            "Upload Failed",
+            `Failed to upload ${file.name}: ${error.message}`,
+          );
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      console.log(
+        "[ContractAmendmentForm] ✅ All files uploaded:",
+        uploadedUrls,
+      );
+
+      // 🔧 حالا amendment را با URL ها ایجاد کنیم
       const amendmentData = {
         contract_id: contract.id,
         amendment_no: amendmentNo || undefined,
@@ -230,8 +312,9 @@ export function ContractAmendmentForm({
           ? newValue
           : undefined,
         description,
-        attachment_urls: [], // 🔧 فعلاً خالی
-        attachment_names: [], // 🔧 فعلاً خالی
+        attachment_urls: uploadedUrls, // 🔧 FIX: URL ها را مستقیماً پاس دهیم
+        attachment_names: uploadedNames,
+        created_by: user?.id,
         tariff_adjustments: amendmentTypes.includes("TARIFF_ADJUSTMENT")
           ? tariffAdjustments.map((adj) => ({
               tariff_line_id: adj.tariff_line_id,
@@ -248,22 +331,15 @@ export function ContractAmendmentForm({
 
       const amendment = await amendmentService.create(amendmentData);
 
-      // 🔧 FIX: پیام موفقیت و بستن فرم
       showToast(
         "success",
         "Amendment Created",
-        "Amendment has been created successfully. Files will be uploaded in background.",
+        "Amendment has been created successfully with all files.",
       );
 
-      // 🔧 بستن فرم قبل از آپلود
       onSuccess();
       onClose();
       setIsSaving(false);
-
-      // 🔧 FIX: Background Upload - بعد از بستن فرم
-      if (attachmentFiles.length > 0) {
-        uploadFilesInBackground(amendment.id, attachmentFiles);
-      }
     } catch (err: any) {
       console.error("[ContractAmendmentForm] Save failed:", err);
       showToast(
@@ -272,116 +348,6 @@ export function ContractAmendmentForm({
         err.message || "Failed to create amendment",
       );
       setIsSaving(false);
-    }
-  };
-
-  // 🔧 NEW: Background Upload Function
-  const uploadFilesInBackground = async (
-    amendmentId: string,
-    files: File[],
-  ) => {
-    console.log(
-      "[ContractAmendmentForm] Starting background upload for",
-      files.length,
-      "files",
-    );
-
-    const uploadedUrls: string[] = [];
-    const uploadedNames: string[] = [];
-    let successCount = 0;
-    let failCount = 0;
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${contract.id}/${amendmentId}/${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-
-      try {
-        console.log(
-          `[ContractAmendmentForm] Uploading file ${i + 1}/${files.length}:`,
-          file.name,
-        );
-
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("amendments")
-          .upload(fileName, file, {
-            cacheControl: "3600",
-            upsert: false,
-          });
-
-        if (uploadError) {
-          console.error(
-            `[ContractAmendmentForm] Upload failed for ${file.name}:`,
-            uploadError,
-          );
-          failCount++;
-          continue;
-        }
-
-        const { data: urlData } = supabase.storage
-          .from("amendments")
-          .getPublicUrl(uploadData.path);
-
-        uploadedUrls.push(urlData.publicUrl);
-        uploadedNames.push(file.name);
-        successCount++;
-
-        console.log(
-          `[ContractAmendmentForm] File ${i + 1} uploaded successfully`,
-        );
-      } catch (error: any) {
-        console.error(
-          `[ContractAmendmentForm] Error uploading ${file.name}:`,
-          error,
-        );
-        failCount++;
-      }
-    }
-
-    // 🔧 به‌روزرسانی amendment با URLs
-    if (uploadedUrls.length > 0) {
-      try {
-        await amendmentService.updateAttachments(
-          amendmentId,
-          uploadedUrls,
-          uploadedNames,
-        );
-        console.log(
-          "[ContractAmendmentForm] Amendment updated with",
-          uploadedUrls.length,
-          "files",
-        );
-
-        if (failCount === 0) {
-          showToast(
-            "success",
-            "Upload Complete",
-            `All ${successCount} files uploaded successfully`,
-          );
-        } else {
-          showToast(
-            "warning",
-            "Partial Upload",
-            `${successCount} files uploaded, ${failCount} failed`,
-          );
-        }
-      } catch (error: any) {
-        console.error(
-          "[ContractAmendmentForm] Failed to update amendment:",
-          error,
-        );
-        showToast(
-          "error",
-          "Update Failed",
-          "Files uploaded but failed to update amendment",
-        );
-      }
-    } else if (failCount > 0) {
-      showToast(
-        "error",
-        "Upload Failed",
-        `All ${failCount} files failed to upload`,
-      );
     }
   };
 
@@ -893,7 +859,7 @@ export function ContractAmendmentForm({
           />
         </div>
 
-        {/* 🔧 FIX: Attachment - چند فایل */}
+        {/*  Attachment - چند فایل */}
         <div>
           <label
             className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
@@ -985,22 +951,6 @@ export function ContractAmendmentForm({
           )}
         </div>
 
-        {/* Actions */}
-        <div
-          className={`flex justify-end gap-3 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-100"}`}
-        >
-          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving || !isFormValid}
-            className={`${isSaving || !isFormValid ? "opacity-50 cursor-not-allowed" : ""} ${isSaving ? "cursor-wait" : ""}`}
-          >
-            {isSaving ? "⏳ Creating..." : "✓ Submit for Approval"}
-          </Button>
-        </div>
-
         {/* Validation Status */}
         {!isFormValid && (
           <div
@@ -1041,6 +991,21 @@ export function ContractAmendmentForm({
             </div>
           </div>
         )}
+
+        {/* Actions */}
+
+        <div className="flex justify-end gap-3">
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || !isFormValid}
+            className={`${isSaving || !isFormValid ? "opacity-50 cursor-not-allowed" : ""} ${isSaving ? "cursor-wait" : ""}`}
+          >
+            {isSaving ? "⏳ Creating..." : "✓ Submit for Approval"}
+          </Button>
+        </div>
       </div>
     </Modal>
   );

@@ -9,6 +9,9 @@ import type { Notification } from "@features/notifications/types";
 import type { Contract, ContractAmendment } from "@/types/contract";
 import { AnimatedCollapse } from "@shared/ui/AnimatedCollapse";
 import { supabase } from "@shared/database/supabase";
+import { useEvent, EVENT_TYPES } from "@infra/events";
+import type { DomainEvent } from "@infra/events";
+import { showToast } from "@shared/ui/ToastContainer";
 
 export function NotificationBell() {
   const { isDark } = useTheme();
@@ -30,11 +33,37 @@ export function NotificationBell() {
     setUnreadCount(notificationService.getUnread().length);
   };
 
+  useEvent<{ title: string; notificationId: string }>(
+    EVENT_TYPES.NOTIFICATION_CREATED,
+    (event: DomainEvent<{ title: string; notificationId: string }>) => {
+      console.log("[NotificationBell] New notification:", event.payload.title);
+      loadNotifications();
+    },
+  );
+
+  useEvent(EVENT_TYPES.AMENDMENT_APPROVED, () => {
+    loadNotifications();
+  });
+
+  useEvent(EVENT_TYPES.AMENDMENT_REJECTED, () => {
+    loadNotifications();
+  });
+
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     loadNotifications();
     const interval = setInterval(loadNotifications, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // src/shared/ui/NotificationBell.tsx
+
+  // src/shared/ui/NotificationBell.tsx
 
   const handleNotificationClick = async (notif: Notification) => {
     notificationService.markAsRead(notif.id);
@@ -44,23 +73,43 @@ export function NotificationBell() {
       const contractId = notif.metadata.contractId as string;
 
       try {
+        // 🔧 FIX: دریافت آخرین وضعیت amendment
         const amendment = await amendmentService.getById(amendmentId);
-        if (!amendment) return;
+        if (!amendment) {
+          console.error("[NotificationBell] Amendment not found:", amendmentId);
+          showToast("error", "Not Found", "Amendment not found");
+          return;
+        }
 
+        // 🔧 NEW: بررسی وضعیت فعلی
+        console.log(
+          "[NotificationBell] 🔍 Amendment status:",
+          amendment.approval_status,
+        );
+
+        // دریافت contract
         const { data: contract, error } = await supabase
           .from("contracts")
           .select("*")
           .eq("id", contractId)
           .single();
 
-        if (error || !contract) return;
+        if (error || !contract) {
+          console.error("[NotificationBell] Contract not found:", contractId);
+          showToast("error", "Not Found", "Contract not found");
+          return;
+        }
 
         setSelectedContract(contract as Contract);
         setSelectedAmendment(amendment);
         setIsApprovalModalOpen(true);
         setIsOpen(false);
       } catch (error) {
-        console.error("[NotificationBell] Failed to load:", error);
+        console.error(
+          "[NotificationBell] Failed to load amendment/contract:",
+          error,
+        );
+        showToast("error", "Error", "Failed to load amendment details");
       }
     }
 

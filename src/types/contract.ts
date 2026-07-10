@@ -232,11 +232,12 @@ export interface ContractAmendment {
   attachment_urls?: string[];
   attachment_names?: string[];
   approval_status: AmendmentApprovalStatus;
+  created_by?: string;
   approved_by?: string;
   approved_at?: string;
+  rejected_by?: string;
   rejection_reason?: string;
   created_at?: string;
-  created_by?: string;
   updated_at?: string;
   tariff_adjustments?: TariffAdjustment[];
 }
@@ -253,8 +254,9 @@ export interface CreateAmendmentData {
   new_value?: number;
 
   description?: string;
-  attachment_urls?: string[]; // 🔧 FIX: array
-  attachment_names?: string[]; // 🔧 FIX: array
+  attachment_urls?: string[];
+  attachment_names?: string[];
+  created_by?: string;
 
   tariff_adjustments?: Array<{
     tariff_line_id: string;

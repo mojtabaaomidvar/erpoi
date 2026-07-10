@@ -1,102 +1,108 @@
 // src/infrastructure/events.ts
 
-export type EventType =
-    // Client Events
-  | 'client.created'
-  | 'client.updated'
-  | 'client.deleted'
-  | 'client.duplicated'
-  
-  // Contract Events
-  | 'contract.created'
-  | 'contract.updated'
-  | 'contract.deleted'
-  | 'contract.expiring'
-  | 'contract.expired'
-  | 'contract.terminated'
-  | 'contract.renewed'
-  
-  // Inspection Events
-  | 'inspection.created'
-  | 'inspection.updated'
-  | 'inspection.assigned'
-  | 'inspection.completed'
-  | 'inspection.cancelled'
-  | 'inspection.deleted'
+// ═══════════════════════════════════════════════════════════
+// 🎯 Type Definitions
+// ═══════════════════════════════════════════════════════════
 
-  
+export type EventType =
+  // Client Events
+  | "client.created"
+  | "client.updated"
+  | "client.deleted"
+  | "client.duplicated"
+
+  // Contract Events
+  | "contract.created"
+  | "contract.updated"
+  | "contract.deleted"
+  | "contract.expiring"
+  | "contract.expired"
+  | "contract.terminated"
+  | "contract.renewed"
+
+  // Inspection Events
+  | "inspection.created"
+  | "inspection.updated"
+  | "inspection.assigned"
+  | "inspection.completed"
+  | "inspection.cancelled"
+  | "inspection.deleted"
+
   // NCR Events
-  | 'ncr.raised'
-  | 'ncr.resolved'
-  | 'ncr.closed'
-  
+  | "ncr.raised"
+  | "ncr.resolved"
+  | "ncr.closed"
+
   // Invoice Events
-  | 'invoice.created'
-  | 'invoice.issued'
-  | 'invoice.paid'
-  | 'invoice.overdue'
-  | 'invoice.cancelled'
-  | 'invoice.updated'
-  | 'invoice.deleted'
-  
+  | "invoice.created"
+  | "invoice.issued"
+  | "invoice.paid"
+  | "invoice.overdue"
+  | "invoice.cancelled"
+  | "invoice.updated"
+  | "invoice.deleted"
+
   // Inspector Events
-  | 'inspector.created'
-  | 'inspector.available'
-  | 'inspector.busy'
-  | 'inspector.onLeave'
-  | 'inspector.updated'
-  | 'inspector.deleted'
+  | "inspector.created"
+  | "inspector.available"
+  | "inspector.busy"
+  | "inspector.onLeave"
+  | "inspector.updated"
+  | "inspector.deleted"
 
   // User Events
-  | 'user.created'
-  | 'user.updated'
-  | 'user.deleted'
-  | 'user.role.changed'
-  | 'user.status.changed'
-  | 'user.permissions.changed'
-  | 'user.password.reset'
-  
+  | "user.created"
+  | "user.updated"
+  | "user.deleted"
+  | "user.role.changed"
+  | "user.status.changed"
+  | "user.permissions.changed"
+  | "user.password.reset"
+
   // Role Events
-  | 'user.role.created'
-  | 'user.role.updated'
-  | 'user.role.deleted'
-  
+  | "user.role.created"
+  | "user.role.updated"
+  | "user.role.deleted"
+
   // Storage Events
-  | 'storage.clients.changed'
-  | 'storage.contracts.changed'
-  | 'storage.inspections.changed'
-  | 'storage.inspectors.changed'
-  | 'storage.invoices.changed'
-  | 'storage.ncrs.changed'
-  | 'storage.settings.changed'
-  | 'storage.notifications.changed'
-  
+  | "storage.clients.changed"
+  | "storage.contracts.changed"
+  | "storage.inspections.changed"
+  | "storage.inspectors.changed"
+  | "storage.invoices.changed"
+  | "storage.ncrs.changed"
+  | "storage.settings.changed"
+  | "storage.notifications.changed"
+
   // System Events
-  | 'system.user.login'
-  | 'system.user.logout'
-  | 'system.theme.changed'
-  | 'system.notification.sent'
-  
+  | "system.user.login"
+  | "system.user.logout"
+  | "system.theme.changed"
+  | "system.notification.sent"
+
+  // 🔧 NEW: Amendment Events
+  | "amendment.created"
+  | "amendment.approved"
+  | "amendment.rejected"
+
+  // 🔧 NEW: Notification Events
+  | "notification.created"
+  | "notification.read"
+  | "notification.deleted"
+
   // Wildcard
-  | '*';
+  | "*";
 
 /**
  * ساختار استاندارد یک Domain Event
  */
 export interface DomainEvent<T = unknown> {
-  /** نوع رویداد */
   type: EventType;
-  /** داده‌های همراه رویداد */
   payload: T;
-  /** زمان وقوع رویداد */
   timestamp: Date;
-  /** شناسه یکتای رویداد */
   eventId: string;
-  /** ماژول/کامپوننت ارسال‌کننده */
   source?: string;
-  /** شناسه کاربری که رویداد رو ایجاد کرده */
   userId?: string;
-  /** شناسه correlation برای ردیابی زنجیره رویدادها */
   correlationId?: string;
 }
 
@@ -104,7 +110,7 @@ export interface DomainEvent<T = unknown> {
  * امضای تابع Handler
  */
 export type EventHandler<T = unknown> = (
-  event: DomainEvent<T>
+  event: DomainEvent<T>,
 ) => void | Promise<void>;
 
 /**
@@ -139,9 +145,6 @@ class EventBus implements IEventBus {
     return EventBus.instance;
   }
 
-  /**
-   * انتشار یک رویداد به تمام subscriber ها
-   */
   publish<T>(event: DomainEvent<T>): void {
     if (this.isDevelopment) {
       console.log(`📢 [EventBus] ${event.type}`, {
@@ -150,23 +153,19 @@ class EventBus implements IEventBus {
       });
     }
 
-    // اگر نوع رویداد'*'هست، به همه handler ها ارسال کن
-    if (event.type ==='*') {
-      console.warn('[EventBus] Cannot publish wildcard event');
+    if (event.type === "*") {
+      console.warn("[EventBus] Cannot publish wildcard event");
       return;
     }
 
-    // ارسال به subscriber های خاص این نوع
     this.dispatchToSubscribers(event.type, event);
-
-    // ارسال به subscriber های wildcard (اگه وجود داشته باشن)
-    this.dispatchToSubscribers('*', event);
+    this.dispatchToSubscribers("*", event);
   }
 
   private dispatchToSubscribers<T>(type: string, event: DomainEvent<T>): void {
     const subscribers = this.handlers.get(type);
     if (!subscribers || subscribers.size === 0) {
-      if (this.isDevelopment && type !=='*') {
+      if (this.isDevelopment && type !== "*") {
         console.warn(`⚠️ [EventBus] No subscribers for: ${type}`);
       }
       return;
@@ -176,18 +175,11 @@ class EventBus implements IEventBus {
       try {
         handler(event);
       } catch (error) {
-        console.error(
-          `❌ [EventBus] Error in handler for ${type}:`,
-          error
-        );
+        console.error(`❌ [EventBus] Error in handler for ${type}:`, error);
       }
     });
   }
 
-  /**
-   * اشتراک در یک نوع رویداد
-   * @returns تابع unsubscribe برای cleanup
-   */
   subscribe<T>(type: EventType, handler: EventHandler<T>): () => void {
     if (!this.handlers.has(type)) {
       this.handlers.set(type, new Set());
@@ -196,16 +188,12 @@ class EventBus implements IEventBus {
 
     return () => {
       this.handlers.get(type)?.delete(handler as EventHandler);
-      // پاکسازی خودکار اگه هیچ subscriber ای نمونده
       if (this.handlers.get(type)?.size === 0) {
         this.handlers.delete(type);
       }
     };
   }
 
-  /**
-   * اشتراک یک‌بار مصرف (فقط اولین بار اجرا میشه)
-   */
   once<T>(type: EventType, handler: EventHandler<T>): () => void {
     const wrapper: EventHandler<T> = (event) => {
       unsubscribe();
@@ -215,21 +203,15 @@ class EventBus implements IEventBus {
     return unsubscribe;
   }
 
-  /**
-   * پاکسازی تمام subscribers (برای تست‌ها)
-   */
   clear(): void {
     this.handlers.clear();
   }
 
-  /**
-   * آمار وضعیت Event Bus (برای دیباگ)
-   */
   getStats() {
     return {
       totalSubscribers: Array.from(this.handlers.values()).reduce(
         (sum, set) => sum + set.size,
-        0
+        0,
       ),
       eventTypes: Array.from(this.handlers.keys()),
     };
@@ -245,21 +227,15 @@ class EventBus implements IEventBus {
  */
 export const eventBus = EventBus.getInstance();
 
-/**
- * Counter برای تولید eventId یکتا
- */
 let eventCounter = 0;
 
 /**
  * Helper برای انتشار آسان رویداد
- * 
- * @example
- * publishEvent('client.created', { clientId:'123'}, { source:'client-management'});
  */
 export function publishEvent<T>(
   type: EventType,
   payload: T,
-  options: { source?: string; userId?: string; correlationId?: string } = {}
+  options: { source?: string; userId?: string; correlationId?: string } = {},
 ): void {
   const event: DomainEvent<T> = {
     type,
@@ -273,15 +249,10 @@ export function publishEvent<T>(
 
 /**
  * Helper برای اشتراک آسان
- * 
- * @example
- * const unsubscribe = subscribeToEvent('contract.expired', (event) => {
- *   console.log('Contract expired:', event.payload);
- * });
  */
 export function subscribeToEvent<T>(
   type: EventType,
-  handler: EventHandler<T>
+  handler: EventHandler<T>,
 ): () => void {
   return eventBus.subscribe(type, handler);
 }
@@ -291,96 +262,138 @@ export function subscribeToEvent<T>(
  */
 export function subscribeOnce<T>(
   type: EventType,
-  handler: EventHandler<T>
+  handler: EventHandler<T>,
 ): () => void {
   return eventBus.once(type, handler);
 }
 
 // ═══════════════════════════════════════════════════════════
-// 🔧 Utility ها
+// 🎯 Event Types Registry
 // ═══════════════════════════════════════════════════════════
 
-/**
- * ثابت‌های رویدادها برای استفاده به جای رشته‌های خام
- * 
- * @example
- * publishEvent(EVENT_TYPES.CLIENT_CREATED, { ... });
- */
 export const EVENT_TYPES = {
   // Client
-  CLIENT_CREATED:'client.created'as const,
-  CLIENT_UPDATED:'client.updated'as const,
-  CLIENT_DELETED:'client.deleted'as const,
-  CLIENT_DUPLICATED:'client.duplicated'as const,
+  CLIENT_CREATED: "client.created" as const,
+  CLIENT_UPDATED: "client.updated" as const,
+  CLIENT_DELETED: "client.deleted" as const,
+  CLIENT_DUPLICATED: "client.duplicated" as const,
 
   // Contract
-  CONTRACT_CREATED:'contract.created'as const,
-  CONTRACT_UPDATED:'contract.updated'as const,
-  CONTRACT_DELETED:'contract.deleted'as const,
-  CONTRACT_EXPIRING:'contract.expiring'as const,
-  CONTRACT_EXPIRED:'contract.expired'as const,
-  CONTRACT_TERMINATED:'contract.terminated'as const,
-  CONTRACT_RENEWED:'contract.renewed'as const,
+  CONTRACT_CREATED: "contract.created" as const,
+  CONTRACT_UPDATED: "contract.updated" as const,
+  CONTRACT_DELETED: "contract.deleted" as const,
+  CONTRACT_EXPIRING: "contract.expiring" as const,
+  CONTRACT_EXPIRED: "contract.expired" as const,
+  CONTRACT_TERMINATED: "contract.terminated" as const,
+  CONTRACT_RENEWED: "contract.renewed" as const,
 
   // Inspection
-  INSPECTION_CREATED:'inspection.created'as const,
-  INSPECTION_UPDATED:'inspection.updated'as const,
-  INSPECTION_ASSIGNED:'inspection.assigned'as const,
-  INSPECTION_COMPLETED:'inspection.completed'as const,
-  INSPECTION_CANCELLED:'inspection.cancelled'as const,
-  INSPECTION_DELETED: 'inspection.deleted' as const,
-  
+  INSPECTION_CREATED: "inspection.created" as const,
+  INSPECTION_UPDATED: "inspection.updated" as const,
+  INSPECTION_ASSIGNED: "inspection.assigned" as const,
+  INSPECTION_COMPLETED: "inspection.completed" as const,
+  INSPECTION_CANCELLED: "inspection.cancelled" as const,
+  INSPECTION_DELETED: "inspection.deleted" as const,
 
   // NCR
-  NCR_RAISED:'ncr.raised'as const,
-  NCR_RESOLVED:'ncr.resolved'as const,
-  NCR_CLOSED:'ncr.closed'as const,
+  NCR_RAISED: "ncr.raised" as const,
+  NCR_RESOLVED: "ncr.resolved" as const,
+  NCR_CLOSED: "ncr.closed" as const,
 
   // Invoice
-  INVOICE_CREATED:'invoice.created'as const,
-  INVOICE_ISSUED:'invoice.issued'as const,
-  INVOICE_PAID:'invoice.paid'as const,
-  INVOICE_OVERDUE:'invoice.overdue'as const,
-  INVOICE_CANCELLED:'invoice.cancelled'as const,
-  INVOICE_UPDATED: 'invoice.updated' as const,
-  INVOICE_DELETED: 'invoice.deleted' as const,
+  INVOICE_CREATED: "invoice.created" as const,
+  INVOICE_ISSUED: "invoice.issued" as const,
+  INVOICE_PAID: "invoice.paid" as const,
+  INVOICE_OVERDUE: "invoice.overdue" as const,
+  INVOICE_CANCELLED: "invoice.cancelled" as const,
+  INVOICE_UPDATED: "invoice.updated" as const,
+  INVOICE_DELETED: "invoice.deleted" as const,
 
   // Inspector
-  INSPECTOR_AVAILABLE:'inspector.available'as const,
-  INSPECTOR_BUSY:'inspector.busy'as const,
-  INSPECTOR_ON_LEAVE:'inspector.onLeave'as const,
-  INSPECTOR_CREATED: 'inspector.created' as const,
-  INSPECTOR_UPDATED: 'inspector.updated' as const,
-  INSPECTOR_DELETED: 'inspector.deleted' as const,
+  INSPECTOR_AVAILABLE: "inspector.available" as const,
+  INSPECTOR_BUSY: "inspector.busy" as const,
+  INSPECTOR_ON_LEAVE: "inspector.onLeave" as const,
+  INSPECTOR_CREATED: "inspector.created" as const,
+  INSPECTOR_UPDATED: "inspector.updated" as const,
+  INSPECTOR_DELETED: "inspector.deleted" as const,
 
   // System
-  USER_LOGIN:'system.user.login'as const,
-  USER_LOGOUT:'system.user.logout'as const,
-  THEME_CHANGED:'system.theme.changed'as const,
-  NOTIFICATION_SENT:'system.notification.sent'as const,
-  
+  USER_LOGIN: "system.user.login" as const,
+  USER_LOGOUT: "system.user.logout" as const,
+  THEME_CHANGED: "system.theme.changed" as const,
+  NOTIFICATION_SENT: "system.notification.sent" as const,
+
   // Storage Events
-  STORAGE_CLIENTS_CHANGED:'storage.clients.changed'as const,
-  STORAGE_CONTRACTS_CHANGED:'storage.contracts.changed'as const,
-  STORAGE_INSPECTIONS_CHANGED:'storage.inspections.changed'as const,
-  STORAGE_INSPECTORS_CHANGED:'storage.inspectors.changed'as const,
-  sSTORAGE_INVOICES_CHANGED:'storage.invoices.changed'as const,
-  STORAGE_NCRS_CHANGED:'storage.ncrs.changed'as const,
-  
+  STORAGE_CLIENTS_CHANGED: "storage.clients.changed" as const,
+  STORAGE_CONTRACTS_CHANGED: "storage.contracts.changed" as const,
+  STORAGE_INSPECTIONS_CHANGED: "storage.inspections.changed" as const,
+  STORAGE_INSPECTORS_CHANGED: "storage.inspectors.changed" as const,
+  STORAGE_INVOICES_CHANGED: "storage.invoices.changed" as const,
+  STORAGE_NCRS_CHANGED: "storage.ncrs.changed" as const,
+
   // User Events
-  USER_CREATED: 'user.created' as const,
-  USER_UPDATED: 'user.updated' as const,
-  USER_DELETED: 'user.deleted' as const,
-  USER_ROLE_CHANGED: 'user.role.changed' as const,
-  USER_STATUS_CHANGED: 'user.status.changed' as const,
-  USER_PERMISSIONS_CHANGED: 'user.permissions.changed' as const,
-  USER_PASSWORD_RESET: 'user.password.reset' as const,
-  
+  USER_CREATED: "user.created" as const,
+  USER_UPDATED: "user.updated" as const,
+  USER_DELETED: "user.deleted" as const,
+  USER_ROLE_CHANGED: "user.role.changed" as const,
+  USER_STATUS_CHANGED: "user.status.changed" as const,
+  USER_PERMISSIONS_CHANGED: "user.permissions.changed" as const,
+  USER_PASSWORD_RESET: "user.password.reset" as const,
+
   // Role Events
-  USER_ROLE_CREATED: 'user.role.created' as const,
-  USER_ROLE_UPDATED: 'user.role.updated' as const,
-  USER_ROLE_DELETED: 'user.role.deleted' as const,
-  
+  USER_ROLE_CREATED: "user.role.created" as const,
+  USER_ROLE_UPDATED: "user.role.updated" as const,
+  USER_ROLE_DELETED: "user.role.deleted" as const,
+
+  // 🔧 NEW: Amendment Events
+  AMENDMENT_CREATED: "amendment.created" as const,
+  AMENDMENT_APPROVED: "amendment.approved" as const,
+  AMENDMENT_REJECTED: "amendment.rejected" as const,
+
+  // 🔧 NEW: Notification Events
+  NOTIFICATION_CREATED: "notification.created" as const,
+  NOTIFICATION_READ: "notification.read" as const,
+  NOTIFICATION_DELETED: "notification.deleted" as const,
+
   // Wildcard
-  ALL:'*'as const,
+  ALL: "*" as const,
 } as const;
+
+// ═══════════════════════════════════════════════════════════
+// 🪝 React Hook (inline برای جلوگیری از circular dependency)
+// ═══════════════════════════════════════════════════════════
+
+import { useEffect, useRef } from "react";
+
+/**
+ * Hook برای اشتراک در رویدادها در کامپوننت‌های React
+ * با auto-cleanup در unmount
+ */
+export function useEvent<T = unknown>(
+  eventType: EventType,
+  handler: EventHandler<T>,
+): void {
+  const handlerRef = useRef(handler);
+
+  useEffect(() => {
+    handlerRef.current = handler;
+  }, [handler]);
+
+  useEffect(() => {
+    const stableHandler: EventHandler<T> = (event) => {
+      handlerRef.current(event);
+    };
+
+    const unsubscribe = eventBus.subscribe(eventType, stableHandler);
+    return unsubscribe;
+  }, [eventType]);
+}
+
+/**
+ * Hook برای انتشار رویداد
+ */
+export function useEventPublisher() {
+  return <T>(type: EventType, payload: T, source?: string) => {
+    publishEvent(type, payload, { source });
+  };
+}

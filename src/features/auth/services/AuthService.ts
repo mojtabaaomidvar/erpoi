@@ -1,11 +1,11 @@
 // src/features/auth/services/AuthService.ts
 
-import type { AuthSession, LoginCredentials, User } from '../types';
-import { supabase } from '@shared/database/supabase';
-import { eventBus } from '@infra/events';
-import { showToast } from '@shared/ui/ToastContainer';
+import type { AuthSession, LoginCredentials, User } from "../types";
+import { supabase } from "@shared/database/supabase";
+import { eventBus } from "@infra/events";
+import { showToast } from "@shared/ui/ToastContainer";
 
-const SESSION_KEY = 'ics_auth_session';
+const SESSION_KEY = "ics_auth_session";
 
 class AuthService {
   private static instance: AuthService;
@@ -26,12 +26,12 @@ class AuthService {
   subscribe(listener: (session: AuthSession | null) => void): () => void {
     this.listeners.push(listener);
     return () => {
-      this.listeners = this.listeners.filter(l => l !== listener);
+      this.listeners = this.listeners.filter((l) => l !== listener);
     };
   }
 
   public notifyListeners() {
-    this.listeners.forEach(listener => listener(this.session));
+    this.listeners.forEach((listener) => listener(this.session));
   }
 
   getSession(): AuthSession | null {
@@ -44,7 +44,7 @@ class AuthService {
         const json = JSON.stringify(this.session);
         localStorage.setItem(SESSION_KEY, json);
       } catch (error) {
-        console.error('[AuthService] Failed to save session:', error);
+        console.error("[AuthService] Failed to save session:", error);
       }
     }
   }
@@ -62,7 +62,7 @@ class AuthService {
         }
       }
     } catch (error) {
-      console.error('[AuthService] Failed to load session:', error);
+      console.error("[AuthService] Failed to load session:", error);
     }
   }
 
@@ -71,30 +71,62 @@ class AuthService {
   }
 
   async login(credentials: LoginCredentials): Promise<User> {
-    await new Promise(resolve => setTimeout(resolve, 800));
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     // 🔐 Query از Supabase
     const { data: dbUser, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('username', credentials.username.trim())
+      .from("users")
+      .select("*")
+      .eq("username", credentials.username.trim())
       .single();
 
     if (error || !dbUser) {
-      console.error('[AuthService] Login error:', error);
-      throw this.createError('INVALID_CREDENTIALS', 'Invalid username or password');
+      console.error("[AuthService] Login error:", error);
+      throw this.createError(
+        "INVALID_CREDENTIALS",
+        "Invalid username or password",
+      );
     }
 
-    if (dbUser.status !== 'active') {
-      throw this.createError('ACCOUNT_DISABLED', 'Account is disabled');
+    if (dbUser.status !== "active") {
+      throw this.createError("ACCOUNT_DISABLED", "Account is disabled");
     }
 
     if (!credentials.password || credentials.password.length < 1) {
-      throw this.createError('INVALID_CREDENTIALS', 'Password is required');
+      throw this.createError("INVALID_CREDENTIALS", "Password is required");
     }
 
     if (dbUser.password !== credentials.password) {
-      throw this.createError('INVALID_CREDENTIALS', 'Invalid username or password');
+      throw this.createError(
+        "INVALID_CREDENTIALS",
+        "Invalid username or password",
+      );
+    }
+
+    // 🔧 Sync با Supabase Auth (حالا خودکار است چون triggers وجود دارند)
+    try {
+      console.log("[AuthService] 🔗 Syncing with Supabase Auth...");
+
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({
+          email: dbUser.email,
+          password: credentials.password,
+        });
+
+      if (authError) {
+        console.error(
+          "[AuthService] ❌ Supabase Auth login failed:",
+          authError.message,
+        );
+        console.error("[AuthService] ℹ️ This might be because:");
+        console.error("[AuthService]    1. Triggers not set up yet");
+        console.error("[AuthService]    2. User email/password mismatch");
+        console.error("[AuthService]    3. Database trigger error");
+      } else {
+        console.log("[AuthService] ✅ Supabase Auth session created");
+      }
+    } catch (syncError) {
+      console.error("[AuthService] ❌ Auth sync failed:", syncError);
     }
 
     const session: AuthSession = {
@@ -118,40 +150,58 @@ class AuthService {
     this.notifyListeners();
 
     eventBus.publish({
-      type: 'auth.login' as any,
+      type: "auth.login" as any,
       payload: { userId: dbUser.id, username: dbUser.username },
       timestamp: new Date(),
       eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      source: 'auth',
+      source: "auth",
     });
 
-    showToast('success', 'Login Successful', `Welcome back, ${dbUser.full_name}!`);
-    console.log('[AuthService] 🔐 User logged in:', session.user);
+    showToast(
+      "success",
+      "Login Successful",
+      `Welcome back, ${dbUser.full_name}!`,
+    );
+    console.log("[AuthService] 🔐 User logged in:", session.user);
 
     return session.user;
   }
 
   async logout(): Promise<void> {
-    console.log('[AuthService] 🚪 Logout called');
+    console.log("[AuthService] 🚪 Logout called");
+
+    try {
+      await supabase.auth.signOut();
+      console.log("[AuthService] ✅ Signed out from Supabase Auth");
+    } catch (error) {
+      console.error(
+        "[AuthService] ❌ Failed to sign out from Supabase Auth:",
+        error,
+      );
+    }
+
     this.session = null;
     localStorage.removeItem(SESSION_KEY);
     this.notifyListeners();
 
     eventBus.publish({
-      type: 'auth.logout' as any,
+      type: "auth.logout" as any,
       payload: {},
       timestamp: new Date(),
       eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      source: 'auth',
+      source: "auth",
     });
 
-    showToast('success', 'Logout Successful', 'You have been logged out');
+    showToast("success", "Logout Successful", "You have been logged out");
   }
 
   updateCurrentUser(updatedUser: User) {
     if (this.session && this.session.user.id === updatedUser.id) {
-      console.log('[AuthService] 🔄 Updating current user in session:', updatedUser.username);
-      
+      console.log(
+        "[AuthService] 🔄 Updating current user in session:",
+        updatedUser.username,
+      );
+
       this.session = {
         ...this.session,
         user: {
@@ -159,11 +209,11 @@ class AuthService {
           ...updatedUser,
         },
       };
-      
+
       this.saveSession();
       this.notifyListeners();
-      
-      console.log('[AuthService] ✅ Session updated successfully');
+
+      console.log("[AuthService] ✅ Session updated successfully");
     }
   }
 
@@ -174,13 +224,24 @@ class AuthService {
   }
 
   async requestPasswordReset(_email: string): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    showToast('info', 'Password Reset', 'If this email exists, you will receive a reset link');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    showToast(
+      "info",
+      "Password Reset",
+      "If this email exists, you will receive a reset link",
+    );
   }
 
-  async confirmPasswordReset(_token: string, _newPassword: string): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    showToast('success', 'Password Reset', 'Your password has been reset successfully');
+  async confirmPasswordReset(
+    _token: string,
+    _newPassword: string,
+  ): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    showToast(
+      "success",
+      "Password Reset",
+      "Your password has been reset successfully",
+    );
   }
 }
 

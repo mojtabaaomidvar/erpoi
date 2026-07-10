@@ -6,9 +6,10 @@ import { Lock, User, Eye, EyeOff, Loader2 } from "lucide-react";
 
 interface Props {
   onForgotPassword?: () => void;
+  onLoginSuccess?: () => void; // 🔧 NEW: Callback برای login موفق
 }
 
-export function LoginPage({ onForgotPassword }: Props) {
+export function LoginPage({ onForgotPassword, onLoginSuccess }: Props) {
   const { login, isLoading, error } = useAuth();
   const [formData, setFormData] = useState({
     username: "",
@@ -43,6 +44,14 @@ export function LoginPage({ onForgotPassword }: Props) {
 
     try {
       await login(formData);
+
+      // 🔧 NEW: Navigation بعد از login موفق
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      } else {
+        // 🔧 Fallback: Refresh صفحه
+        window.location.reload();
+      }
     } catch (err) {
       // Error handled by useAuth
     }
@@ -142,6 +151,7 @@ export function LoginPage({ onForgotPassword }: Props) {
 
             {import.meta.env.DEV && (
               <button
+                type="button"
                 onClick={async () => {
                   const { runMigration } =
                     await import("../../../scripts/migrateToSupabase");

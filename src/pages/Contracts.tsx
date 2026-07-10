@@ -11,20 +11,27 @@ import {
   generateContractNo,
   getInvoicedPercentage,
 } from "@entities/contract/services/contractCalculations";
-import type { Contract, TariffLine } from "@entities/contract/types";
+import type { Contract, ContractAmendment } from "@entities/contract/types";
 
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
-import { tariffService } from "@features/contract-management/services/TariffService"; // 🔧 NEW
-
+import { tariffService } from "@features/contract-management/services/TariffService";
+import { amendmentService } from "@features/contract-management/services/AmendmentService";
+import {
+  sortContractsByPriority,
+  getContractActionPriority,
+} from "@features/contract-management/utils/contractPriority";
+import { useAuth } from "@features/auth/hooks/useAuth";
 import { useContracts } from "@features/contract-management/hooks/useContracts";
 import { ContractList } from "@features/contract-management/ui/ContractList";
 import { ContractDetails } from "@features/contract-management/ui/ContractDetails";
 import { ContractAddForm } from "@features/contract-management/ui/ContractAddForm";
 import { ContractEditForm } from "@features/contract-management/ui/ContractEditForm";
+import { useEvent, EVENT_TYPES } from "@infra/events";
 
 export function Contracts() {
   const { isDark } = useTheme();
+  const { user } = useAuth();
 
   const {
     contracts,
@@ -52,6 +59,81 @@ export function Contracts() {
     filteredContracts,
     currentDepartment,
   } = useContracts();
+
+  useEvent(EVENT_TYPES.AMENDMENT_CREATED, () => {
+    console.log("[Contracts] Amendment created, refreshing list...");
+    refresh();
+  });
+
+  useEvent(EVENT_TYPES.AMENDMENT_APPROVED, () => {
+    console.log("[Contracts] Amendment approved, refreshing list...");
+    refresh();
+  });
+
+  useEvent(EVENT_TYPES.AMENDMENT_REJECTED, () => {
+    console.log("[Contracts] Amendment rejected, refreshing list...");
+    refresh();
+  });
+
+  const [amendmentsMap, setAmendmentsMap] = useState<
+    Map<string, ContractAmendment[]>
+  >(new Map());
+
+  // بارگذاری amendments همه قراردادها
+  useEffect(() => {
+    const loadAllAmendments = async () => {
+      const newMap = new Map<string, ContractAmendment[]>();
+
+      for (const contract of contracts) {
+        try {
+          const amendments = await amendmentService.getByContractId(
+            contract.id,
+          );
+          newMap.set(contract.id, amendments);
+        } catch (error) {
+          console.error(
+            `[Contracts] Failed to load amendments for ${contract.id}:`,
+            error,
+          );
+          newMap.set(contract.id, []);
+        }
+      }
+
+      setAmendmentsMap(newMap);
+    };
+
+    if (contracts.length > 0) {
+      loadAllAmendments();
+    }
+  }, [contracts]);
+
+  // مرتب‌سازی قراردادها بر اساس اولویت
+  const prioritizedContracts = useMemo(() => {
+    return sortContractsByPriority(
+      filteredContracts,
+      amendmentsMap,
+      user?.role || "user",
+    );
+  }, [filteredContracts, amendmentsMap, user?.role]);
+
+  // محاسبه اولویت هر قرارداد (برای نمایش Badge)
+  const contractPriorities = useMemo(() => {
+    const priorities = new Map<
+      string,
+      ReturnType<typeof getContractActionPriority>
+    >();
+    contracts.forEach((contract) => {
+      priorities.set(
+        contract.id,
+        getContractActionPriority(
+          contract,
+          amendmentsMap.get(contract.id) || [],
+          user?.role || "user",
+        ),
+      );
+    });
+    return priorities;
+  }, [contracts, amendmentsMap, user?.role]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -418,7 +500,8 @@ export function Contracts() {
         {/* LEFT PANEL - ContractList */}
         <ContractList
           contracts={contracts}
-          filteredContracts={filteredContracts}
+          filteredContracts={prioritizedContracts}
+          contractPriorities={contractPriorities}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           typeFilter={typeFilter}
@@ -453,7 +536,7 @@ export function Contracts() {
             }}
             onEdit={handleEditClick}
             onRequestComplete={handleRequestComplete}
-            userRole="admin"
+            userRole={user?.role || "user"}
             loading={loading}
             contractTariffs={tariffs}
             clients={clients}
