@@ -42,7 +42,6 @@ export function ContractEditForm({
 }: ContractEditFormProps) {
   const { isDark } = useTheme();
 
-  // 🔐 RBAC: چک کردن permission
   const { can } = usePermission();
   const { canAccessElement } = usePermissionMapping();
   const canUpdate = can("contract:update");

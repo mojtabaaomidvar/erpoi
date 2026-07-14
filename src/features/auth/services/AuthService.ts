@@ -4,6 +4,7 @@ import type { AuthSession, LoginCredentials, User } from "../types";
 import { supabase } from "@shared/database/supabase";
 import { eventBus } from "@infra/events";
 import { showToast } from "@shared/ui/ToastContainer";
+import { getBasePermissions } from "@shared/authorization/config/RoleBasePermissions";
 
 const SESSION_KEY = "ics_auth_session";
 
@@ -138,6 +139,7 @@ class AuthService {
         role: dbUser.role,
         department: dbUser.department,
         customPermissions: dbUser.custom_permissions || [],
+        basePermissions: getBasePermissions(dbUser.role),
       },
       token: this.generateToken(),
       refreshToken: this.generateToken(),

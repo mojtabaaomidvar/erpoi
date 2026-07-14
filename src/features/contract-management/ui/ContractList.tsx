@@ -1,10 +1,9 @@
-// src/features/contract-management/ui/ContractList.tsx
+﻿// src/features/contract-management/ui/ContractList.tsx
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermission } from "@shared/authorization/hooks/usePermission";
-import { PermissionGuard } from "@shared/authorization/ui/PermissionGuard";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { showToast } from "@shared/ui/ToastContainer";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
@@ -13,7 +12,6 @@ import { formatCurrency } from "@shared/lib/formatters";
 import {
   calculateDaysProgress,
   calculateDaysLeft,
-  getDaysUntilStart,
   getContractFinancialStatus,
   isExpiringSoon,
   getDaysProgressColor,
@@ -88,6 +86,67 @@ function ContractSkeleton({ isDark }: { isDark: boolean }) {
 }
 
 // ═══════════════════════════════════════
+// 🔹 Sort Function - خارج از کامپوننت
+// ═══════════════════════════════════════
+
+function sortContractsByPriority(
+  contracts: Contract[],
+  contractPriorities?: Map<string, ActionPriority>,
+): Contract[] {
+  return [...contracts].sort((a, b) => {
+    const priorityA = contractPriorities?.get(a.id);
+    const priorityB = contractPriorities?.get(b.id);
+
+    // اولویت 1: قراردادهای با اکشن (level 1-4)
+    const hasActionA = priorityA && priorityA.level > 0 && priorityA.level <= 4;
+    const hasActionB = priorityB && priorityB.level > 0 && priorityB.level <= 4;
+
+    if (hasActionA && !hasActionB) return -1;
+    if (hasActionB && !hasActionA) return 1;
+
+    // اگر هر دو اکشن دارند، بر اساس level sort کن
+    if (hasActionA && hasActionB) {
+      if (priorityA!.level !== priorityB!.level) {
+        return priorityA!.level - priorityB!.level;
+      }
+    }
+
+    // اولویت 2: NEEDS_REVIEW
+    if (a.status === "NEEDS_REVIEW" && b.status !== "NEEDS_REVIEW") return -1;
+    if (b.status === "NEEDS_REVIEW" && a.status !== "NEEDS_REVIEW") return 1;
+
+    // اولویت 3: Expired (end_date < today)
+    const today = new Date();
+    const aEndDate = new Date(a.end_date);
+    const bEndDate = new Date(b.end_date);
+    const aExpired = aEndDate < today;
+    const bExpired = bEndDate < today;
+
+    if (aExpired && !bExpired) return -1;
+    if (bExpired && !aExpired) return 1;
+
+    // اگر هر دو expired هستند، آن که بیشتر expired شده اول باشد
+    if (aExpired && bExpired) {
+      return aEndDate.getTime() - bEndDate.getTime();
+    }
+
+    // اولویت 4: Expiring Soon (30 روز)
+    const aExpiring = isExpiringSoon(a).expiring;
+    const bExpiring = isExpiringSoon(b).expiring;
+
+    if (aExpiring && !bExpiring) return -1;
+    if (bExpiring && !aExpiring) return 1;
+
+    // اولویت 5: ACTIVE
+    if (a.status === "ACTIVE" && b.status !== "ACTIVE") return -1;
+    if (b.status === "ACTIVE" && a.status !== "ACTIVE") return 1;
+
+    // بقیه موارد - بر اساس end_date
+    return aEndDate.getTime() - bEndDate.getTime();
+  });
+}
+
+// ═══════════════════════════════════════
 // 🔹 Main Component
 // ═══════════════════════════════════════
 
@@ -101,8 +160,6 @@ export function ContractList({
   setTypeFilter,
   statusFilter,
   setStatusFilter,
-  sortBy,
-  setSortBy,
   selectedContract,
   setSelectedContract,
   onAddClick,
@@ -110,11 +167,24 @@ export function ContractList({
   loading = false,
 }: ContractListProps) {
   const { isDark } = useTheme();
-  const { canAny } = usePermission();
   const { canAccessElement } = usePermissionMapping();
   const canViewFinancial = contractPermissionGroups.financial.some(
     (elementId: string) => canAccessElement(elementId),
   );
+
+  useEffect(() => {
+    console.log("🔍 ContractList Debug:", {
+      contractsCount: contracts?.length,
+      filteredContractsCount: filteredContracts?.length,
+      canClickItem: canAccessElement("contract_list_item_click"),
+      canAdd: canAccessElement("contract_btn_add"),
+    });
+  }, [contracts, filteredContracts, canAccessElement]);
+
+  // 🔧 NEW: Sort کردن قراردادها بر اساس اولویت
+  const sortedContracts = useMemo(() => {
+    return sortContractsByPriority(filteredContracts, contractPriorities);
+  }, [filteredContracts, contractPriorities]);
 
   const handleContractClick = (contract: Contract) => {
     if (!canAccessElement("contract_list_item_click")) {
@@ -131,7 +201,6 @@ export function ContractList({
   const canFilterType = canAccessElement("contract_filter_type");
   const canFilterStatus = canAccessElement("contract_filter_status");
   const canSearch = canAccessElement("contract_search_box");
-  const canSort = canAccessElement("contract_sort_select");
   const canAdd = canAccessElement("contract_btn_add");
   const canExport = canAccessElement("contract_btn_export");
 
@@ -144,7 +213,7 @@ export function ContractList({
       }`}
     >
       {/* ═══════════════════════════════════════ */}
-      {/* 🔹 HEADER - همیشه نمایش داده می‌شود */}
+      {/* 🔹 HEADER */}
       {/* ═══════════════════════════════════════ */}
       <div
         className={`relative px-5 py-4 border-b ${
@@ -153,7 +222,6 @@ export function ContractList({
             : "border-slate-200/70 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50"
         }`}
       >
-        {/* Pattern Background */}
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
@@ -186,7 +254,6 @@ export function ContractList({
             </div>
           </div>
 
-          {/* 🔧 دکمه‌های Search, Export, Add در کنار هم */}
           <div className="flex gap-1.5">
             {canSearch && (
               <FloatingSearch
@@ -341,11 +408,10 @@ export function ContractList({
       )}
 
       {/* ═══════════════════════════════════════ */}
-      {/* 🔹 CONTRACT LIST - با Skeleton */}
+      {/* 🔹 CONTRACT LIST - با Sort */}
       {/* ═══════════════════════════════════════ */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          // 🔧 Skeleton هنگام loading اولیه
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
             <ContractSkeleton isDark={isDark} />
             <ContractSkeleton isDark={isDark} />
@@ -353,8 +419,7 @@ export function ContractList({
             <ContractSkeleton isDark={isDark} />
             <ContractSkeleton isDark={isDark} />
           </div>
-        ) : filteredContracts.length === 0 ? (
-          // Empty State
+        ) : sortedContracts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
             <div
               className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${
@@ -375,9 +440,8 @@ export function ContractList({
             </p>
           </div>
         ) : (
-          // لیست واقعی
           <div className="p-2 space-y-1.5">
-            {filteredContracts.map((contract) => {
+            {sortedContracts.map((contract) => {
               const isSelected = selectedContract?.id === contract.id;
               const financialStatus = getContractFinancialStatus(contract);
               const expiringInfo = isExpiringSoon(contract);
@@ -386,7 +450,6 @@ export function ContractList({
               const isExpired = daysLeft < 0;
               const notStarted = daysProgress === null || daysProgress === 0;
 
-              // 🔧 NEW: دریافت اولویت اکشن
               const priority = contractPriorities?.get(contract.id);
               const hasAction =
                 priority && priority.level > 0 && priority.level <= 4;
@@ -404,7 +467,6 @@ export function ContractList({
                         ? "bg-slate-800/30 border border-transparent hover:bg-slate-800/60 hover:border-slate-700/50 hover:shadow-md"
                         : "bg-white/50 border border-transparent hover:bg-white hover:border-slate-200/70 hover:shadow-md"
                   } ${
-                    // 🔧 NEW: Border رنگی برای اکشن‌ها
                     hasAction && priority?.color === "amber"
                       ? "border-l-4 border-l-amber-500"
                       : ""
@@ -418,7 +480,7 @@ export function ContractList({
                       : ""
                   }`}
                 >
-                  {/* 🔧 NEW: Badge اکشن در بالای کارت */}
+                  {/* Badge اکشن */}
                   {hasAction && (
                     <div
                       className={`flex items-center gap-1 mb-2 px-2 py-0.5 rounded text-[10px] font-semibold w-fit ${
@@ -610,7 +672,7 @@ export function ContractList({
       >
         <div className="flex items-center justify-between text-[10px]">
           <span className={isDark ? "text-slate-400" : "text-slate-600"}>
-            {filteredContracts.length} Agreements
+            {sortedContracts.length} Agreements
           </span>
         </div>
       </div>

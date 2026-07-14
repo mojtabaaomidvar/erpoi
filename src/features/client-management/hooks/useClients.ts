@@ -3,24 +3,22 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import type { Client, Contract, TariffLine } from "@entities/contract/types";
 
-import { usePermission } from "@shared/authorization/hooks/usePermission";
+// 🔧 تغییر ۱: استفاده از usePermissionMapping به جای usePermission برای چک المان‌ها
+import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { clientService } from "../services/ClientService";
 import { contractService } from "@features/contract-management/services/ContractService";
 import { tariffService } from "@features/contract-management/services/TariffService";
 
 export function useClients() {
-  const { can } = usePermission();
+  const { canAccessElement } = usePermissionMapping();
   const { user } = useAuth();
 
   const userDepartmentId = user?.department || "";
+  const isAdmin = user?.role === "admin"; // بای‌پس امن فقط برای ادمین واقعی
 
-  // 🔐 RBAC Permissions
-  const canViewAllClients = can("client:view_all");
-  const canViewOwnClients = can("client:view_own");
-  const canRead = can("client:read");
-  const canViewAllContracts = can("contract:view_all");
-  const canViewOwnContracts = can("contract:view_own");
+  // 🔐 تغییر ۲: بررسی دسترسی در سطح المان (طبق clientElements.ts)
+  const canViewList = canAccessElement("client_list_item_view");
 
   // 📊 Data State
   const [clients, setClientsState] = useState<Client[]>([]);
@@ -49,13 +47,9 @@ export function useClients() {
   // ═══════════════════════════════════════
   // 💾 Load Data
   // ═══════════════════════════════════════
-
   const loadData = useCallback(async (isRefresh = false) => {
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setInitialLoading(true);
-    }
+    if (isRefresh) setRefreshing(true);
+    else setInitialLoading(true);
 
     setError(null);
 
@@ -69,12 +63,6 @@ export function useClients() {
       setClientsState(dbClients);
       setContractsState(dbContracts);
       setTariffsState(dbTariffs);
-
-      console.log("[useClients] ✅ Loaded:", {
-        clients: dbClients.length,
-        contracts: dbContracts.length,
-        tariffs: dbTariffs.length,
-      });
     } catch (err: any) {
       console.error("[useClients] Failed:", err);
       setError(err.message || "Failed to load data");
@@ -88,15 +76,11 @@ export function useClients() {
     loadData();
   }, [loadData]);
 
-  // 🔧 Refresh function
-  const refresh = useCallback(() => {
-    loadData(true);
-  }, [loadData]);
+  const refresh = useCallback(() => loadData(true), [loadData]);
 
   // ═══════════════════════════════════════
   // 📝 CRUD Operations
   // ═══════════════════════════════════════
-
   const setClients = useCallback(
     async (action: Client[] | ((prev: Client[]) => Client[])) => {
       try {
@@ -105,28 +89,22 @@ export function useClients() {
         const currentIds = new Set(clients.map((c) => c.id));
         const newIds = new Set(newClients.map((c) => c.id));
 
-        // Create new
         for (const client of newClients.filter((c) => !currentIds.has(c.id))) {
           await clientService.create(client);
         }
-
-        // Delete removed
         for (const client of clients.filter((c) => !newIds.has(c.id))) {
           try {
             await clientService.delete(client.id);
-          } catch (err: any) {
-            console.error("[useClients] Failed to delete client:", err);
+          } catch (err) {
+            console.error("Delete failed:", err);
           }
         }
-
-        // Update changed
         for (const client of newClients.filter((c) => {
           const prev = clients.find((pc) => pc.id === c.id);
           return prev && JSON.stringify(prev) !== JSON.stringify(c);
         })) {
           await clientService.update(client.id, client);
         }
-
         await loadData(true);
       } catch (err: any) {
         console.error("[useClients] Failed to update clients:", err);
@@ -137,62 +115,52 @@ export function useClients() {
   );
 
   // ═══════════════════════════════════════
-  // 🔐 RBAC Filtering
+  // 🔐 STRICT RBAC + ABAC Filtering (مهم‌ترین بخش)
   // ═══════════════════════════════════════
-
   const accessibleClients = useMemo(() => {
-    if (canViewAllClients) {
-      return clients;
+    // 🔧 اگر کاربر اصلاً دسترسی دیدن لیست را ندارد (و ادمین هم نیست)، آرایه خالی برگردان
+    if (!canViewList && !isAdmin) {
+      return [];
     }
 
-    if (canViewOwnClients || canRead) {
-      if (!userDepartmentId) {
-        return [];
+    // 🔧 فیلتر سخت‌گیرانه بر اساس دپارتمان
+    return clients.filter((client) => {
+      if (isAdmin) return true; // ادمین همه را می‌بیند
+
+      const clientDepartments = Array.isArray(client.departments)
+        ? client.departments
+        : [];
+      const hasAccess = clientDepartments.includes(userDepartmentId);
+
+      // 🔍 لاگ دیباگ برای ردیابی دقیق مشکل (فقط در حالت توسعه)
+      if (!hasAccess) {
+        console.warn(
+          `[useClients] 🚫 Blocked client "${client.name_en}" (ID: ${client.id}). User dept: "${userDepartmentId}", Client depts:`,
+          clientDepartments,
+        );
       }
 
-      return clients.filter((client) => {
-        const clientDepartments = client.departments || [];
-        return clientDepartments.includes(userDepartmentId);
-      });
-    }
-
-    return [];
-  }, [
-    clients,
-    canViewAllClients,
-    canViewOwnClients,
-    canRead,
-    userDepartmentId,
-  ]);
+      return hasAccess;
+    });
+  }, [clients, canViewList, isAdmin, userDepartmentId]);
 
   const accessibleContracts = useMemo(() => {
-    if (canViewAllContracts) {
-      return contracts;
-    }
-    if (canViewOwnContracts || canRead) {
-      const accessibleClientIds = accessibleClients.map((c) => c.id);
-      return contracts.filter((c) => accessibleClientIds.includes(c.client_id));
-    }
-    return [];
-  }, [
-    contracts,
-    canViewAllContracts,
-    canViewOwnContracts,
-    canRead,
-    accessibleClients,
-  ]);
+    if (isAdmin) return contracts;
+
+    const accessibleClientIds = new Set(accessibleClients.map((c) => c.id));
+    return contracts.filter((c) => accessibleClientIds.has(c.client_id));
+  }, [contracts, accessibleClients, isAdmin]);
 
   const accessibleTariffs = useMemo(() => {
-    const accessibleContractIds = accessibleContracts.map((c) => c.id);
+    const accessibleContractIds = new Set(accessibleContracts.map((c) => c.id));
     return tariffs.filter(
-      (t) => t.contract_id && accessibleContractIds.includes(t.contract_id),
+      (t) => t.contract_id && accessibleContractIds.has(t.contract_id),
     );
   }, [tariffs, accessibleContracts]);
 
   // ═══════════════════════════════════════
   // 🎯 Derived State
   // ═══════════════════════════════════════
-
   useEffect(() => {
     setContractTab("ALL");
   }, [selectedClient]);
@@ -276,15 +244,14 @@ export function useClients() {
   // ═══════════════════════════════════════
   // 📤 Return
   // ═══════════════════════════════════════
-
   return {
-    clients: accessibleClients,
+    clients: accessibleClients, // 🔧 فقط مشتریان مجاز برگردانده می‌شوند
     setClients,
     contracts: accessibleContracts,
-    loading: initialLoading, // 🔧 فقط initial loading
-    refreshing, // 🔧 برای refresh indicator
+    loading: initialLoading,
+    refreshing,
     error,
-    refresh, // 🔧 refresh function
+    refresh,
     searchQuery,
     setSearchQuery,
     selectedClient,

@@ -1,172 +1,200 @@
-import { useState, useMemo } from "react";
-import { clients } from "@data/mockData";
+// src/entities/client/ui/ClientSelector.tsx
+
+import { useState, useMemo, useEffect } from "react";
+import { clientService } from "@/features/client-management/services/ClientService";
 import { Badge, Button } from "@shared/ui";
+import type { Client } from "@/types/contract";
 
 interface ClientSelectorProps {
-value: string;
-onChange: (clientId: string) => void;
-onAddNew?: () => void;
-error?: string;
+  value: string;
+  onChange: (clientId: string) => void;
+  onAddNew?: () => void;
+  error?: string;
 }
 
 export function ClientSelector({
-value,
-onChange,
-onAddNew,
-error,
+  value,
+  onChange,
+  onAddNew,
+  error,
 }: ClientSelectorProps) {
-const [isOpen, setIsOpen] = useState(false);
-const [search, setSearch] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-const filteredClients = useMemo(() => {
-if (!search) return clients;
+  const loadClients = async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      console.log("[ClientSelector] 📥 Loading clients from Supabase");
+      const data = await clientService.getAll();
+      console.log("[ClientSelector] ✅ Clients loaded:", data.length);
+      setClients(data);
+    } catch (err: any) {
+      console.error("[ClientSelector] ❌ Failed to load clients:", err);
+      setLoadError("Failed to load clients");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // 🔧 NEW: بارگذاری مشتریان از Supabase
+  useEffect(() => {
+    loadClients();
+  }, []);
 
-const query = search.toLowerCase();
+  const filteredClients = useMemo(() => {
+    if (!search) return clients;
 
-return clients.filter(
-  (c) =>
-    c.name_en.toLowerCase().includes(query) ||
-    c.name_fa.includes(query) ||
-    (c.national_id && c.national_id.includes(query))
-);
+    const query = search.toLowerCase();
+    return clients.filter(
+      (c) =>
+        c.name_en.toLowerCase().includes(query) ||
+        c.name_fa.includes(query) ||
+        (c.national_id && c.national_id.includes(query)),
+    );
+  }, [search, clients]);
 
+  const selectedClient = clients.find((c) => c.id === value);
 
-}, [search]);
+  return (
+    <div className="relative">
+      <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+        Client *
+      </label>
 
-const selectedClient = clients.find((c) => c.id === value);
-
-return ( <div className="relative"> <label className="mb-1.5 block text-xs font-semibold text-slate-700">
-Client * </label>
-
-
-  <div className="flex gap-2">
-    <button
-      type="button"
-      onClick={() => setIsOpen(!isOpen)}
-      className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
-        error
-          ? "border-rose-300"
-          : "border-slate-200 focus:border-indigo-400"
-      } ${
-        selectedClient
-          ? "bg-white text-slate-900"
-          : "bg-slate-50 text-slate-400"
-      }`}
-    >
-      {selectedClient ? (
-        <div className="flex items-center gap-2">
-          <span className="truncate">{selectedClient.name_en}</span>
-          <Badge tone="slate" className="shrink-0 text-[10px]">
-            {selectedClient.type === "LEGAL" ? "Legal" : "Individual"}
-          </Badge>
-        </div>
-      ) : (
-        <span>Select Client...</span>
-      )}
-    </button>
-
-    {onAddNew && (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={onAddNew}
-        className="shrink-0 gap-1.5 text-xs"
-      >
-        ➕ New
-      </Button>
-    )}
-  </div>
-
-  {isOpen && (
-    <>
-      <div
-        className="fixed inset-0 z-40"
-        onClick={() => setIsOpen(false)}
-      />
-
-      <div className="absolute left-0 right-0 z-50 mt-1 max-h-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-        <div className="border-b border-slate-100 p-2">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or ID..."
-            className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-            autoFocus
-          />
-        </div>
-
-        <div className="max-h-48 overflow-y-auto">
-          {filteredClients.length === 0 ? (
-            <div className="p-4 text-center text-sm text-slate-500">
-              No clients found
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          disabled={loading}
+          className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 ${
+            error
+              ? "border-rose-300"
+              : "border-slate-200 focus:border-indigo-400"
+          } ${
+            selectedClient
+              ? "bg-white text-slate-900"
+              : "bg-slate-50 text-slate-400"
+          } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+        >
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <span className="animate-spin">⏳</span>
+              <span>Loading clients...</span>
+            </span>
+          ) : loadError ? (
+            <span className="text-rose-600">{loadError}</span>
+          ) : selectedClient ? (
+            <div className="flex items-center gap-2">
+              <span className="truncate">{selectedClient.name_en}</span>
+              <Badge tone="slate" className="shrink-0 text-[10px]">
+                {selectedClient.type === "LEGAL" ? "Legal" : "Individual"}
+              </Badge>
             </div>
           ) : (
-            filteredClients.map((client) => (
-              <button
-                key={client.id}
-                type="button"
-                onClick={() => {
-                  onChange(client.id);
-                  setIsOpen(false);
-                  setSearch("");
-                }}
-                className={`w-full border-b border-slate-50 px-3 py-2 text-left transition-colors hover:bg-indigo-50 last:border-0 ${
-                  value === client.id ? "bg-indigo-50" : ""
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-slate-900">
-                      {client.name_en}
-                    </div>
-                    <div
-                      className="truncate text-xs text-slate-500"
-                      dir="rtl"
-                    >
-                      {client.name_fa}
-                    </div>
-                  </div>
-
-                  <Badge
-                    tone={
-                      client.type === "LEGAL" ? "indigo" : "violet"
-                    }
-                    className="ml-2 shrink-0"
-                  >
-                    {client.type === "LEGAL" ? "Legal" : "Individual"}
-                  </Badge>
-                </div>
-              </button>
-            ))
+            <span>Select Client...</span>
           )}
-        </div>
+        </button>
 
         {onAddNew && (
-          <button
+          <Button
             type="button"
-            onClick={() => {
-              onAddNew();
-              setIsOpen(false);
-            }}
-            className="flex w-full items-center gap-2 border-t border-slate-100 bg-indigo-50 px-3 py-2 text-left text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+            variant="outline"
+            size="sm"
+            onClick={onAddNew}
+            className="shrink-0 gap-1.5 text-xs"
           >
-            <span>➕</span>
-            <span>Create New Client</span>
-          </button>
+            ➕ New
+          </Button>
         )}
       </div>
-    </>
-  )}
 
-  {error && (
-    <p className="mt-1 text-[11px] font-medium text-rose-600">
-      ✕ {error}
-    </p>
-  )}
-</div>
+      {isOpen && !loading && !loadError && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
 
-);
+          <div className="absolute left-0 right-0 z-50 mt-1 max-h-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+            <div className="border-b border-slate-100 p-2">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or ID..."
+                className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                autoFocus
+              />
+            </div>
+
+            <div className="max-h-48 overflow-y-auto">
+              {filteredClients.length === 0 ? (
+                <div className="p-4 text-center text-sm text-slate-500">
+                  No clients found
+                </div>
+              ) : (
+                filteredClients.map((client) => (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(client.id);
+                      setIsOpen(false);
+                      setSearch("");
+                    }}
+                    className={`w-full border-b border-slate-50 px-3 py-2 text-left transition-colors hover:bg-indigo-50 last:border-0 ${
+                      value === client.id ? "bg-indigo-50" : ""
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-slate-900">
+                          {client.name_en}
+                        </div>
+                        <div
+                          className="truncate text-xs text-slate-500"
+                          dir="rtl"
+                        >
+                          {client.name_fa}
+                        </div>
+                      </div>
+
+                      <Badge
+                        tone={client.type === "LEGAL" ? "indigo" : "violet"}
+                        className="ml-2 shrink-0"
+                      >
+                        {client.type === "LEGAL" ? "Legal" : "Individual"}
+                      </Badge>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            {onAddNew && (
+              <button
+                type="button"
+                onClick={() => {
+                  onAddNew();
+                  setIsOpen(false);
+                }}
+                className="flex w-full items-center gap-2 border-t border-slate-100 bg-indigo-50 px-3 py-2 text-left text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+              >
+                <span>➕</span>
+                <span>Create New Client</span>
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {error && (
+        <p className="mt-1 text-[11px] font-medium text-rose-600">✕ {error}</p>
+      )}
+    </div>
+  );
 }

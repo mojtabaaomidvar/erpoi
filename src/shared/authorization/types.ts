@@ -8,6 +8,7 @@ export interface User {
   role: string;
   department?: string;
   status?: UserStatus;
+  managerId?: string;
   customPermissions?: string[];
   preferences?: Record<string, any>;
   phone?: string;
@@ -16,7 +17,7 @@ export interface User {
   updatedAt?: string;
 }
 
-export type UserStatus = 'active' | 'inactive' | 'suspended';
+export type UserStatus = "active" | "inactive" | "suspended";
 
 export type Role = string;
 
@@ -31,9 +32,34 @@ export interface RoleInfo {
 
 export type Permission = string;
 
-export type ActionType = 'create' | 'read' | 'update' | 'delete' | 'export' | 'import' | 'approve' | 'reject' | 'assign' | 'manage' | 'view_all' | 'view_own';
+export type ActionType =
+  | "create"
+  | "read"
+  | "update"
+  | "delete"
+  | "export"
+  | "import"
+  | "approve"
+  | "reject"
+  | "assign"
+  | "manage"
+  | "view_all"
+  | "view_own";
 
-export type EntityType = 'client' | 'contract' | 'inspection' | 'invoice' | 'ncr' | 'inspector' | 'report' | 'audit_log' | 'setting' | 'user' | 'notification' | 'dashboard' | 'department';
+export type EntityType =
+  | "client"
+  | "contract"
+  | "inspection"
+  | "invoice"
+  | "ncr"
+  | "inspector"
+  | "report"
+  | "audit_log"
+  | "setting"
+  | "user"
+  | "notification"
+  | "dashboard"
+  | "department";
 
 export interface UserFormData {
   username: string;

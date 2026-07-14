@@ -84,7 +84,6 @@ export function ContractDetails({
   // 🔐 Element-Level Access
   const canBtnEdit = canAccessElement("contract_btn_edit");
   const canBtnApprove = canAccessElement("contract_btn_approve");
-  const canBtnClose = canAccessElement("contract_btn_close");
   const canInfoSection = canAccessElement("contract_info_section");
   const canInfoStartDate = canAccessElement("contract_info_start_date");
   const canInfoEndDate = canAccessElement("contract_info_end_date");
@@ -497,20 +496,18 @@ export function ContractDetails({
           >
             Contract Details
           </h2>
-          {canBtnClose && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className={`transition-colors ${
-                isDark
-                  ? "text-slate-400 hover:text-rose-400 hover:bg-rose-900/30"
-                  : "text-slate-500 hover:text-rose-600 hover:bg-rose-50"
-              }`}
-            >
-              ✕ Close Panel
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className={`transition-colors ${
+              isDark
+                ? "text-slate-400 hover:text-rose-400 hover:bg-rose-900/30"
+                : "text-slate-500 hover:text-rose-600 hover:bg-rose-50"
+            }`}
+          >
+            ✕ Close Panel
+          </Button>
         </div>
 
         {/* 🔧 FIX: Row 2 - ساختار دو ستونه */}

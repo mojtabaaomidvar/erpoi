@@ -1,44 +1,42 @@
 // src/shared/database/db.ts
 
-import { MockDatabase } from './MockDatabase';
-import type { DatabaseService } from './DatabaseService';
+import { supabase } from "./supabase";
+import { dbProvider } from "./DatabaseProvider";
 
 class DatabaseSingleton {
-  private instance: DatabaseService | null = null;
   private initialized = false;
 
-  getInstance(): DatabaseService {
-    if (!this.instance) {
-      this.instance = new MockDatabase();
-    }
-    return this.instance;
-  }
-
-  async initialize(): Promise<DatabaseService> {
-    const db = this.getInstance();
+  async initialize() {
     if (!this.initialized) {
-      await db.initialize();
+      await dbProvider.getDatabase();
       this.initialized = true;
     }
-    return db;
+    return supabase;
   }
 
   isReady(): boolean {
-    return this.initialized;
+    return dbProvider.isReady();
+  }
+
+  getSupabase() {
+    return supabase;
   }
 }
 
 export const database = new DatabaseSingleton();
 
-export async function getDB(): Promise<DatabaseService> {
+export async function getDB() {
   return database.initialize();
 }
 
-export function getDBSync(): DatabaseService | null {
+export function getDBSync() {
   if (!database.isReady()) {
-    console.warn('[getDBSync] ❌ Database not initialized yet');
+    console.warn("[getDBSync] ❌ Database not initialized yet");
     return null;
   }
-  
-  return database.getInstance();
+
+  return supabase;
 }
+
+// 🔧 NEW: دسترسی مستقیم به Supabase
+export { supabase };

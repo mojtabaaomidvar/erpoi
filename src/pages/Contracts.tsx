@@ -60,6 +60,16 @@ export function Contracts() {
     currentDepartment,
   } = useContracts();
 
+  useEffect(() => {
+    console.log("🔍 Contracts Page Debug:", {
+      contractsCount: contracts?.length,
+      filteredContractsCount: filteredContracts?.length,
+      loading,
+      error,
+      currentDepartment,
+    });
+  }, [contracts, filteredContracts, loading, error, currentDepartment]);
+
   useEvent(EVENT_TYPES.AMENDMENT_CREATED, () => {
     console.log("[Contracts] Amendment created, refreshing list...");
     refresh();

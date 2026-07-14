@@ -1,6 +1,6 @@
 // src/features/client-management/ui/ClientList.tsx
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { Avatar, Badge, Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
@@ -44,12 +44,19 @@ export function ClientList({
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
 
-  // 🔐 چک کردن دسترسی‌ها
+  // 🔐 ۱. دسترسی مشاهده لیست (View)
+  const canViewItems = canAccessElement("client_list_item_view");
+
+  // 🔐 ۲. دسترسی کلیک روی آیتم (Click)
   const canClickItem = canAccessElement("client_list_item_click");
+
+  // سایر دسترسی‌ها
   const canSearch = canAccessElement("client_search_box");
-  const canSort = canAccessElement("client_sort_select");
   const canFilterType = canAccessElement("client_filter_type");
   const canTotalBadge = canAccessElement("client_total_agreement_badge");
+  const canTotalValueBadge = canAccessElement(
+    "client_total_agreement_value_badge",
+  );
   const canAdd = canAccessElement("client_btn_add");
   const canExport = canAccessElement("client_btn_export");
 
@@ -85,6 +92,7 @@ export function ClientList({
     }
   }, [filteredClients, sortBy, contracts]);
 
+  // 🔐 هندلر کلیک: فقط در صورتی اجازه می‌دهد که canClickItem فعال باشد
   const handleClientClick = (client: Client) => {
     if (!canClickItem) {
       showToast(
@@ -105,7 +113,7 @@ export function ClientList({
           : "bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/70 shadow-xl shadow-slate-200/50"
       }`}
     >
-      {/* Header با Gradient */}
+      {/* Header */}
       <div
         className={`relative px-5 py-4 border-b ${
           isDark
@@ -113,7 +121,6 @@ export function ClientList({
             : "border-slate-200/70 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50"
         }`}
       >
-        {/* Pattern Background */}
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
@@ -141,7 +148,7 @@ export function ClientList({
             </div>
           </div>
 
-          {/* 🔧 FIX: دکمه‌های Search, Export, Add در کنار هم */}
+          {/* 🔐 Conditional Buttons */}
           <div className="flex gap-1.5">
             {canSearch && (
               <FloatingSearch
@@ -177,14 +184,10 @@ export function ClientList({
         </div>
       </div>
 
-      {/* Filter Tabs */}
+      {/* 🔐 Conditional Filter Tabs */}
       {canFilterType && (
         <div
-          className={`px-4 py-2.5 border-b ${
-            isDark
-              ? "border-slate-700/50 bg-slate-900/30"
-              : "border-slate-200/70 bg-slate-50/50"
-          }`}
+          className={`px-4 py-2.5 border-b ${isDark ? "border-slate-700/50 bg-slate-900/30" : "border-slate-200/70 bg-slate-50/50"}`}
         >
           <div className="flex gap-1.5">
             {(["ALL", "LEGAL", "INDIVIDUAL"] as const).map((f) => (
@@ -212,14 +215,31 @@ export function ClientList({
         </div>
       )}
 
-      {/* Client List */}
+      {/* Client List Content */}
       <div className="flex-1 overflow-y-auto">
-        {sortedClients.length === 0 ? (
+        {/* 🔐 ۳. اگر دسترسی View نداشت، پیام Access Denied نشان بده */}
+        {!canViewItems ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
             <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${
-                isDark ? "bg-slate-800/50" : "bg-slate-100"
-              }`}
+              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
+            >
+              🔒
+            </div>
+            <p
+              className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
+            >
+              Access Denied
+            </p>
+            <p
+              className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
+            >
+              You do not have permission to view the client list.
+            </p>
+          </div>
+        ) : sortedClients.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+            <div
+              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
             >
               🔍
             </div>
@@ -253,7 +273,7 @@ export function ClientList({
                   disabled={!canClickItem}
                   className={`group relative w-full text-left rounded-xl p-3 transition-all duration-200 ${
                     !canClickItem
-                      ? "cursor-not-allowed opacity-60"
+                      ? "cursor-not-allowed opacity-60" // 🔐 غیرفعال کردن ظاهر در صورت نداشتن دسترسی کلیک
                       : "cursor-pointer"
                   } ${
                     isSelected
@@ -265,17 +285,13 @@ export function ClientList({
                         : "bg-white/50 border border-transparent hover:bg-white hover:border-slate-200/70 hover:shadow-md"
                   }`}
                 >
-                  {/* Selection Indicator */}
                   {isSelected && (
                     <div
-                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full ${
-                        isDark ? "bg-indigo-500" : "bg-indigo-500"
-                      }`}
+                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full ${isDark ? "bg-indigo-500" : "bg-indigo-500"}`}
                     />
                   )}
 
                   <div className="flex items-start gap-3">
-                    {/* Avatar */}
                     <div className="relative">
                       <Avatar
                         name={client.name_en}
@@ -284,13 +300,10 @@ export function ClientList({
                       />
                     </div>
 
-                    {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h3
-                          className={`text-sm font-bold truncate ${
-                            isDark ? "text-slate-100" : "text-slate-900"
-                          }`}
+                          className={`text-sm font-bold truncate ${isDark ? "text-slate-100" : "text-slate-900"}`}
                         >
                           {client.name_en}
                         </h3>
@@ -303,9 +316,7 @@ export function ClientList({
                       </div>
 
                       <p
-                        className={`text-[11px] truncate mb-2 ${
-                          isDark ? "text-slate-400" : "text-slate-600"
-                        }`}
+                        className={`text-[11px] truncate mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}
                         dir="rtl"
                       >
                         {client.name_fa}
@@ -313,23 +324,21 @@ export function ClientList({
 
                       {/* Stats */}
                       <div className="flex items-center gap-3">
-                        <div
-                          className={`flex items-center gap-1 text-[10px] ${
-                            isDark ? "text-slate-400" : "text-slate-600"
-                          }`}
-                        >
-                          <span>📄</span>
-                          <span className="font-semibold">
-                            {clientContracts.length}
-                          </span>
-                          <span>Agreements</span>
-                        </div>
-
-                        {canTotalBadge && totalValue > 0 && (
+                        {canTotalBadge && (
                           <div
-                            className={`flex items-center gap-1 text-[10px] ${
-                              isDark ? "text-emerald-400" : "text-emerald-600"
-                            }`}
+                            className={`flex items-center gap-1 text-[10px] ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                          >
+                            <span>📄</span>
+                            <span className="font-semibold">
+                              {clientContracts.length}
+                            </span>
+                            <span>Agreements</span>
+                          </div>
+                        )}
+
+                        {canTotalValueBadge && totalValue > 0 && (
+                          <div
+                            className={`flex items-center gap-1 text-[10px] ${isDark ? "text-emerald-400" : "text-emerald-600"}`}
                           >
                             <span>💰</span>
                             <span className="font-semibold">
@@ -353,11 +362,7 @@ export function ClientList({
 
       {/* Footer Stats */}
       <div
-        className={`px-4 py-2.5 border-t ${
-          isDark
-            ? "border-slate-700/50 bg-slate-900/50"
-            : "border-slate-200/70 bg-slate-50/50"
-        }`}
+        className={`px-4 py-2.5 border-t ${isDark ? "border-slate-700/50 bg-slate-900/50" : "border-slate-200/70 bg-slate-50/50"}`}
       >
         <div className="flex items-center justify-between text-[10px]">
           <span className={isDark ? "text-slate-400" : "text-slate-600"}>

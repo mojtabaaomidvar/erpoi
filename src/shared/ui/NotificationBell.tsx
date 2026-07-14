@@ -12,6 +12,7 @@ import { supabase } from "@shared/database/supabase";
 import { useEvent, EVENT_TYPES } from "@infra/events";
 import type { DomainEvent } from "@infra/events";
 import { showToast } from "@shared/ui/ToastContainer";
+import { Bell } from "lucide-react";
 
 export function NotificationBell() {
   const { isDark } = useTheme();
@@ -60,10 +61,6 @@ export function NotificationBell() {
     const interval = setInterval(loadNotifications, 5000);
     return () => clearInterval(interval);
   }, []);
-
-  // src/shared/ui/NotificationBell.tsx
-
-  // src/shared/ui/NotificationBell.tsx
 
   const handleNotificationClick = async (notif: Notification) => {
     notificationService.markAsRead(notif.id);
@@ -170,7 +167,7 @@ export function NotificationBell() {
               : "hover:bg-slate-100 text-slate-700"
           }`}
         >
-          <span className="text-xl">🔔</span>
+          <Bell className="h-4 w-4" />
 
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-rose-500 text-white text-[10px] font-bold animate-pulse">

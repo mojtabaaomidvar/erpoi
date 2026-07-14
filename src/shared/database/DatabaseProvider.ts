@@ -1,32 +1,14 @@
 // src/shared/database/DatabaseProvider.ts
 
-import type { DatabaseService } from './DatabaseService';
-import { IDBDatabase } from './IDBDatabase';
-import { MockDatabase } from './MockDatabase';
+import { supabase } from "./supabase";
 
-export type DatabaseType = 'mock' | 'indexeddb' | 'api' | 'hybrid';
-
-const getDatabaseType = (): DatabaseType => {
-  // 🔧 از environment variable بخون
-  const envDb = (import.meta as any).env?.VITE_DATABASE_TYPE as DatabaseType;
-  
-  if (envDb && ['mock', 'indexeddb', 'api', 'hybrid'].includes(envDb)) {
-    return envDb;
-  }
-  
-  // Default: mock برای prototype
-  return 'mock';
-};
+export type DatabaseType = "supabase";
 
 class DatabaseProvider {
   private static instance: DatabaseProvider;
-  private database: DatabaseService | null = null;
-  private databaseType: DatabaseType = 'mock';
-  private initPromise: Promise<DatabaseService> | null = null;
+  private initialized = false;
 
-  private constructor() {
-    this.databaseType = getDatabaseType();
-  }
+  private constructor() {}
 
   static getInstance(): DatabaseProvider {
     if (!DatabaseProvider.instance) {
@@ -35,68 +17,43 @@ class DatabaseProvider {
     return DatabaseProvider.instance;
   }
 
-  async getDatabase(): Promise<DatabaseService> {
-    if (this.database) return this.database;
-    
-    // 🎯 جلوگیری از multiple initialization
-    if (this.initPromise) return this.initPromise;
-
-    this.initPromise = this.initializeDatabase();
-    return this.initPromise;
+  async getDatabase() {
+    if (!this.initialized) {
+      await this.initializeDatabase();
+    }
+    return supabase;
   }
 
+  private async initializeDatabase(): Promise<void> {
+    console.log("[DatabaseProvider] Initializing Supabase connection...");
 
-	private async initializeDatabase(): Promise<DatabaseService> {
-	  console.log(`[DatabaseProvider] Initializing ${this.databaseType} database...`);
+    // 🔧 تست اتصال به Supabase
+    const { error } = await supabase.from("clients").select("id").limit(1);
 
-	  switch (this.databaseType) {
-		case 'mock':
-		  this.database = new MockDatabase();
-		  break;
-		
-		case 'indexeddb':
-		  this.database = new IDBDatabase() as unknown as DatabaseService;  // 🔧 FIX: cast
-		  break;
-		
-		case 'api':
-		  throw new Error('API Database not implemented yet. Use "mock" or "indexeddb".');
-		
-		case 'hybrid':
-		  throw new Error('Hybrid Database not implemented yet. Use "mock" or "indexeddb".');
-		
-		default:
-		  this.database = new MockDatabase();
-	  }
+    if (error) {
+      console.error(
+        "[DatabaseProvider] ❌ Failed to connect to Supabase:",
+        error,
+      );
+      throw new Error(`Supabase connection failed: ${error.message}`);
+    }
 
-	  // 🔧 FIX: null check
-	  if (!this.database) {
-		throw new Error('Failed to initialize database');
-	  }
-
-	  await this.database.initialize();
-	  
-	  console.log(`[DatabaseProvider] ✅ ${this.databaseType} database ready`);
-	  
-	  return this.database;
-	}
+    this.initialized = true;
+    console.log("[DatabaseProvider] ✅ Supabase database ready");
+  }
 
   getDatabaseType(): DatabaseType {
-    return this.databaseType;
+    return "supabase";
   }
 
-  // 🔄 Switch database type (برای تست)
-  async switchDatabase(type: DatabaseType): Promise<void> {
-    console.log(`[DatabaseProvider] Switching from ${this.databaseType} to ${type}`);
-    this.databaseType = type;
-    this.database = null;
-    this.initPromise = null;
-    await this.getDatabase();
+  isReady(): boolean {
+    return this.initialized;
   }
 }
 
 export const dbProvider = DatabaseProvider.getInstance();
 
 // 🔧 Helper function برای استفاده آسان
-export const getDB = async (): Promise<DatabaseService> => {
+export const getDB = async () => {
   return await dbProvider.getDatabase();
 };

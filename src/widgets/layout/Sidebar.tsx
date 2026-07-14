@@ -75,7 +75,6 @@ const navItems: Array<{
     key: "inspections",
     label: "Workflow",
     icon: ClipboardCheck,
-    badge: "3",
     entity: "inspection",
     gradient: "from-cyan-500 to-blue-600",
   },

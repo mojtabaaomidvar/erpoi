@@ -3,15 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
-import {
-  Settings,
-  LogOut,
-  User,
-  Moon,
-  Sun,
-  ChevronDown,
-  Bell,
-} from "lucide-react";
+import { Settings, LogOut, Moon, Sun, ChevronDown } from "lucide-react";
 import { NotificationBell } from "@shared/ui/NotificationBell";
 
 interface HeaderProps {

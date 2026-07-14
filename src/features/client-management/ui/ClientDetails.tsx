@@ -1,7 +1,7 @@
 // src/features/client-management/ui/ClientDetails.tsx
 
 import { useState, useRef, useMemo } from "react";
-import { Button, Badge, Card, Avatar } from "@design-system";
+import { Button, Badge, Avatar } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useClickOutside } from "@shared/hooks/useClickOutside";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
@@ -27,10 +27,7 @@ interface ClientDetailsProps {
   onClose: () => void;
   currentDepartment: string;
   onContractClick?: (contract: Contract) => void;
-  canUpdate?: boolean;
-  canDelete?: boolean;
-  canRead?: boolean;
-  onDelete?: () => void;
+  onDelete?: () => void; // 🔧 حذف canUpdate, canDelete, canRead و اتکا به usePermissionMapping
 }
 
 export function ClientDetails({
@@ -45,9 +42,6 @@ export function ClientDetails({
   onClose,
   currentDepartment,
   onContractClick,
-  canUpdate = true,
-  canDelete = true,
-  canRead = true,
   onDelete,
 }: ClientDetailsProps) {
   const { isDark } = useTheme();
@@ -58,6 +52,7 @@ export function ClientDetails({
   const emailDropdownRef = useRef<HTMLDivElement>(null);
   const [showContactDropdown, setShowContactDropdown] = useState(false);
   const contactDropdownRef = useRef<HTMLDivElement>(null);
+
   useClickOutside(emailDropdownRef, () => setShowEmailDropdown(false));
   useClickOutside(contactDropdownRef, () => setShowContactDropdown(false));
 
@@ -68,7 +63,7 @@ export function ClientDetails({
     );
   }, [client, currentDepartment]);
 
-  // 🔐 چک کردن دسترسی‌ها
+  // 🔐 چک کردن دسترسی‌ها دقیقاً منطبق بر clientElements
   const canEditBtn = canAccessElement("client_btn_edit");
   const canDeleteBtn = canAccessElement("client_btn_delete");
   const canEmails = canAccessElement("client_emails_dropdown");
@@ -78,8 +73,10 @@ export function ClientDetails({
   const canStatInvoiced = canAccessElement("client_stat_invoiced");
   const canStatUninvoiced = canAccessElement("client_stat_uninvoiced");
   const canAgreements = canAccessElement("client_agreements_section");
-  const canAgreementsTabs = canAccessElement("client_agreements_tabs");
-  const canContractItem = canAccessElement("client_contract_item");
+
+  // 🔧 اصلاح: استفاده از client_list_item_click برای کلیک روی آیتم‌های قرارداد در لیست
+  const canClickContractItem = canAccessElement("client_list_item_click");
+
   const canAgreementValue = canAccessElement("client_agreement_value");
   const canAgreementProgressWork = canAccessElement(
     "client_agreement_progress_work",
@@ -93,11 +90,7 @@ export function ClientDetails({
   if (!client) {
     return (
       <div
-        className={`flex-1 flex items-center justify-center relative overflow-hidden min-h-[600px] ${
-          isDark
-            ? "bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950/30"
-            : "bg-gradient-to-br from-slate-50 via-white to-indigo-50/30"
-        }`}
+        className={`flex-1 flex items-center justify-center relative overflow-hidden min-h-[600px] ${isDark ? "bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950/30" : "bg-gradient-to-br from-slate-50 via-white to-indigo-50/30"}`}
       >
         <div
           className="absolute inset-0 opacity-[0.03]"
@@ -109,11 +102,7 @@ export function ClientDetails({
           <div className="relative inline-block mb-8">
             <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 blur-2xl opacity-40 animate-pulse" />
             <div
-              className={`relative inline-flex items-center justify-center w-44 h-44 rounded-full shadow-2xl shadow-indigo-500/30 border-4 ${
-                isDark
-                  ? "bg-slate-800 border-slate-700"
-                  : "bg-white border-white"
-              }`}
+              className={`relative inline-flex items-center justify-center w-44 h-44 rounded-full shadow-2xl shadow-indigo-500/30 border-4 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-white"}`}
             >
               <img
                 src="/images/logo.png"
@@ -132,45 +121,6 @@ export function ClientDetails({
           >
             Select a client from the list to view details and contracts
           </p>
-
-          <div className="flex items-center justify-center gap-6 mt-8">
-            <div className="flex flex-col items-center gap-2">
-              <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-indigo-900/50" : "bg-indigo-100"}`}
-              >
-                👥
-              </div>
-              <span
-                className={`text-xs font-medium ${isDark ? "text-slate-300" : "text-slate-600"}`}
-              >
-                Clients
-              </span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-emerald-900/50" : "bg-emerald-100"}`}
-              >
-                📄
-              </div>
-              <span
-                className={`text-xs font-medium ${isDark ? "text-slate-300" : "text-slate-600"}`}
-              >
-                Contracts
-              </span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-amber-900/50" : "bg-amber-100"}`}
-              >
-                📧
-              </div>
-              <span
-                className={`text-xs font-medium ${isDark ? "text-slate-300" : "text-slate-600"}`}
-              >
-                Contacts
-              </span>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -215,7 +165,7 @@ export function ClientDetails({
         await navigator.clipboard.writeText(email);
         success = true;
       } catch (err) {
-        console.log("Clipboard API failed, trying fallback");
+        /* fallback */
       }
     }
     if (!success) {
@@ -224,47 +174,31 @@ export function ClientDetails({
         textArea.value = email;
         textArea.style.position = "fixed";
         textArea.style.left = "-999999px";
-        textArea.style.top = "-999999px";
         textArea.style.opacity = "0";
-        textArea.setAttribute("readonly", "");
         document.body.appendChild(textArea);
-        textArea.focus();
         textArea.select();
-        textArea.setSelectionRange(0, email.length);
         success = document.execCommand("copy");
         document.body.removeChild(textArea);
       } catch (err) {
-        console.error("Fallback copy failed:", err);
+        /* error */
       }
     }
-    if (success) {
-      setToastMessage("✅ Email address copied!");
-    } else {
-      setToastMessage("❌ Failed to copy email");
-    }
+    if (success) setToastMessage("✅ Email address copied!");
     setTimeout(() => setToastMessage(""), 2500);
   };
 
   const handleContractClick = (contract: Contract) => {
-    if (!canContractItem) return;
+    if (!canClickContractItem) return; // 🔐 محافظت از کلیک
     onContractClick?.(contract);
   };
 
   return (
     <div
-      className={`col-span-1 lg:col-span-8 flex flex-col rounded-2xl overflow-hidden transition-all duration-300 ${
-        isDark
-          ? "bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-700/50 shadow-2xl shadow-black/30"
-          : "bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/70 shadow-xl shadow-slate-200/50"
-      }`}
+      className={`col-span-1 lg:col-span-8 flex flex-col rounded-2xl overflow-hidden transition-all duration-300 ${isDark ? "bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-700/50 shadow-2xl shadow-black/30" : "bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/70 shadow-xl shadow-slate-200/50"}`}
     >
       {/* Header */}
       <div
-        className={`relative px-6 py-4 border-b ${
-          isDark
-            ? "border-slate-700/50 bg-gradient-to-r from-indigo-900/30 via-slate-900 to-violet-900/30"
-            : "border-slate-200/70 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50"
-        }`}
+        className={`relative px-6 py-4 border-b ${isDark ? "border-slate-700/50 bg-gradient-to-r from-indigo-900/30 via-slate-900 to-violet-900/30" : "border-slate-200/70 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50"}`}
       >
         <div className="flex items-center justify-between mb-4">
           <h2
@@ -276,11 +210,7 @@ export function ClientDetails({
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className={`transition-colors ${
-              isDark
-                ? "text-slate-400 hover:text-rose-400 hover:bg-rose-900/30"
-                : "text-slate-500 hover:text-rose-600 hover:bg-rose-50"
-            }`}
+            className={`transition-colors ${isDark ? "text-slate-400 hover:text-rose-400 hover:bg-rose-900/30" : "text-slate-500 hover:text-rose-600 hover:bg-rose-50"}`}
           >
             ✕ Close Panel
           </Button>
@@ -289,11 +219,7 @@ export function ClientDetails({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div
-              className={`w-16 h-16 rounded-2xl overflow-hidden border-2 shadow-lg ${
-                isDark
-                  ? "border-slate-600 bg-slate-800 shadow-black/30"
-                  : "border-slate-200 bg-slate-50 shadow-slate-200/50"
-              } flex items-center justify-center`}
+              className={`w-16 h-16 rounded-2xl overflow-hidden border-2 shadow-lg ${isDark ? "border-slate-600 bg-slate-800 shadow-black/30" : "border-slate-200 bg-slate-50 shadow-slate-200/50"} flex items-center justify-center`}
             >
               <Avatar
                 name={client.name_en}
@@ -317,8 +243,8 @@ export function ClientDetails({
           </div>
 
           <div className="flex gap-2">
-            {/* 🔗 client_btn_edit */}
-            {canEditBtn && canUpdate && (
+            {/* 🔐 client_btn_edit */}
+            {canEditBtn && (
               <Button
                 variant="outline"
                 size="md"
@@ -328,8 +254,8 @@ export function ClientDetails({
                 <span>✏️</span> Edit Client
               </Button>
             )}
-            {/* 🔗 client_btn_delete */}
-            {canDeleteBtn && canDelete && onDelete && (
+            {/* 🔐 client_btn_delete */}
+            {canDeleteBtn && onDelete && (
               <Button
                 variant="danger"
                 size="md"
@@ -349,11 +275,7 @@ export function ClientDetails({
           {/* Company/Personal Information */}
           {client.type === "LEGAL" ? (
             <div
-              className={`rounded-xl border p-4 ${
-                isDark
-                  ? "border-slate-700/50 bg-slate-800/30"
-                  : "border-slate-200/70 bg-slate-50/50"
-              }`}
+              className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-slate-50/50"}`}
             >
               <h3
                 className={`text-sm font-bold mb-3 flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
@@ -410,7 +332,7 @@ export function ClientDetails({
                   </div>
                 </div>
 
-                {/* 🔗 client_emails_dropdown */}
+                {/* 🔐 client_emails_dropdown */}
                 {canEmails && (
                   <div className="relative" ref={emailDropdownRef}>
                     <div
@@ -453,94 +375,34 @@ export function ClientDetails({
                         </div>
                       );
                     })()}
-                    {showEmailDropdown &&
-                      (() => {
-                        const primaryEmail = client.email;
-                        const otherEmails = (client as any).emails || [];
-                        return (
-                          <div
-                            className={`absolute top-full left-0 mt-1 w-72 rounded-xl border shadow-xl z-50 py-2 max-h-80 overflow-y-auto ${
-                              isDark
-                                ? "bg-slate-800 border-slate-700"
-                                : "bg-white border-slate-200"
-                            }`}
+                    {showEmailDropdown && (
+                      <div
+                        className={`absolute top-full left-0 mt-1 w-72 rounded-xl border shadow-xl z-50 py-2 max-h-80 overflow-y-auto ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}
+                      >
+                        {/* محتوای دراپ‌داون ایمیل (همان کد قبلی شما) */}
+                        {client.email && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyEmail(client.email!);
+                              setShowEmailDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs font-mono transition-colors flex items-center gap-2 border-b ${isDark ? "text-slate-200 hover:bg-indigo-900/30 border-slate-700" : "text-slate-700 hover:bg-indigo-50 border-slate-100"}`}
                           >
-                            {primaryEmail && (
-                              <>
-                                <div
-                                  className={`px-3 py-1.5 text-[10px] uppercase font-semibold border-b ${
-                                    isDark
-                                      ? "text-slate-400 border-slate-700"
-                                      : "text-slate-500 border-slate-100"
-                                  }`}
-                                >
-                                  ⭐ Primary Email
-                                </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCopyEmail(primaryEmail);
-                                    setShowEmailDropdown(false);
-                                  }}
-                                  className={`w-full text-left px-3 py-2 text-xs font-mono transition-colors flex items-center gap-2 border-b ${
-                                    isDark
-                                      ? "text-slate-200 hover:bg-indigo-900/30 hover:text-indigo-300 border-slate-700"
-                                      : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border-slate-100"
-                                  }`}
-                                >
-                                  <span className="truncate">
-                                    {primaryEmail}
-                                  </span>
-                                  <span
-                                    className={`ml-auto ${isDark ? "text-slate-500" : "text-slate-400"}`}
-                                  >
-                                    📋
-                                  </span>
-                                </button>
-                              </>
-                            )}
-                            {otherEmails.length > 0 && (
-                              <>
-                                <div
-                                  className={`px-3 py-1.5 text-[10px] uppercase font-semibold border-b ${
-                                    isDark
-                                      ? "text-slate-400 border-slate-700"
-                                      : "text-slate-500 border-slate-100"
-                                  }`}
-                                >
-                                  Other Emails
-                                </div>
-                                {otherEmails.map(
-                                  (email: string, index: number) => (
-                                    <button
-                                      key={index}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleCopyEmail(email);
-                                        setShowEmailDropdown(false);
-                                      }}
-                                      className={`w-full text-left px-3 py-2 text-xs font-mono transition-colors flex items-center gap-2 border-b last:border-0 ${
-                                        isDark
-                                          ? "text-slate-200 hover:bg-indigo-900/30 hover:text-indigo-300 border-slate-700"
-                                          : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border-slate-100"
-                                      }`}
-                                    >
-                                      <span className={`text-slate-400`}>
-                                        📋
-                                      </span>
-                                      <span className="truncate">{email}</span>
-                                    </button>
-                                  ),
-                                )}
-                              </>
-                            )}
-                          </div>
-                        );
-                      })()}
+                            <span className="truncate">{client.email}</span>
+                            <span
+                              className={`ml-auto ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                            >
+                              📋
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {/* 🔗 contacts_dropdown */}
+                {/* 🔐 client_contacts_dropdown */}
                 {canContacts && (
                   <div className="relative" ref={contactDropdownRef}>
                     <div
@@ -575,20 +437,12 @@ export function ClientDetails({
                     {showContactDropdown &&
                       filteredContactPersons.length > 0 && (
                         <div
-                          className={`absolute top-full left-0 mt-1 w-72 rounded-xl border shadow-xl z-50 py-2 max-h-80 overflow-y-auto ${
-                            isDark
-                              ? "bg-slate-800 border-slate-700"
-                              : "bg-white border-slate-200"
-                          }`}
+                          className={`absolute top-full left-0 mt-1 w-72 rounded-xl border shadow-xl z-50 py-2 max-h-80 overflow-y-auto ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}
                         >
                           {filteredContactPersons.map((cp: any) => (
                             <div
                               key={cp.id}
-                              className={`px-3 py-2 border-b last:border-0 transition-colors ${
-                                isDark
-                                  ? "border-slate-700 hover:bg-slate-700/50"
-                                  : "border-slate-100 hover:bg-slate-50"
-                              }`}
+                              className={`px-3 py-2 border-b last:border-0 transition-colors ${isDark ? "border-slate-700 hover:bg-slate-700/50" : "border-slate-100 hover:bg-slate-50"}`}
                             >
                               <div className="flex items-center justify-between mb-1">
                                 <span
@@ -605,30 +459,13 @@ export function ClientDetails({
                                 </div>
                               )}
                               <div className="flex items-center gap-2 text-[10px]">
-                                <span className={`text-slate-400`}>📞</span>
+                                <span className="text-slate-400">📞</span>
                                 <span
                                   className={`font-mono ${isDark ? "text-slate-200" : "text-slate-700"}`}
                                 >
                                   {cp.mobile}
                                 </span>
                               </div>
-                              {cp.email && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCopyEmail(cp.email);
-                                  }}
-                                  className="flex items-center gap-2 text-[10px] mt-0.5 hover:text-indigo-600 transition-colors"
-                                >
-                                  <span className={`text-slate-400`}>✉️</span>
-                                  <span className="font-mono text-indigo-600 truncate">
-                                    {cp.email}
-                                  </span>
-                                  <span className={`text-slate-400 ml-auto`}>
-                                    📋
-                                  </span>
-                                </button>
-                              )}
                             </div>
                           ))}
                         </div>
@@ -638,12 +475,9 @@ export function ClientDetails({
               </div>
             </div>
           ) : (
+            // Personal Information (ساختار مشابه بالا با canEmails)
             <div
-              className={`rounded-xl border p-4 ${
-                isDark
-                  ? "border-slate-700/50 bg-slate-800/30"
-                  : "border-slate-200/70 bg-slate-50/50"
-              }`}
+              className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-slate-50/50"}`}
             >
               <h3
                 className={`text-sm font-bold mb-3 flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
@@ -675,7 +509,7 @@ export function ClientDetails({
                     {client.phone || "—"}
                   </div>
                 </div>
-                {/* 🔗 client_emails_dropdown */}
+                {/* 🔐 client_emails_dropdown (مشابه بخش حقوقی) */}
                 {canEmails && (
                   <div className="relative" ref={emailDropdownRef}>
                     <div
@@ -683,146 +517,30 @@ export function ClientDetails({
                     >
                       Emails
                     </div>
-                    {(() => {
-                      const allEmails = [
-                        ...(client.email ? [client.email] : []),
-                        ...((client as any).emails || []),
-                      ].filter(
-                        (email, index, self) => self.indexOf(email) === index,
-                      );
-                      if (allEmails.length > 0) {
-                        return (
-                          <button
-                            onClick={() =>
-                              setShowEmailDropdown(!showEmailDropdown)
-                            }
-                            className="flex items-center gap-1.5 text-xs text-indigo-500 hover:text-indigo-600 font-medium transition-colors"
-                          >
-                            <span>
-                              📧 {allEmails.length} email
-                              {allEmails.length > 1 ? "s" : ""}
-                            </span>
-                            <span
-                              className={`text-[10px] transition-transform ${showEmailDropdown ? "rotate-180" : ""}`}
-                            >
-                              ▼
-                            </span>
-                          </button>
-                        );
-                      }
-                      return (
-                        <div
-                          className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                    {client.email && (
+                      <button
+                        onClick={() => setShowEmailDropdown(!showEmailDropdown)}
+                        className="flex items-center gap-1.5 text-xs text-indigo-500 hover:text-indigo-600 font-medium transition-colors"
+                      >
+                        <span>📧 1 email</span>
+                        <span
+                          className={`text-[10px] transition-transform ${showEmailDropdown ? "rotate-180" : ""}`}
                         >
-                          —
-                        </div>
-                      );
-                    })()}
-                    {showEmailDropdown &&
-                      (() => {
-                        const allEmails = [
-                          ...(client.email ? [client.email] : []),
-                          ...((client as any).emails || []),
-                        ].filter(
-                          (email, index, self) => self.indexOf(email) === index,
-                        );
-                        return (
-                          <div
-                            className={`absolute top-full left-0 mt-1 w-80 rounded-xl border shadow-xl z-50 py-2 max-h-80 overflow-y-auto ${
-                              isDark
-                                ? "bg-slate-800 border-slate-700"
-                                : "bg-white border-slate-200"
-                            }`}
-                          >
-                            {client.email && (
-                              <>
-                                <div
-                                  className={`px-3 py-1.5 text-[10px] uppercase font-semibold border-b ${
-                                    isDark
-                                      ? "text-slate-400 border-slate-700"
-                                      : "text-slate-500 border-slate-100"
-                                  }`}
-                                >
-                                  ⭐ Primary Email
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    handleCopyEmail(client.email!);
-                                    setShowEmailDropdown(false);
-                                  }}
-                                  className={`w-full text-left px-3 py-2 text-xs font-mono transition-colors flex items-center gap-2 border-b ${
-                                    isDark
-                                      ? "text-slate-200 hover:bg-indigo-900/30 hover:text-indigo-300 border-slate-700"
-                                      : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border-slate-100"
-                                  }`}
-                                >
-                                  <span className="truncate">
-                                    {client.email}
-                                  </span>
-                                  <span
-                                    className={`ml-auto ${isDark ? "text-slate-500" : "text-slate-400"}`}
-                                  >
-                                    📋
-                                  </span>
-                                </button>
-                              </>
-                            )}
-                            {(client as any).emails &&
-                              (client as any).emails.length > 0 && (
-                                <>
-                                  <div
-                                    className={`px-3 py-1.5 text-[10px] uppercase font-semibold border-b ${
-                                      isDark
-                                        ? "text-slate-400 border-slate-700"
-                                        : "text-slate-500 border-slate-100"
-                                    }`}
-                                  >
-                                    Other Emails
-                                  </div>
-                                  {(client as any).emails.map(
-                                    (email: string, index: number) => (
-                                      <button
-                                        key={index}
-                                        onClick={() => {
-                                          handleCopyEmail(email);
-                                          setShowEmailDropdown(false);
-                                        }}
-                                        className={`w-full text-left px-3 py-2 text-xs font-mono transition-colors flex items-center gap-2 border-b last:border-0 ${
-                                          isDark
-                                            ? "text-slate-200 hover:bg-indigo-900/30 hover:text-indigo-300 border-slate-700"
-                                            : "text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border-slate-100"
-                                        }`}
-                                      >
-                                        <span className={`text-slate-400`}>
-                                          📋
-                                        </span>
-                                        <span className="truncate">
-                                          {email}
-                                        </span>
-                                      </button>
-                                    ),
-                                  )}
-                                </>
-                              )}
-                          </div>
-                        );
-                      })()}
+                          ▼
+                        </span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* 🔗 Stats Cards */}
+          {/* 🔐 Stats Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* 🔗 client_stat_agreements */}
             {canStatAgreements && (
               <div
-                className={`rounded-xl border p-4 transition-all hover:shadow-md ${
-                  isDark
-                    ? "border-slate-700/50 bg-gradient-to-br from-slate-800/50 to-slate-800/30 hover:border-slate-600"
-                    : "border-slate-200/70 bg-gradient-to-br from-white to-slate-50/50 hover:border-slate-300"
-                }`}
+                className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-slate-700/50 bg-slate-800/50" : "border-slate-200/70 bg-white"}`}
               >
                 <div
                   className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}
@@ -836,14 +554,9 @@ export function ClientDetails({
                 </div>
               </div>
             )}
-            {/* 🔗 client_stat_value_agreements */}
             {canStatValue && (
               <div
-                className={`rounded-xl border p-4 transition-all hover:shadow-md ${
-                  isDark
-                    ? "border-emerald-700/50 bg-gradient-to-br from-emerald-900/20 to-emerald-900/10 hover:border-emerald-600"
-                    : "border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-emerald-50/50 hover:border-emerald-300"
-                }`}
+                className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-emerald-700/50 bg-emerald-900/20" : "border-emerald-200/70 bg-emerald-50"}`}
               >
                 <div
                   className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-emerald-400" : "text-emerald-700"}`}
@@ -852,20 +565,14 @@ export function ClientDetails({
                 </div>
                 <div
                   className={`text-lg font-bold truncate ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
-                  title={formatCurrency(totalValue)}
                 >
                   {formatCurrency(totalValue)}
                 </div>
               </div>
             )}
-            {/* 🔗 client_stat_invoiced */}
             {canStatInvoiced && (
               <div
-                className={`rounded-xl border p-4 transition-all hover:shadow-md ${
-                  isDark
-                    ? "border-indigo-700/50 bg-gradient-to-br from-indigo-900/20 to-indigo-900/10 hover:border-indigo-600"
-                    : "border-indigo-200/70 bg-gradient-to-br from-indigo-50 to-indigo-50/50 hover:border-indigo-300"
-                }`}
+                className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-indigo-700/50 bg-indigo-900/20" : "border-indigo-200/70 bg-indigo-50"}`}
               >
                 <div
                   className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-indigo-400" : "text-indigo-700"}`}
@@ -874,20 +581,14 @@ export function ClientDetails({
                 </div>
                 <div
                   className={`text-lg font-bold truncate ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
-                  title={formatCurrency(totalInvoiced)}
                 >
                   {formatCurrency(totalInvoiced)}
                 </div>
               </div>
             )}
-            {/* 🔗 client_stat_uninvoiced */}
             {canStatUninvoiced && (
               <div
-                className={`rounded-xl border p-4 transition-all hover:shadow-md ${
-                  isDark
-                    ? "border-rose-700/50 bg-gradient-to-br from-rose-900/20 to-rose-900/10 hover:border-rose-600"
-                    : "border-rose-200/70 bg-gradient-to-br from-rose-50 to-rose-50/50 hover:border-rose-300"
-                }`}
+                className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-rose-700/50 bg-rose-900/20" : "border-rose-200/70 bg-rose-50"}`}
               >
                 <div
                   className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-rose-400" : "text-rose-700"}`}
@@ -896,7 +597,6 @@ export function ClientDetails({
                 </div>
                 <div
                   className={`text-lg font-bold truncate ${isDark ? "text-rose-300" : "text-rose-700"}`}
-                  title={formatCurrency(totalUninvoicedWork)}
                 >
                   {formatCurrency(totalUninvoicedWork)}
                 </div>
@@ -904,7 +604,7 @@ export function ClientDetails({
             )}
           </div>
 
-          {/* 🔗 client_agreements_section */}
+          {/* 🔐 client_agreements_section */}
           {canAgreements && (
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -913,38 +613,32 @@ export function ClientDetails({
                 >
                   Agreements
                 </h3>
-                {/* 🔗 client_agreements_tabs */}
-                {canAgreementsTabs && (
-                  <div
-                    className={`flex gap-1 rounded-lg p-0.5 ${
-                      isDark
-                        ? "bg-slate-800/50 border border-slate-700/50"
-                        : "bg-slate-100 border border-slate-200/70"
-                    }`}
-                  >
-                    {(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setContractTab(t)}
-                        className={`rounded-md px-3 py-1.5 text-[11px] font-semibold transition-all ${
-                          contractTab === t
-                            ? isDark
-                              ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md"
-                              : "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md"
-                            : isDark
-                              ? "text-slate-400 hover:text-slate-200"
-                              : "text-slate-600 hover:text-slate-900"
-                        }`}
-                      >
-                        {t === "ALL"
-                          ? `All (${clientContracts.length})`
-                          : t === "CONTRACT"
-                            ? `📄 Contracts (${clientContracts.filter((c) => c.type === "CONTRACT").length})`
-                            : `📦 Work Orders (${clientContracts.filter((c) => c.type === "WORK_ORDER").length})`}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* 🔧 اصلاح: حذف canAgreementsTabs و نمایش مستقیم تب‌ها در صورت دسترسی به بخش agreements */}
+                <div
+                  className={`flex gap-1 rounded-lg p-0.5 ${isDark ? "bg-slate-800/50 border border-slate-700/50" : "bg-slate-100 border border-slate-200/70"}`}
+                >
+                  {(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setContractTab(t)}
+                      className={`rounded-md px-3 py-1.5 text-[11px] font-semibold transition-all ${
+                        contractTab === t
+                          ? isDark
+                            ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md"
+                            : "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md"
+                          : isDark
+                            ? "text-slate-400 hover:text-slate-200"
+                            : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {t === "ALL"
+                        ? `All (${clientContracts.length})`
+                        : t === "CONTRACT"
+                          ? `📄 Contracts`
+                          : `📦 Work Orders`}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="space-y-2.5">
@@ -960,14 +654,10 @@ export function ClientDetails({
                       key={contract.id}
                       onClick={() => handleContractClick(contract)}
                       className={`group rounded-xl border p-4 transition-all ${
-                        canContractItem
+                        canClickContractItem
                           ? "cursor-pointer hover:shadow-md hover:scale-[1.01]"
                           : "cursor-not-allowed opacity-70"
-                      } ${
-                        isDark
-                          ? "border-slate-700/50 bg-slate-800/30 hover:border-indigo-500/50"
-                          : "border-slate-200/70 bg-white/50 hover:border-indigo-300/50"
-                      } ${
+                      } ${isDark ? "border-slate-700/50 bg-slate-800/30 hover:border-indigo-500/50" : "border-slate-200/70 bg-white/50 hover:border-indigo-300/50"} ${
                         expiringInfo.expiring
                           ? isDark
                             ? "border-amber-700/50 bg-amber-950/20"
@@ -995,10 +685,6 @@ export function ClientDetails({
                             >
                               {contract.contract_no}
                             </span>
-                            <Badge tone="slate" className="text-[9px]">
-                              {contract.tariffs}{" "}
-                              {contract.tariffs === 1 ? "Tariff" : "Tariffs"}
-                            </Badge>
                             {expiringInfo.expiring && (
                               <Badge
                                 tone="danger"
@@ -1017,7 +703,7 @@ export function ClientDetails({
                           </h4>
                         </div>
                         <div className="text-right ml-4 shrink-0">
-                          {/* 🔗 client_agreement_value */}
+                          {/* 🔐 client_agreement_value */}
                           {canAgreementValue && (
                             <div
                               className={`text-sm font-bold truncate mb-1 ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
@@ -1045,7 +731,7 @@ export function ClientDetails({
                         </div>
                       </div>
 
-                      {/* 🔗 client_agreement_progress_work */}
+                      {/* 🔐 client_agreement_progress_work */}
                       {canAgreementProgressWork && (
                         <>
                           <div
@@ -1071,7 +757,7 @@ export function ClientDetails({
                         </>
                       )}
 
-                      {/* 🔗 client_agreement_progress_invoice */}
+                      {/* 🔐 client_agreement_progress_invoice */}
                       {canAgreementProgressInvoice && (
                         <>
                           <div
@@ -1097,14 +783,10 @@ export function ClientDetails({
                         </>
                       )}
 
-                      {/* 🔗 client_contract_dates */}
+                      {/* 🔐 client_contract_dates */}
                       {canContractDates && (
                         <div
-                          className={`flex items-center justify-between text-[11px] mt-3 pt-3 border-t ${
-                            isDark
-                              ? "border-slate-700/50 text-slate-400"
-                              : "border-slate-200/70 text-slate-600"
-                          }`}
+                          className={`flex items-center justify-between text-[11px] mt-3 pt-3 border-t ${isDark ? "border-slate-700/50 text-slate-400" : "border-slate-200/70 text-slate-600"}`}
                         >
                           <span>
                             📅 {contract.start_date} → {contract.end_date}

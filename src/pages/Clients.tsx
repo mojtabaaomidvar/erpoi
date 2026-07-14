@@ -1,6 +1,6 @@
 // src/pages/Clients.tsx
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { exportToExcel } from "@shared/lib/exportToExcel";
 import { showToast } from "@shared/ui/ToastContainer";
@@ -13,10 +13,13 @@ import { ClientDetails } from "@features/client-management/ui/ClientDetails";
 import { ClientForm } from "@features/client-management/ui/ClientForm";
 import { ContractDetailsModal } from "@features/client-management/ui/ContractDetailsModal";
 import { ClientEditModal } from "@features/client-management/ui/ClientEditModal";
-import type { Client, Contract, TariffLine } from "@entities/contract/types";
+import type { Client, Contract } from "@entities/contract/types";
+import { departmentService } from "@shared/authorization/services/DepartmentService";
 
 export function Clients() {
   const { isDark } = useTheme();
+
+  const [departments, setDepartments] = useState<any[]>([]);
 
   const {
     clients,
@@ -45,6 +48,18 @@ export function Clients() {
     contractTariffs,
     currentDepartment,
   } = useClients();
+
+  useEffect(() => {
+    const loadDepartments = async () => {
+      try {
+        const depts = await departmentService.getAll();
+        setDepartments(depts);
+      } catch (error) {
+        console.error("Failed to load departments:", error);
+      }
+    };
+    loadDepartments();
+  }, []);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -237,6 +252,7 @@ export function Clients() {
           onSave={handleAddSave}
           clients={clients}
           currentDepartment={currentDepartment}
+          departments={departments}
           mode="add"
         />
 

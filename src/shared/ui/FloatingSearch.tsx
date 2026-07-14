@@ -38,7 +38,7 @@ export function FloatingSearch({
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setPosition({
-        top: rect.bottom + 8,
+        top: rect.bottom + 4,
         right: window.innerWidth - rect.right,
       });
     }
@@ -145,19 +145,10 @@ export function FloatingSearch({
               : "bg-white/98 border-slate-200/80 shadow-slate-400/40"
           }`}
         >
-          {/* Gradient Top Border */}
-          <div
-            className={`h-1 ${
-              isDark
-                ? "bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500"
-                : "bg-gradient-to-r from-indigo-400 via-violet-400 to-pink-400"
-            }`}
-          />
-
           {/* Input */}
           <div className="relative p-4">
             <div
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-all ${
+              className={`flex items-center gap-2 rounded-xl px-3 py-2.5 border transition-all ${
                 isDark
                   ? "bg-slate-800/50 border-slate-700/50 focus-within:border-indigo-500/50 focus-within:bg-slate-800"
                   : "bg-slate-50/70 border-slate-200/70 focus-within:border-indigo-400 focus-within:bg-white"
@@ -195,56 +186,7 @@ export function FloatingSearch({
                 </button>
               )}
             </div>
-
-            {/* Hint */}
-            <div
-              className={`mt-3 flex items-center justify-between text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}
-            >
-              <div className="flex items-center gap-1">
-                Press{" "}
-                <kbd
-                  className={`px-1.5 py-0.5 rounded ${
-                    isDark
-                      ? "bg-slate-800 text-slate-300 border border-slate-700"
-                      : "bg-slate-100 text-slate-700 border border-slate-200"
-                  }`}
-                >
-                  ESC
-                </kbd>{" "}
-                to {localValue ? "clear" : "close"}
-              </div>
-              {localValue && (
-                <span
-                  className={`font-semibold ${isDark ? "text-indigo-400" : "text-indigo-600"}`}
-                >
-                  {localValue.length} chars
-                </span>
-              )}
-            </div>
           </div>
-
-          {/* Active Filter Indicator */}
-          {localValue && (
-            <div
-              className={`px-4 py-2.5 border-t flex items-center gap-2 ${
-                isDark
-                  ? "border-slate-700/50 bg-gradient-to-r from-indigo-900/30 to-violet-900/30"
-                  : "border-slate-200/70 bg-gradient-to-r from-indigo-50 to-violet-50"
-              }`}
-            >
-              <span className="text-sm">🔎</span>
-              <span
-                className={`text-xs ${isDark ? "text-slate-300" : "text-slate-700"}`}
-              >
-                Searching for:
-              </span>
-              <strong
-                className={`text-xs ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
-              >
-                {localValue}
-              </strong>
-            </div>
-          )}
         </div>
       </div>,
       document.body,

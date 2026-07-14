@@ -1,4 +1,4 @@
-// src/shared/authorization/index.ts
+﻿// src/shared/authorization/index.ts
 
 export type {
   User,
@@ -18,10 +18,10 @@ export {
   hasPermission,
   hasAnyPermission,
   hasAllPermissions,
-} from "./roles";
-export { ENTITIES, ENTITY_GROUPS } from "./permissions";
+} from "./constants/roles";
+export { ENTITIES, ENTITY_GROUPS } from "./constants/permissions";
 
-export type { EntityType as PermissionEntityType } from "./permissions";
+export type { EntityType as PermissionEntityType } from "./constants/permissions";
 
 export { usePermission } from "./hooks/usePermission";
 export { usePermissionMapping } from "./hooks/usePermissionMapping";
@@ -31,7 +31,7 @@ export {
   AdminOnly,
   ManagerOrAbove,
   InspectorOnly,
-} from "./components/RoleGuard";
-export { PermissionGuard } from "./ui/PermissionGuard";
+} from "./ui/guards/RoleGuard";
+export { PermissionGuard } from "./ui/guards/PermissionGuard";
 
 export { userService } from "./services/UserService";

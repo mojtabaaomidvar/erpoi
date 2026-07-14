@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Button, Modal } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { usePermission } from "@shared/authorization/hooks/usePermission";
 import { showToast } from "@shared/ui/ToastContainer";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
 import { ClientSelectorModal } from "@entities/client/ui/ClientSelectorModal";
@@ -23,7 +22,6 @@ import {
   parseNumberInput,
   getNextJalaaliYearStart,
 } from "@entities/contract/services/contractCalculations";
-import * as jalaali from "jalaali-js";
 
 interface ContractAddFormProps {
   isOpen: boolean;
@@ -49,10 +47,7 @@ export function ContractAddForm({
 }: ContractAddFormProps) {
   const { isDark } = useTheme();
 
-  // 🔐 RBAC: چک کردن permission
-  const { can } = usePermission();
-
-  // 🔧 NEW: Loading state
+  // Loading state
   const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -181,7 +176,7 @@ export function ContractAddForm({
     return Object.keys(newErrors).length === 0;
   };
 
-  // 🔧 FIX: handleSave با loading state و error handling
+  // handleSave با loading state و error handling
   const handleSave = async () => {
     if (!validateForm()) return;
 

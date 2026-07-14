@@ -14,6 +14,8 @@ export interface User {
   department?: string;
   avatar?: string;
   customPermissions?: string[];
+  basePermissions?: string[];
+  effectivePermissions?: string[];
 }
 
 export interface AuthSession {
@@ -24,11 +26,10 @@ export interface AuthSession {
   createdAt: Date;
 }
 
-
-export type AuthError = 
-  | 'INVALID_CREDENTIALS'
-  | 'ACCOUNT_DISABLED'
-  | 'ACCOUNT_LOCKED'
-  | 'SESSION_EXPIRED'
-  | 'NETWORK_ERROR'
-  | 'UNKNOWN_ERROR';
+export type AuthError =
+  | "INVALID_CREDENTIALS"
+  | "ACCOUNT_DISABLED"
+  | "ACCOUNT_LOCKED"
+  | "SESSION_EXPIRED"
+  | "NETWORK_ERROR"
+  | "UNKNOWN_ERROR";

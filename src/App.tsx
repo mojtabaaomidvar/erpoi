@@ -18,6 +18,7 @@ import { LoginPage } from "@features/auth/ui/LoginPage";
 import { ConfirmDialogProvider } from "@shared/ui/ConfirmDialog";
 import { ToastProvider } from "@shared/ui/ToastContainer";
 import { amendmentService } from "@features/contract-management/services/AmendmentService";
+import { DebugPermission } from "@shared/authorization/ui/DebugPermission";
 
 const meta: Record<ViewKey, { title: string; subtitle: string }> = {
   dashboard: {
@@ -143,6 +144,7 @@ function AppContent() {
 export default function App() {
   return (
     <ThemeProvider>
+      <DebugPermission />
       <ToastProvider>
         <ConfirmDialogProvider>
           <AppContent />
