@@ -68,6 +68,7 @@ export const elementDependencies: Record<string, string[]> = {
   ],
   client_progress_time: ["client_agreements_section", "client_contract_dates"],
   client_reminder_section: ["client_agreements_section"],
+  client_tariffs_section: ["client_agreements_section"],
   client_tariff_col_performed: [
     "client_agreements_section",
     "client_tariffs_section",
