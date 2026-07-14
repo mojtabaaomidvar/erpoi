@@ -121,7 +121,7 @@ export const elementDependencies: Record<string, string[]> = {
   contract_reminder_section: ["contract_info_section"],
 
   // 🔹 ContractDetails - Tariffs
-  contract_table_tariffs: ["contract_info_section"],
+  contract_tariffs_section: ["contract_info_section"],
 
   // ═══════════════════════════════════════
   // 💵 Invoice Dependencies
