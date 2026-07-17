@@ -37,8 +37,6 @@ export function ContractAmendmentForm({
   onSuccess,
 }: ContractAmendmentFormProps) {
   const { isDark } = useTheme();
-  const { can } = usePermission();
-  const canUpdate = can("contract:update");
   const { user } = useAuth();
 
   const [isSaving, setIsSaving] = useState(false);
@@ -65,18 +63,6 @@ export function ContractAmendmentForm({
       new_rate: number;
     }>
   >([]);
-
-  // 🔐 RBAC
-  useEffect(() => {
-    if (isOpen && !canUpdate) {
-      showToast(
-        "error",
-        "Access Denied",
-        "You do not have permission to amend contracts",
-      );
-      onClose();
-    }
-  }, [isOpen, canUpdate, onClose]);
 
   // 🔧 Initialize tariff adjustments
   useEffect(() => {
@@ -193,15 +179,6 @@ export function ContractAmendmentForm({
   //  Background Upload
 
   const handleSave = async () => {
-    if (!canUpdate) {
-      showToast(
-        "error",
-        "Access Denied",
-        "You do not have permission to amend contracts",
-      );
-      return;
-    }
-
     if (!isFormValid) {
       showToast(
         "error",
@@ -350,10 +327,6 @@ export function ContractAmendmentForm({
       setIsSaving(false);
     }
   };
-
-  if (!canUpdate) {
-    return null;
-  }
 
   return (
     <Modal

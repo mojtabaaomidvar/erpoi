@@ -1,10 +1,9 @@
 // src/shared/authorization/uiElements/registry.ts
 
-import type { UIElement, ModuleUIElements, UIElementAction } from "./types";
+import type { UIElement, ModuleUIElements } from "./types";
 
 /**
  * 🎯 تبدیل plural به singular
- * مثال: 'clients' → 'client', 'contracts' → 'contract'
  */
 function toSingular(module: string): string {
   // قواعد ساده
@@ -15,7 +14,7 @@ function toSingular(module: string): string {
     return module.slice(0, -2); // classes → class
   }
   if (module.endsWith("s") && !module.endsWith("ss")) {
-    return module.slice(0, -1); // clients → client
+    return module.slice(0, -1);
   }
   return module;
 }
@@ -38,16 +37,8 @@ class UIElementRegistry {
    * 📝 ثبت UI Elements یک ماژول
    */
   register(module: string, elements: UIElement[]): void {
-    // 🔧 FIX: تبدیل module به singular
     const singularModule = toSingular(module);
 
-    if (this.modules.has(singularModule)) {
-      console.warn(
-        `[UIElementRegistry] Module "${singularModule}" already registered. Merging...`,
-      );
-    }
-
-    // 🔧 FIX: اضافه کردن prefix با singular module و اطمینان از وجود فیلدهای جدید
     const prefixedElements = elements.map((el) => {
       const prefixedId = el.id.startsWith(`${singularModule}_`)
         ? el.id
@@ -56,8 +47,8 @@ class UIElementRegistry {
       return {
         ...el,
         id: prefixedId,
-        module: singularModule, // 🔧 FIX: singular module
-        // 🔧 NEW: مقداردهی پیش‌فرض برای فیلدهای جدید اگر وجود نداشته باشند
+        entity: singularModule,
+        module: el.module || singularModule,
         actions: el.actions || (el.action ? [el.action] : ["view"]),
         sensitive: el.sensitive || false,
       };

@@ -126,34 +126,21 @@ export function useContracts() {
   );
 
   const accessibleContracts = useMemo(() => {
-    if (canViewAllContracts) {
-      return contracts;
-    }
-
-    if (canViewOwnContracts || canRead) {
-      if (!userDepartmentId) {
-        return [];
+    // فیلتر کردن بر اساس دپارتمان کاربر و وضعیت Draft
+    return contracts.filter((contract) => {
+      // ۱. قرارداد باید متعلق به دپارتمان فعلی کاربر باشد
+      if (contract.department !== userDepartmentId) {
+        return false;
       }
 
-      const filtered = contracts.filter((contract) => {
-        const client = clients.find((c) => c.id === contract.client_id);
-        if (!client) return false;
-        const clientDepartments = client.departments || [];
-        return clientDepartments.includes(userDepartmentId);
-      });
+      // ۲. اگر قرارداد Draft است، فقط سازنده آن (خود کاربر) باید آن را ببیند
+      if (contract.status === "DRAFT" && contract.created_by !== user?.id) {
+        return false;
+      }
 
-      return filtered;
-    }
-
-    return [];
-  }, [
-    contracts,
-    clients,
-    canViewAllContracts,
-    canViewOwnContracts,
-    canRead,
-    userDepartmentId,
-  ]);
+      return true;
+    });
+  }, [contracts, userDepartmentId, user?.id]);
 
   const accessibleTariffs = useMemo(() => {
     const accessibleContractIds = accessibleContracts.map((c) => c.id);

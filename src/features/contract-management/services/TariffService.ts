@@ -8,8 +8,10 @@ export interface TariffLine {
   description: string;
   unit: string;
   rate: number;
+  currency: string;
   consumed_quantity: number;
   invoiced: number;
+  is_lump_sum?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -85,7 +87,6 @@ class TariffService {
       .single();
 
     if (error) {
-      console.error("[TariffService] Failed to create tariff:", error);
       throw new Error(error.message);
     }
 

@@ -1,10 +1,8 @@
 // src/features/contract-management/ui/ContractDetails.tsx
 
-import * as jalaali from "jalaali-js";
 import { useState, useMemo, useEffect } from "react";
 import { Button, Badge, Card } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { usePermission } from "@shared/authorization/hooks/usePermission";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import type {
   Client,
@@ -24,19 +22,15 @@ import {
   isExpiringSoon,
   getProgressColor,
   getProgressTextClass,
-  getProgressTextColor,
   jalaaliToGregorianDate,
 } from "@entities/contract/services/contractCalculations";
-import { contractPermissionGroups } from "../elements";
 import { amendmentService } from "../services/AmendmentService";
 import { ContractAmendmentForm } from "./ContractAmendmentForm";
 import { useAuth } from "@features/auth/hooks/useAuth";
-import { showToast } from "@shared/ui/ToastContainer";
 import { AnimatedCollapse } from "@shared/ui/AnimatedCollapse";
 import { ContractDocumentsModal } from "./ContractDocumentsModal";
 import { ApprovalModal } from "./ApprovalModal";
 import { useEvent, EVENT_TYPES } from "@infra/events";
-import type { DomainEvent } from "@infra/events";
 
 interface ContractDocument {
   id: string;
@@ -54,7 +48,6 @@ interface ContractDetailsProps {
   onEdit: () => void;
   onRequestComplete: (contract: Contract) => void;
   onViewClientContracts?: (clientId: string) => void;
-  userRole: string;
   loading?: boolean;
   contractTariffs?: TariffLine[];
   clients?: Client[];
@@ -71,44 +64,46 @@ export function ContractDetails({
   clients = [],
 }: ContractDetailsProps) {
   const { isDark } = useTheme();
-  const { can } = usePermission();
   const { user } = useAuth();
   const { canAccessElement } = usePermissionMapping();
+
   const isUnitManager = user?.role === "unit_manager" || user?.role === "admin";
 
-  const canUpdate = can("contract:update");
-  const canViewFinancial = contractPermissionGroups.financial.some(
-    (elementId: string) => canAccessElement(elementId),
-  );
-
-  // 🔐 Element-Level Access
+  // 🔐 تعریف دسترسی‌ها دقیقاً بر اساس contractElements
   const canBtnEdit = canAccessElement("contract_btn_edit");
+  const canBtnAmend = canAccessElement("contract_btn_amend");
   const canBtnApprove = canAccessElement("contract_btn_approve");
-  const canInfoSection = canAccessElement("contract_info_section");
+  const canBtnDoc = canAccessElement("contract_btn_doc");
+
+  const canInfoSection = canAccessElement("contract_list_item_click");
   const canInfoStartDate = canAccessElement("contract_info_start_date");
   const canInfoEndDate = canAccessElement("contract_info_end_date");
+
   const canStatTotalValue = canAccessElement("contract_stat_total_value");
   const canStatPerformedWork = canAccessElement("contract_stat_performed_work");
   const canStatInvoiced = canAccessElement("contract_stat_invoiced");
   const canStatNotInvoiced = canAccessElement("contract_stat_not_invoiced");
+
   const canProgressWork = canAccessElement("contract_progress_work");
   const canProgressInvoice = canAccessElement("contract_progress_invoice");
   const canProgressTime = canAccessElement("contract_progress_time");
+
   const canReminderSection = canAccessElement("contract_reminder_section");
   const canTableTariffs = canAccessElement("contract_table_tariffs");
+
+  // 🔧 دسترسی مالی کلی (اگر کاربر به یکی از آمارهای مالی دسترسی داشته باشد)
+  const canViewFinancial = canStatTotalValue;
 
   const [isAmendmentModalOpen, setIsAmendmentModalOpen] = useState(false);
   const [amendments, setAmendments] = useState<ContractAmendment[]>([]);
   const [isLoadingAmendments, setIsLoadingAmendments] = useState(false);
   const [isArchivedCollapsed, setIsArchivedCollapsed] = useState(true);
   const [isFutureCollapsed, setIsFutureCollapsed] = useState(true);
-  const [activeDocumentTab, setActiveDocumentTab] = useState<
-    "documents" | "amendments" | "all"
-  >("documents");
   const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [pendingAmendment, setPendingAmendment] =
     useState<ContractAmendment | null>(null);
+
   const pendingAmendments = useMemo(() => {
     return amendments.filter((a) => a.approval_status === "PENDING");
   }, [amendments]);
@@ -117,20 +112,16 @@ export function ContractDetails({
   const getClientName = useMemo(() => {
     if (!contract) return "";
     if (contract.client_name) return contract.client_name;
-
-    // Fallback: از clients array پیدا کن
     const client = clients.find((c) => c.id === contract.client_id);
     return client?.name_en || client?.name_fa || "—";
   }, [contract, clients]);
 
   const selectedTariffs = useMemo(() => {
     if (!contract) return [];
-
     const allTariffs =
       contract.tariffLines && contract.tariffLines.length > 0
         ? contract.tariffLines
         : contractTariffs.filter((t) => t.contract_id === contract.id);
-
     return allTariffs;
   }, [contract, contractTariffs]);
 
@@ -168,15 +159,11 @@ export function ContractDetails({
 
   const archivedTariffsByVersion = useMemo(() => {
     const grouped = new Map<number, TariffLine[]>();
-
     archivedTariffs.forEach((tariff) => {
       const version = tariff.version || 1;
-      if (!grouped.has(version)) {
-        grouped.set(version, []);
-      }
+      if (!grouped.has(version)) grouped.set(version, []);
       grouped.get(version)!.push(tariff);
     });
-
     return Array.from(grouped.entries())
       .sort((a, b) => b[0] - a[0])
       .map(([version, tariffs]) => ({ version, tariffs }));
@@ -184,15 +171,11 @@ export function ContractDetails({
 
   const futureTariffsByVersion = useMemo(() => {
     const grouped = new Map<number, TariffLine[]>();
-
     futureTariffs.forEach((tariff) => {
       const version = tariff.version || 1;
-      if (!grouped.has(version)) {
-        grouped.set(version, []);
-      }
+      if (!grouped.has(version)) grouped.set(version, []);
       grouped.get(version)!.push(tariff);
     });
-
     return Array.from(grouped.entries())
       .sort((a, b) => a[0] - b[0])
       .map(([version, tariffs]) => ({ version, tariffs }));
@@ -224,28 +207,12 @@ export function ContractDetails({
   // Load amendments
   const loadAmendments = async () => {
     if (!contract) return;
-
-    console.log(
-      "[ContractDetails] 🔄 Fetching amendments for contract_id:",
-      contract.id,
-    );
     setIsLoadingAmendments(true);
-
     try {
       const data = await amendmentService.getByContractId(contract.id);
-      console.log("[ContractDetails] ✅ Amendments loaded:", {
-        count: data.length,
-        amendments: data.map((a) => ({
-          id: a.id,
-          contract_id: a.contract_id,
-          amendment_no: a.amendment_no,
-          types: a.amendment_types,
-          status: a.approval_status,
-        })),
-      });
       setAmendments(data);
     } catch (error) {
-      console.error("[ContractDetails] ❌ Failed to load amendments:", error);
+      console.error("[ContractDetails] Failed to load amendments:", error);
       setAmendments([]);
     } finally {
       setIsLoadingAmendments(false);
@@ -254,59 +221,41 @@ export function ContractDetails({
 
   useEvent<{ contractId: string; amendmentId: string }>(
     EVENT_TYPES.AMENDMENT_CREATED,
-    (event: DomainEvent<{ contractId: string; amendmentId: string }>) => {
-      if (event.payload.contractId === contract?.id) {
-        console.log("[ContractDetails] Amendment created for this contract");
-        loadAmendments();
-      }
+    (event) => {
+      if (event.payload.contractId === contract?.id) loadAmendments();
     },
   );
-
   useEvent<{ contractId: string; amendmentId: string }>(
     EVENT_TYPES.AMENDMENT_APPROVED,
-    (event: DomainEvent<{ contractId: string; amendmentId: string }>) => {
-      if (event.payload.contractId === contract?.id) {
-        console.log("[ContractDetails] Amendment approved for this contract");
-        loadAmendments();
-      }
+    (event) => {
+      if (event.payload.contractId === contract?.id) loadAmendments();
     },
   );
-
   useEvent<{ contractId: string; amendmentId: string }>(
     EVENT_TYPES.AMENDMENT_REJECTED,
-    (event: DomainEvent<{ contractId: string; amendmentId: string }>) => {
-      if (event.payload.contractId === contract?.id) {
-        console.log("[ContractDetails] Amendment rejected for this contract");
-        loadAmendments();
-      }
+    (event) => {
+      if (event.payload.contractId === contract?.id) loadAmendments();
     },
   );
 
   useEffect(() => {
-    if (contract) {
-      loadAmendments();
-    } else {
-      setAmendments([]);
-    }
+    if (contract) loadAmendments();
+    else setAmendments([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contract?.id]);
 
-  // Handle amendment success
   const handleAmendmentSuccess = () => {
     loadAmendments();
   };
 
-  //  استخراج مدارک
+  // استخراج مدارک
   const documents = useMemo((): ContractDocument[] => {
     if (!contract) return [];
-
     const docs: ContractDocument[] = [];
-
     if (contract.source_file) {
       const files = Array.isArray(contract.source_file)
         ? contract.source_file
         : [contract.source_file];
-
       files.forEach((file, index) => {
         docs.push({
           id: `doc_contract_${contract.id}_${index}`,
@@ -320,12 +269,10 @@ export function ContractDetails({
         });
       });
     }
-
     if (contract.source_letter_image) {
       const files = Array.isArray(contract.source_letter_image)
         ? contract.source_letter_image
         : [contract.source_letter_image];
-
       files.forEach((file, index) => {
         docs.push({
           id: `doc_letter_${contract.id}_${index}`,
@@ -339,12 +286,9 @@ export function ContractDetails({
         });
       });
     }
-
-    // فقط amendments تایید شده
     const approvedAmendments = amendments.filter(
       (a) => a.approval_status === "APPROVED",
     );
-
     approvedAmendments.forEach((amendment) => {
       if (amendment.attachment_urls && amendment.attachment_urls.length > 0) {
         amendment.attachment_urls.forEach((url, index) => {
@@ -361,27 +305,20 @@ export function ContractDetails({
         });
       }
     });
-
     return docs;
   }, [contract, amendments]);
 
   // Empty State
   if (!contract) {
-    if (loading) {
+    if (loading)
       return (
         <div className="flex-1 flex items-center justify-center">
           Loading...
         </div>
       );
-    }
-
     return (
       <div
-        className={`flex-1 flex items-center justify-center relative overflow-hidden min-h-[600px] ${
-          isDark
-            ? "bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950/30"
-            : "bg-gradient-to-br from-slate-50 via-white to-indigo-50/30"
-        }`}
+        className={`flex-1 flex items-center justify-center relative overflow-hidden min-h-[600px] ${isDark ? "bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950/30" : "bg-gradient-to-br from-slate-50 via-white to-indigo-50/30"}`}
       >
         <div
           className="absolute inset-0 opacity-[0.03]"
@@ -393,11 +330,7 @@ export function ContractDetails({
           <div className="relative inline-block mb-8">
             <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 blur-2xl opacity-40 animate-pulse" />
             <div
-              className={`relative inline-flex items-center justify-center w-44 h-44 rounded-full shadow-2xl shadow-indigo-500/30 border-4 ${
-                isDark
-                  ? "bg-slate-800 border-slate-700"
-                  : "bg-white border-white"
-              }`}
+              className={`relative inline-flex items-center justify-center w-44 h-44 rounded-full shadow-2xl shadow-indigo-500/30 border-4 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-white"}`}
             >
               <img
                 src="/images/logo.png"
@@ -417,45 +350,6 @@ export function ContractDetails({
             Select a contract from the list to view details, tariffs, and
             progress information
           </p>
-
-          <div className="flex items-center justify-center gap-6 mt-8">
-            <div className="flex flex-col items-center gap-2">
-              <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-indigo-900/50" : "bg-indigo-100"}`}
-              >
-                📄
-              </div>
-              <span
-                className={`text-xs font-medium ${isDark ? "text-secondary" : "text-slate-500"}`}
-              >
-                Contracts
-              </span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-emerald-900/50" : "bg-emerald-100"}`}
-              >
-                📊
-              </div>
-              <span
-                className={`text-xs font-medium ${isDark ? "text-secondary" : "text-slate-500"}`}
-              >
-                Tariffs
-              </span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isDark ? "bg-amber-900/50" : "bg-amber-100"}`}
-              >
-                📈
-              </div>
-              <span
-                className={`text-xs font-medium ${isDark ? "text-secondary" : "text-slate-500"}`}
-              >
-                Progress
-              </span>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -483,13 +377,8 @@ export function ContractDetails({
       {/* 🔹 HEADER */}
       {/* ═══════════════════════════════════════ */}
       <div
-        className={`relative px-6 py-4 border-b ${
-          isDark
-            ? "border-slate-700/50 bg-gradient-to-r from-indigo-900/30 via-slate-900 to-violet-900/30"
-            : "border-slate-200/70 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50"
-        }`}
+        className={`relative px-6 py-4 border-b ${isDark ? "border-slate-700/50 bg-gradient-to-r from-indigo-900/30 via-slate-900 to-violet-900/30" : "border-slate-200/70 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50"}`}
       >
-        {/* Row 1: Title + Close */}
         <div className="relative flex items-center justify-between gap-4 mb-3">
           <h2
             className={`text-xs font-semibold uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-600"}`}
@@ -500,32 +389,19 @@ export function ContractDetails({
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className={`transition-colors ${
-              isDark
-                ? "text-slate-400 hover:text-rose-400 hover:bg-rose-900/30"
-                : "text-slate-500 hover:text-rose-600 hover:bg-rose-50"
-            }`}
+            className={`transition-colors ${isDark ? "text-slate-400 hover:text-rose-400 hover:bg-rose-900/30" : "text-slate-500 hover:text-rose-600 hover:bg-rose-50"}`}
           >
             ✕ Close Panel
           </Button>
         </div>
 
-        {/* 🔧 FIX: Row 2 - ساختار دو ستونه */}
         <div className="grid grid-cols-[1fr_auto] gap-4 items-start">
-          {/* 🔧 ستون چپ: اطلاعات قرارداد */}
           <div className="flex items-start gap-4 min-w-0">
-            {/* آیکون */}
             <div
-              className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-lg flex-shrink-0 ${
-                isDark
-                  ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-indigo-500/30"
-                  : "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-indigo-500/20"
-              }`}
+              className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-lg flex-shrink-0 ${isDark ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-indigo-500/30" : "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-indigo-500/20"}`}
             >
               📄
             </div>
-
-            {/* 🔧 اطلاعات با max-width */}
             <div className="min-w-0 flex-1">
               <h3
                 className={`text-xl font-bold truncate max-w-full ${isDark ? "text-slate-100" : "text-slate-900"}`}
@@ -539,7 +415,6 @@ export function ContractDetails({
               >
                 {contract.contract_no}
               </p>
-
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <Badge
                   tone={contract.type === "CONTRACT" ? "indigo" : "amber"}
@@ -549,7 +424,6 @@ export function ContractDetails({
                     ? "📄 Contract"
                     : "📦 Work Order"}
                 </Badge>
-
                 {contract.status === "COMPLETED" ? (
                   <Badge tone="slate" className="text-[10px]">
                     ✓ Completed
@@ -575,18 +449,13 @@ export function ContractDetails({
                     )}
                   </div>
                 )}
-
                 {pendingAmendments.length > 0 && (
                   <button
                     onClick={() => {
                       setPendingAmendment(pendingAmendments[0]);
                       setIsApprovalModalOpen(true);
                     }}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all hover:scale-105 ${
-                      isDark
-                        ? "bg-amber-900/50 text-amber-300 border border-amber-700"
-                        : "bg-amber-100 text-amber-700 border border-amber-300"
-                    }`}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all hover:scale-105 ${isDark ? "bg-amber-900/50 text-amber-300 border border-amber-700" : "bg-amber-100 text-amber-700 border border-amber-300"}`}
                   >
                     <span>⏳</span>
                     <span className="text-[10px] font-semibold">
@@ -594,7 +463,6 @@ export function ContractDetails({
                     </span>
                   </button>
                 )}
-
                 {(() => {
                   const approvedCount = amendments.filter(
                     (a) => a.approval_status === "APPROVED",
@@ -609,9 +477,9 @@ export function ContractDetails({
             </div>
           </div>
 
-          {/* 🔧 ستون راست: دکمه‌ها */}
+          {/* 🔧 ستون راست: دکمه‌ها با دسترسی شرطی */}
           <div className="flex gap-2 flex-shrink-0">
-            {canUpdate && contract.status !== "COMPLETED" && (
+            {canBtnAmend && contract.status !== "COMPLETED" && (
               <Button
                 variant="outline"
                 size="md"
@@ -625,35 +493,31 @@ export function ContractDetails({
               </Button>
             )}
 
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => setIsDocumentsModalOpen(true)}
-              className="gap-2 shadow-sm transition-all hover:scale-105 whitespace-nowrap"
-            >
-              <span>📎</span> Documents
-              {(() => {
-                // 🔧 محاسبه تعداد amendments تایید شده
-                const approvedAmendmentsCount = amendments.filter(
-                  (a) => a.approval_status === "APPROVED",
-                ).length;
-                const totalCount = documents.length + approvedAmendmentsCount;
+            {canBtnDoc && (
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setIsDocumentsModalOpen(true)}
+                className="gap-2 shadow-sm transition-all hover:scale-105 whitespace-nowrap"
+              >
+                <span>📎</span> Documents
+                {(() => {
+                  const approvedAmendmentsCount = amendments.filter(
+                    (a) => a.approval_status === "APPROVED",
+                  ).length;
+                  const totalCount = documents.length + approvedAmendmentsCount;
+                  return totalCount > 0 ? (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? "bg-slate-700 text-slate-300" : "bg-slate-200 text-slate-700"}`}
+                    >
+                      {totalCount}
+                    </span>
+                  ) : null;
+                })()}
+              </Button>
+            )}
 
-                return totalCount > 0 ? (
-                  <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded ${
-                      isDark
-                        ? "bg-slate-700 text-slate-300"
-                        : "bg-slate-200 text-slate-700"
-                    }`}
-                  >
-                    {totalCount}
-                  </span>
-                ) : null;
-              })()}
-            </Button>
-
-            {canBtnEdit && isUnitManager && (
+            {canBtnEdit && (
               <Button
                 variant="outline"
                 size="md"
@@ -670,6 +534,7 @@ export function ContractDetails({
           </div>
         </div>
       </div>
+
       {/* ═══════════════════════════════════════ */}
       {/* 🔹 SCROLLABLE CONTENT */}
       {/* ═══════════════════════════════════════ */}
@@ -678,15 +543,7 @@ export function ContractDetails({
           {/* Reminder Section */}
           {canReminderSection && reminder.show && (
             <div
-              className={`rounded-xl border-2 p-4 ${
-                reminder.mode === "TBD"
-                  ? isDark
-                    ? "border-amber-600 bg-amber-950/40"
-                    : "border-amber-400 bg-amber-50"
-                  : isDark
-                    ? "border-indigo-600 bg-indigo-950/40"
-                    : "border-indigo-400 bg-indigo-50"
-              }`}
+              className={`rounded-xl border-2 p-4 ${reminder.mode === "TBD" ? (isDark ? "border-amber-600 bg-amber-950/40" : "border-amber-400 bg-amber-50") : isDark ? "border-indigo-600 bg-indigo-950/40" : "border-indigo-400 bg-indigo-50"}`}
             >
               <div className="flex items-start gap-3">
                 <div className="text-2xl">
@@ -694,28 +551,12 @@ export function ContractDetails({
                 </div>
                 <div className="flex-1">
                   <h4
-                    className={`text-sm font-bold mb-1 ${
-                      reminder.mode === "TBD"
-                        ? isDark
-                          ? "text-amber-200"
-                          : "text-amber-900"
-                        : isDark
-                          ? "text-indigo-200"
-                          : "text-indigo-900"
-                    }`}
+                    className={`text-sm font-bold mb-1 ${reminder.mode === "TBD" ? (isDark ? "text-amber-200" : "text-amber-900") : isDark ? "text-indigo-200" : "text-indigo-900"}`}
                   >
                     Price Adjustment Reminder
                   </h4>
                   <p
-                    className={`text-xs mb-2 ${
-                      reminder.mode === "TBD"
-                        ? isDark
-                          ? "text-amber-300"
-                          : "text-amber-800"
-                        : isDark
-                          ? "text-indigo-300"
-                          : "text-indigo-800"
-                    }`}
+                    className={`text-xs mb-2 ${reminder.mode === "TBD" ? (isDark ? "text-amber-300" : "text-amber-800") : isDark ? "text-indigo-300" : "text-indigo-800"}`}
                   >
                     {reminder.mode === "TBD"
                       ? `Adjustment percentage needs to be determined. Effective date: ${reminder.effectiveDate}`
@@ -729,11 +570,7 @@ export function ContractDetails({
           {/* Contract Information */}
           {canInfoSection && (
             <div
-              className={`rounded-xl border p-4 ${
-                isDark
-                  ? "border-slate-700/50 bg-slate-800/30"
-                  : "border-slate-200/70 bg-slate-50/50"
-              }`}
+              className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-slate-50/50"}`}
             >
               <h3
                 className={`text-sm font-bold mb-3 flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
@@ -822,91 +659,74 @@ export function ContractDetails({
           )}
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {canStatTotalValue && canViewFinancial && (
-              <div
-                className={`rounded-xl border p-4 transition-all hover:shadow-md ${
-                  isDark
-                    ? "border-emerald-700/50 bg-gradient-to-br from-emerald-900/20 to-emerald-900/10 hover:border-emerald-600"
-                    : "border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-emerald-50/50 hover:border-emerald-300"
-                }`}
-              >
+          {canViewFinancial && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {canStatTotalValue && (
                 <div
-                  className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-emerald-400" : "text-emerald-700"}`}
+                  className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-emerald-700/50 bg-gradient-to-br from-emerald-900/20 to-emerald-900/10 hover:border-emerald-600" : "border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-emerald-50/50 hover:border-emerald-300"}`}
                 >
-                  Total Value
+                  <div
+                    className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-emerald-400" : "text-emerald-700"}`}
+                  >
+                    Total Value
+                  </div>
+                  <div
+                    className={`text-lg font-bold truncate ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
+                  >
+                    {formatCurrency(contract.total_value, contract.currency)}
+                  </div>
                 </div>
+              )}
+              {canStatPerformedWork && (
                 <div
-                  className={`text-lg font-bold truncate ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
+                  className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-indigo-700/50 bg-gradient-to-br from-indigo-900/20 to-indigo-900/10 hover:border-indigo-600" : "border-indigo-200/70 bg-gradient-to-br from-indigo-50 to-indigo-50/50 hover:border-indigo-300"}`}
                 >
-                  {formatCurrency(contract.total_value, contract.currency)}
+                  <div
+                    className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-indigo-400" : "text-indigo-700"}`}
+                  >
+                    Performed Work
+                  </div>
+                  <div
+                    className={`text-lg font-bold truncate ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
+                  >
+                    {formatCurrency(totalPerformedWork, contract.currency)}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {canStatPerformedWork && canViewFinancial && (
-              <div
-                className={`rounded-xl border p-4 transition-all hover:shadow-md ${
-                  isDark
-                    ? "border-indigo-700/50 bg-gradient-to-br from-indigo-900/20 to-indigo-900/10 hover:border-indigo-600"
-                    : "border-indigo-200/70 bg-gradient-to-br from-indigo-50 to-indigo-50/50 hover:border-indigo-300"
-                }`}
-              >
+              )}
+              {canStatInvoiced && (
                 <div
-                  className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-indigo-400" : "text-indigo-700"}`}
+                  className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-violet-700/50 bg-gradient-to-br from-violet-900/20 to-violet-900/10 hover:border-violet-600" : "border-violet-200/70 bg-gradient-to-br from-violet-50 to-violet-50/50 hover:border-violet-300"}`}
                 >
-                  Performed Work
+                  <div
+                    className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-violet-400" : "text-violet-700"}`}
+                  >
+                    Invoiced
+                  </div>
+                  <div
+                    className={`text-lg font-bold truncate ${isDark ? "text-violet-300" : "text-violet-700"}`}
+                  >
+                    {formatCurrency(totalInvoiced)}
+                  </div>
                 </div>
+              )}
+              {canStatNotInvoiced && (
                 <div
-                  className={`text-lg font-bold truncate ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
+                  className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-rose-700/50 bg-gradient-to-br from-rose-900/20 to-rose-900/10 hover:border-rose-600" : "border-rose-200/70 bg-gradient-to-br from-rose-50 to-rose-50/50 hover:border-rose-300"}`}
                 >
-                  {formatCurrency(totalPerformedWork, contract.currency)}
+                  <div
+                    className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-rose-400" : "text-rose-700"}`}
+                  >
+                    Not Invoiced
+                  </div>
+                  <div
+                    className={`text-lg font-bold truncate ${isDark ? "text-rose-300" : "text-rose-700"}`}
+                  >
+                    {formatCurrency(totalNotInvoiced, contract.currency)}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {canStatInvoiced && canViewFinancial && (
-              <div
-                className={`rounded-xl border p-4 transition-all hover:shadow-md ${
-                  isDark
-                    ? "border-violet-700/50 bg-gradient-to-br from-violet-900/20 to-violet-900/10 hover:border-violet-600"
-                    : "border-violet-200/70 bg-gradient-to-br from-violet-50 to-violet-50/50 hover:border-violet-300"
-                }`}
-              >
-                <div
-                  className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-violet-400" : "text-violet-700"}`}
-                >
-                  Invoiced
-                </div>
-                <div
-                  className={`text-lg font-bold truncate ${isDark ? "text-violet-300" : "text-violet-700"}`}
-                >
-                  {formatCurrency(totalInvoiced)}
-                </div>
-              </div>
-            )}
-
-            {canStatNotInvoiced && canViewFinancial && (
-              <div
-                className={`rounded-xl border p-4 transition-all hover:shadow-md ${
-                  isDark
-                    ? "border-rose-700/50 bg-gradient-to-br from-rose-900/20 to-rose-900/10 hover:border-rose-600"
-                    : "border-rose-200/70 bg-gradient-to-br from-rose-50 to-rose-50/50 hover:border-rose-300"
-                }`}
-              >
-                <div
-                  className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-rose-400" : "text-rose-700"}`}
-                >
-                  Not Invoiced
-                </div>
-                <div
-                  className={`text-lg font-bold truncate ${isDark ? "text-rose-300" : "text-rose-700"}`}
-                >
-                  {formatCurrency(totalNotInvoiced, contract.currency)}
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Progress Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -934,7 +754,6 @@ export function ContractDetails({
                 </div>
               </Card>
             )}
-
             {canProgressInvoice && canViewFinancial && (
               <Card
                 className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
@@ -945,7 +764,7 @@ export function ContractDetails({
                   Invoice Progress
                 </div>
                 <div
-                  className={`text-lg font-bold ${getProgressTextColor(invoiceProgress)}`}
+                  className={`text-lg font-bold ${getProgressTextClass(invoiceProgress)}`}
                 >
                   {invoiceProgress.toFixed(1)}%
                   {invoiceProgress > 100 && (
@@ -962,7 +781,6 @@ export function ContractDetails({
                 </div>
               </Card>
             )}
-
             {canProgressTime && (
               <Card
                 className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
@@ -1002,7 +820,7 @@ export function ContractDetails({
                     <div className="text-lg font-bold text-amber-600 mb-2">
                       ⚠️ Needs Review
                     </div>
-                    {canBtnApprove ? (
+                    {canBtnApprove && isUnitManager ? (
                       <button
                         onClick={() => onRequestComplete(contract)}
                         className="w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all bg-amber-500 text-white hover:bg-amber-600 shadow-sm cursor-pointer"
@@ -1015,11 +833,7 @@ export function ContractDetails({
                     ) : (
                       <button
                         disabled
-                        className={`w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-                          isDark
-                            ? "bg-slate-700 text-slate-400 cursor-not-allowed opacity-60"
-                            : "bg-slate-100 text-slate-400 cursor-not-allowed opacity-60"
-                        }`}
+                        className={`w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all ${isDark ? "bg-slate-700 text-slate-400 cursor-not-allowed opacity-60" : "bg-slate-100 text-slate-400 cursor-not-allowed opacity-60"}`}
                       >
                         <span className="flex items-center justify-center gap-1.5">
                           <span>🔒</span>
@@ -1073,10 +887,6 @@ export function ContractDetails({
               >
                 Tariff Lines & Consumption
               </h3>
-
-              {/* ═══════════════════════════════════════ */}
-              {/* 🔹 ACTIVE TARIFFS */}
-              {/* ═══════════════════════════════════════ */}
               {activeTariffs.length > 0 && (
                 <div className="mb-6">
                   <h4
@@ -1144,11 +954,7 @@ export function ContractDetails({
                                   <span>{tariff.description}</span>
                                   {tariff.version && tariff.version > 1 && (
                                     <span
-                                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                        isDark
-                                          ? "bg-indigo-900/50 text-indigo-300"
-                                          : "bg-indigo-100 text-indigo-700"
-                                      }`}
+                                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? "bg-indigo-900/50 text-indigo-300" : "bg-indigo-100 text-indigo-700"}`}
                                     >
                                       v{tariff.version}
                                     </span>
@@ -1209,18 +1015,12 @@ export function ContractDetails({
                 </div>
               )}
 
-              {/* ═══════════════════════════════════════ */}
-              {/* 🔹 FUTURE TARIFFS (Scheduled) */}
-              {/* ═══════════════════════════════════════ */}
+              {/* Future & Archived Tariffs (با همان منطق قبلی و دسترسی شرطی) */}
               {futureTariffsByVersion.length > 0 && (
                 <div className="mb-6">
                   <button
                     onClick={() => setIsFutureCollapsed(!isFutureCollapsed)}
-                    className={`w-full flex items-center justify-between mb-2 px-3 py-2 rounded-lg transition-all ${
-                      isDark
-                        ? "bg-amber-900/20 hover:bg-amber-900/30 text-amber-300"
-                        : "bg-amber-50 hover:bg-amber-100 text-amber-700"
-                    }`}
+                    className={`w-full flex items-center justify-between mb-2 px-3 py-2 rounded-lg transition-all ${isDark ? "bg-amber-900/20 hover:bg-amber-900/30 text-amber-300" : "bg-amber-50 hover:bg-amber-100 text-amber-700"}`}
                   >
                     <div className="flex items-center gap-2">
                       <span>⏳</span>
@@ -1228,11 +1028,7 @@ export function ContractDetails({
                         Future Tariffs (Scheduled)
                       </span>
                       <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded ${
-                          isDark
-                            ? "bg-amber-900/50 text-amber-400"
-                            : "bg-amber-200 text-amber-800"
-                        }`}
+                        className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? "bg-amber-900/50 text-amber-400" : "bg-amber-200 text-amber-800"}`}
                       >
                         {futureTariffs.length}
                       </span>
@@ -1250,113 +1046,94 @@ export function ContractDetails({
                       </span>
                     </div>
                   </button>
-
                   <AnimatedCollapse isOpen={!isFutureCollapsed}>
-                    {futureTariffsByVersion.map(
-                      ({
-                        version,
-                        tariffs,
-                      }: {
-                        version: number;
-                        tariffs: TariffLine[];
-                      }) => (
-                        <div key={version} className="mb-4">
-                          <h5
-                            className={`text-[10px] font-bold mb-1 px-2 ${isDark ? "text-amber-400" : "text-amber-700"}`}
-                          >
-                            Version {version}
-                          </h5>
-                          <div
-                            className={`overflow-x-auto rounded-xl border ${isDark ? "border-amber-700/50" : "border-amber-200"}`}
-                          >
-                            <table className="w-full text-left text-xs">
-                              <thead
-                                className={`${isDark ? "bg-amber-900/20 text-amber-400" : "bg-amber-50 text-amber-700"} text-[10px] uppercase tracking-wide`}
-                              >
-                                <tr>
-                                  <th className="px-3 py-2 font-semibold">
-                                    Description
-                                  </th>
-                                  <th className="px-3 py-2 font-semibold">
-                                    Unit
-                                  </th>
-                                  <th className="px-3 py-2 font-semibold text-right">
-                                    Rate
-                                  </th>
-                                  <th className="px-3 py-2 font-semibold">
-                                    Valid From
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody
-                                className={
-                                  isDark
-                                    ? "divide-y divide-slate-700/50"
-                                    : "divide-y divide-slate-200/70"
-                                }
-                              >
-                                {tariffs.map((tariff: TariffLine) => (
-                                  <tr
-                                    key={tariff.id}
-                                    className={
-                                      isDark
-                                        ? "hover:bg-slate-800/30"
-                                        : "hover:bg-slate-50/50"
-                                    }
+                    {futureTariffsByVersion.map(({ version, tariffs }) => (
+                      <div key={version} className="mb-4">
+                        <h5
+                          className={`text-[10px] font-bold mb-1 px-2 ${isDark ? "text-amber-400" : "text-amber-700"}`}
+                        >
+                          Version {version}
+                        </h5>
+                        <div
+                          className={`overflow-x-auto rounded-xl border ${isDark ? "border-amber-700/50" : "border-amber-200"}`}
+                        >
+                          <table className="w-full text-left text-xs">
+                            <thead
+                              className={`${isDark ? "bg-amber-900/20 text-amber-400" : "bg-amber-50 text-amber-700"} text-[10px] uppercase tracking-wide`}
+                            >
+                              <tr>
+                                <th className="px-3 py-2 font-semibold">
+                                  Description
+                                </th>
+                                <th className="px-3 py-2 font-semibold">
+                                  Unit
+                                </th>
+                                <th className="px-3 py-2 font-semibold text-right">
+                                  Rate
+                                </th>
+                                <th className="px-3 py-2 font-semibold">
+                                  Valid From
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody
+                              className={
+                                isDark
+                                  ? "divide-y divide-slate-700/50"
+                                  : "divide-y divide-slate-200/70"
+                              }
+                            >
+                              {tariffs.map((tariff) => (
+                                <tr
+                                  key={tariff.id}
+                                  className={
+                                    isDark
+                                      ? "hover:bg-slate-800/30"
+                                      : "hover:bg-slate-50/50"
+                                  }
+                                >
+                                  <td
+                                    className={`px-3 py-2 font-medium ${isDark ? "text-amber-200" : "text-amber-900"}`}
                                   >
-                                    <td
-                                      className={`px-3 py-2 font-medium ${isDark ? "text-amber-200" : "text-amber-900"}`}
-                                    >
-                                      {tariff.description}
-                                    </td>
-                                    <td className="px-3 py-2">
-                                      <Badge
-                                        tone="amber"
-                                        className="text-[9px]"
-                                      >
-                                        {tariff.unit.replace("_", " ")}
-                                      </Badge>
-                                    </td>
-                                    <td
-                                      className={`px-3 py-2 text-right font-mono ${isDark ? "text-amber-300" : "text-amber-700"}`}
-                                    >
-                                      {formatCurrency(
-                                        tariff.rate,
-                                        contract.currency,
-                                      )}
-                                    </td>
-                                    <td
-                                      className={`px-3 py-2 text-xs ${isDark ? "text-amber-400" : "text-amber-600"}`}
-                                    >
-                                      <span className="flex items-center gap-1">
-                                        <span>📅</span>
-                                        <span>{tariff.valid_from}</span>
-                                      </span>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                                    {tariff.description}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <Badge tone="amber" className="text-[9px]">
+                                      {tariff.unit.replace("_", " ")}
+                                    </Badge>
+                                  </td>
+                                  <td
+                                    className={`px-3 py-2 text-right font-mono ${isDark ? "text-amber-300" : "text-amber-700"}`}
+                                  >
+                                    {formatCurrency(
+                                      tariff.rate,
+                                      contract.currency,
+                                    )}
+                                  </td>
+                                  <td
+                                    className={`px-3 py-2 text-xs ${isDark ? "text-amber-400" : "text-amber-600"}`}
+                                  >
+                                    <span className="flex items-center gap-1">
+                                      <span>📅</span>
+                                      <span>{tariff.valid_from}</span>
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                      ),
-                    )}
+                      </div>
+                    ))}
                   </AnimatedCollapse>
                 </div>
               )}
 
-              {/* ═══════════════════════════════════════ */}
-              {/* 🔹 ARCHIVED TARIFFS (Previous Versions) */}
-              {/* ═══════════════════════════════════════ */}
               {archivedTariffsByVersion.length > 0 && (
                 <div>
                   <button
                     onClick={() => setIsArchivedCollapsed(!isArchivedCollapsed)}
-                    className={`w-full flex items-center justify-between mb-2 px-3 py-2 rounded-lg transition-all ${
-                      isDark
-                        ? "bg-slate-800/50 hover:bg-slate-800 text-slate-300"
-                        : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                    }`}
+                    className={`w-full flex items-center justify-between mb-2 px-3 py-2 rounded-lg transition-all ${isDark ? "bg-slate-800/50 hover:bg-slate-800 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"}`}
                   >
                     <div className="flex items-center gap-2">
                       <span>📦</span>
@@ -1364,11 +1141,7 @@ export function ContractDetails({
                         Archived Tariffs - Previous Versions
                       </span>
                       <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded ${
-                          isDark
-                            ? "bg-slate-700 text-slate-400"
-                            : "bg-slate-200 text-slate-600"
-                        }`}
+                        className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? "bg-slate-700 text-slate-400" : "bg-slate-200 text-slate-600"}`}
                       >
                         {archivedTariffs.length}
                       </span>
@@ -1386,153 +1159,134 @@ export function ContractDetails({
                       </span>
                     </div>
                   </button>
-
                   <AnimatedCollapse isOpen={!isArchivedCollapsed}>
-                    {archivedTariffsByVersion.map(
-                      ({
-                        version,
-                        tariffs,
-                      }: {
-                        version: number;
-                        tariffs: TariffLine[];
-                      }) => (
-                        <div key={version} className="mb-4">
-                          <h5
-                            className={`text-[10px] font-bold mb-1 px-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}
-                          >
-                            Version {version}
-                          </h5>
-                          <div
-                            className={`overflow-x-auto rounded-xl border opacity-75 ${isDark ? "border-slate-700/50" : "border-slate-200/70"}`}
-                          >
-                            <table className="w-full text-left text-xs">
-                              <thead
-                                className={`${isDark ? "bg-slate-800/50 text-slate-400" : "bg-slate-50/70 text-slate-500"} text-[10px] uppercase tracking-wide`}
-                              >
-                                <tr>
-                                  <th className="px-3 py-2 font-semibold">
-                                    Description
-                                  </th>
-                                  <th className="px-3 py-2 font-semibold">
-                                    Unit
-                                  </th>
-                                  <th className="px-3 py-2 font-semibold text-right">
-                                    Rate
-                                  </th>
-                                  <th className="px-3 py-2 font-semibold text-center">
-                                    Performed
-                                  </th>
-                                  <th className="px-3 py-2 font-semibold text-right">
-                                    Total Value
-                                  </th>
-                                  <th className="px-3 py-2 font-semibold text-right">
-                                    Invoiced
-                                  </th>
-                                  <th className="px-3 py-2 font-semibold">
-                                    Valid Period
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody
-                                className={
-                                  isDark
-                                    ? "divide-y divide-slate-700/50"
-                                    : "divide-y divide-slate-200/70"
-                                }
-                              >
-                                {tariffs.map((tariff: TariffLine) => {
-                                  const rate =
-                                    typeof tariff.rate === "string"
-                                      ? Number(tariff.rate.replace(/,/g, "")) ||
-                                        0
-                                      : tariff.rate || 0;
-                                  const value =
-                                    (tariff.consumed_quantity || 0) * rate;
-                                  const invoiced =
-                                    (tariff as any).invoiced || 0;
-                                  return (
-                                    <tr
-                                      key={tariff.id}
-                                      className={
-                                        isDark
-                                          ? "hover:bg-slate-800/30"
-                                          : "hover:bg-slate-50/50"
-                                      }
+                    {archivedTariffsByVersion.map(({ version, tariffs }) => (
+                      <div key={version} className="mb-4">
+                        <h5
+                          className={`text-[10px] font-bold mb-1 px-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                        >
+                          Version {version}
+                        </h5>
+                        <div
+                          className={`overflow-x-auto rounded-xl border opacity-75 ${isDark ? "border-slate-700/50" : "border-slate-200/70"}`}
+                        >
+                          <table className="w-full text-left text-xs">
+                            <thead
+                              className={`${isDark ? "bg-slate-800/50 text-slate-400" : "bg-slate-50/70 text-slate-500"} text-[10px] uppercase tracking-wide`}
+                            >
+                              <tr>
+                                <th className="px-3 py-2 font-semibold">
+                                  Description
+                                </th>
+                                <th className="px-3 py-2 font-semibold">
+                                  Unit
+                                </th>
+                                <th className="px-3 py-2 font-semibold text-right">
+                                  Rate
+                                </th>
+                                <th className="px-3 py-2 font-semibold text-center">
+                                  Performed
+                                </th>
+                                <th className="px-3 py-2 font-semibold text-right">
+                                  Total Value
+                                </th>
+                                <th className="px-3 py-2 font-semibold text-right">
+                                  Invoiced
+                                </th>
+                                <th className="px-3 py-2 font-semibold">
+                                  Valid Period
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody
+                              className={
+                                isDark
+                                  ? "divide-y divide-slate-700/50"
+                                  : "divide-y divide-slate-200/70"
+                              }
+                            >
+                              {tariffs.map((tariff) => {
+                                const rate =
+                                  typeof tariff.rate === "string"
+                                    ? Number(tariff.rate.replace(/,/g, "")) || 0
+                                    : tariff.rate || 0;
+                                const value =
+                                  (tariff.consumed_quantity || 0) * rate;
+                                const invoiced = (tariff as any).invoiced || 0;
+                                return (
+                                  <tr
+                                    key={tariff.id}
+                                    className={
+                                      isDark
+                                        ? "hover:bg-slate-800/30"
+                                        : "hover:bg-slate-50/50"
+                                    }
+                                  >
+                                    <td
+                                      className={`px-3 py-2 font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}
                                     >
-                                      <td
-                                        className={`px-3 py-2 font-medium ${isDark ? "text-slate-400" : "text-slate-600"}`}
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <span>{tariff.description}</span>
-                                          <span
-                                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                              isDark
-                                                ? "bg-slate-700 text-slate-400"
-                                                : "bg-slate-200 text-slate-600"
-                                            }`}
-                                          >
-                                            v{tariff.version}
-                                          </span>
-                                        </div>
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        <Badge
-                                          tone="slate"
-                                          className="text-[9px]"
+                                      <div className="flex items-center gap-2">
+                                        <span>{tariff.description}</span>
+                                        <span
+                                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? "bg-slate-700 text-slate-400" : "bg-slate-200 text-slate-600"}`}
                                         >
-                                          {tariff.unit.replace("_", " ")}
-                                        </Badge>
-                                      </td>
-                                      <td
-                                        className={`px-3 py-2 text-right font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                          v{tariff.version}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <Badge
+                                        tone="slate"
+                                        className="text-[9px]"
                                       >
-                                        {formatCurrency(
-                                          tariff.rate,
-                                          contract.currency,
-                                        )}
-                                      </td>
-                                      <td
-                                        className={`px-3 py-2 text-center font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
-                                      >
-                                        {tariff.consumed_quantity || 0}
-                                      </td>
-                                      <td
-                                        className={`px-3 py-2 text-right font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
-                                      >
-                                        {formatCurrency(
-                                          value,
-                                          contract.currency,
-                                        )}
-                                      </td>
-                                      <td
-                                        className={`px-3 py-2 text-right font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
-                                      >
-                                        {formatCurrency(invoiced)}
-                                      </td>
-                                      <td
-                                        className={`px-3 py-2 text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
-                                      >
-                                        <div className="flex items-center gap-1">
-                                          <span>📅</span>
-                                          <span>
-                                            {tariff.valid_from || "—"} →{" "}
-                                            {tariff.valid_to || "—"}
-                                          </span>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
+                                        {tariff.unit.replace("_", " ")}
+                                      </Badge>
+                                    </td>
+                                    <td
+                                      className={`px-3 py-2 text-right font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                    >
+                                      {formatCurrency(
+                                        tariff.rate,
+                                        contract.currency,
+                                      )}
+                                    </td>
+                                    <td
+                                      className={`px-3 py-2 text-center font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                    >
+                                      {tariff.consumed_quantity || 0}
+                                    </td>
+                                    <td
+                                      className={`px-3 py-2 text-right font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                    >
+                                      {formatCurrency(value, contract.currency)}
+                                    </td>
+                                    <td
+                                      className={`px-3 py-2 text-right font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                    >
+                                      {formatCurrency(invoiced)}
+                                    </td>
+                                    <td
+                                      className={`px-3 py-2 text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
+                                    >
+                                      <div className="flex items-center gap-1">
+                                        <span>📅</span>
+                                        <span>
+                                          {tariff.valid_from || "—"} →{" "}
+                                          {tariff.valid_to || "—"}
+                                        </span>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
-                      ),
-                    )}
+                      </div>
+                    ))}
                   </AnimatedCollapse>
                 </div>
               )}
-
               {selectedTariffs.length === 0 && (
                 <div
                   className={`text-center py-8 text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}
@@ -1545,9 +1299,8 @@ export function ContractDetails({
           )}
         </div>
       </div>
-      {/* ═══════════════════════════════════════ */}
-      {/* 🔹 AMENDMENT MODAL (NEW) */}
-      {/* ═══════════════════════════════════════ */}
+
+      {/* Modals */}
       {isAmendmentModalOpen && (
         <ContractAmendmentForm
           isOpen={isAmendmentModalOpen}
@@ -1565,7 +1318,6 @@ export function ContractDetails({
           amendments={amendments}
         />
       )}
-
       {isApprovalModalOpen && pendingAmendment && (
         <ApprovalModal
           isOpen={isApprovalModalOpen}

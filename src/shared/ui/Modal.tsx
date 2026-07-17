@@ -18,7 +18,7 @@ export interface ModalProps {
   closeOnEscape?: boolean;
   headerClassName?: string;
   contentClassName?: string;
-  footer?: React.ReactNode; // 🔧 فقط از این استفاده می‌کنیم
+  footer?: React.ReactNode;
   ariaLabel?: string;
   ariaDescribedBy?: string;
 }
@@ -171,7 +171,7 @@ export function Modal({
             : "bg-white border border-slate-200 shadow-slate-500/20",
         )}
       >
-        {/* 🔧 Header - ثابت بالا */}
+        {/* Header - ثابت بالا */}
         <div
           className={cn(
             "flex-shrink-0 flex items-center justify-between px-6 py-4 border-b",
@@ -219,18 +219,18 @@ export function Modal({
           )}
         </div>
 
-        {/* 🔧 Content - Scrollable وسط */}
+        {/* Content - Scrollable وسط */}
         <div
           className={cn("flex-1 overflow-y-auto min-h-0 p-6", contentClassName)}
         >
           {children}
         </div>
 
-        {/* 🔧 Footer - ثابت پایین */}
+        {/* 🔧 Footer - دقیقاً چسبان (Sticky) با پس‌زمینه سالید برای جلوگیری از تداخل */}
         {footer && (
           <div
             className={cn(
-              "flex-shrink-0 px-6 py-4 border-t",
+              "sticky bottom-0 z-20 flex-shrink-0 px-6 py-3 border-t",
               isDark
                 ? "border-slate-700/50 bg-slate-900"
                 : "border-slate-100 bg-white",

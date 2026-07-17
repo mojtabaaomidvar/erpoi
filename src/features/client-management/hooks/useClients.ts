@@ -245,7 +245,7 @@ export function useClients() {
   // 📤 Return
   // ═══════════════════════════════════════
   return {
-    clients: accessibleClients, // 🔧 فقط مشتریان مجاز برگردانده می‌شوند
+    clients: accessibleClients,
     setClients,
     contracts: accessibleContracts,
     loading: initialLoading,

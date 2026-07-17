@@ -114,6 +114,19 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
     ...entityActions("amendment", ["view", "create", "approve", "reject"]),
     "user_view", // اگر user هم آندرلاین است
     "report_view",
+
+    // ═══════════════════════════════════════
+    // 📝 Inpsectors
+    // ═══════════════════════════════════════
+    ...entityActions("inspector", [
+      "list_view",
+      "list_item_click",
+      "btn_add",
+      "btn_edit",
+      "btn_delete",
+      "details_view",
+      "details_download_resume",
+    ]),
   ],
 
   expert: [
@@ -148,138 +161,17 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
     // ═══════════════════════════════════════
     // 📄 Contracts
     // ═══════════════════════════════════════
-    ...entityActions("contract", [
-      "list_item_view",
-      "list_item_click",
-      "search_box",
-      "filter_type",
-      "status_badge",
-      "contract_dates",
-      "btn_add",
-      "info_section",
-      "info_start_date",
-      "info_end_date",
-      "stat_performed_work",
-      "stat_not_invoiced",
-      "progress_work",
-      "table_tariffs",
-    ]),
+    ...entityActions("contract", []),
 
     // ═══════════════════════════════════════
     // 📝 Amendments & Others
     // ═══════════════════════════════════════
-    ...entityActions("amendment", ["view", "create"]),
-  ],
+    ...entityActions("amendment", []),
 
-  coordinator: [
-    ...entityActions("contract", [
-      "list_item_view",
-      "list_item_click",
-      "search_box",
-      "filter_type",
-      "filter_status",
-      "status_badge",
-      "list_value",
-      "progress_bar",
-      "contract_dates",
-      "btn_close",
-      "info_section",
-      "info_start_date",
-      "info_end_date",
-      "stat_total_value",
-      "stat_performed_work",
-      "stat_invoiced",
-      "stat_not_invoiced",
-      "progress_work",
-      "progress_invoice",
-      "progress_time",
-      "reminder_section",
-      "table_tariffs",
-    ]),
-    ...entityActions("client", [
-      "list_item_view",
-      "list_item_click",
-      "search_box",
-      "filter_type",
-      "total_agreement_badge",
-      "emails_dropdown",
-      "contacts_dropdown",
-      "agreements_section",
-      "stat_agreements",
-      "stat_value_agreements",
-      "stat_invoiced",
-      "stat_uninvoiced",
-      "agreements_tabs",
-      "contract_item",
-      "agreement_value",
-      "agreement_progress_work",
-      "agreement_progress_invoice",
-      "contract_dates",
-      "contract_value",
-      "contract_progress_work",
-      "contract_progress_invoice",
-      "time_remaining",
-      "tariffs_section",
-      "tariffs_table",
-      "tariffs_financial",
-      "tariffs_totals",
-    ]),
-    ...entityActions("inspection", ["view", "create", "assign", "update"]),
-  ],
-
-  inspector: [
-    ...entityActions("inspection", ["view", "update"]),
-    ...entityActions("contract", [
-      "list_item_view",
-      "list_item_click",
-      "search_box",
-      "filter_type",
-      "filter_status",
-      "status_badge",
-      "progress_bar",
-      "contract_dates",
-      "btn_close",
-      "info_section",
-      "info_start_date",
-      "info_end_date",
-      "progress_work",
-      "progress_invoice",
-      "progress_time",
-    ]),
-  ],
-
-  viewer: [
-    ...entityActions("contract", [
-      "list_item_view",
-      "list_item_click",
-      "search_box",
-      "filter_type",
-      "filter_status",
-      "status_badge",
-      "progress_bar",
-      "contract_dates",
-      "btn_close",
-      "info_section",
-      "info_start_date",
-      "info_end_date",
-      "progress_work",
-      "progress_invoice",
-      "progress_time",
-    ]),
-    ...entityActions("client", [
-      "list_item_view",
-      "list_item_click",
-      "search_box",
-      "filter_type",
-      "total_agreement_badge",
-      "emails_dropdown",
-      "contacts_dropdown",
-      "agreements_section",
-      "stat_agreements",
-      "agreements_tabs",
-      "contract_item",
-      "contract_dates",
-    ]),
+    // ═══════════════════════════════════════
+    // 📝 Inpsectors
+    // ═══════════════════════════════════════
+    ...entityActions("inspector", []),
   ],
 };
 

@@ -1,6 +1,6 @@
 // src/features/client-management/ui/ClientList.tsx
 
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { Avatar, Badge, Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";

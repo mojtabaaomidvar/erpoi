@@ -95,68 +95,67 @@ export const elementDependencies: Record<string, string[]> = {
   contract_list_value: ["contract_list_item_view"],
   contract_progress_bar: ["contract_list_item_view"],
   contract_contract_dates: ["contract_list_item_view"],
+  contract_btn_add: ["contract_list_item_view"],
+  contract_btn_export: ["contract_list_item_view"],
 
   // 🔹 ContractDetails - Header Buttons
   contract_btn_edit: ["contract_list_item_click"],
-  contract_btn_delete: ["contract_list_item_click"],
+  contract_btn_amend: ["contract_list_item_click"],
   contract_btn_approve: ["contract_list_item_click"],
-  contract_btn_close: ["contract_list_item_click"],
+  contract_btn_doc: ["contract_list_item_click"],
 
   // 🔹 ContractDetails - Info Section
   contract_info_section: ["contract_list_item_click"],
-  info_start_date: ["contract_list_item_click"],
-  info_end_date: ["contract_list_item_click"],
+  contract_info_start_date: [
+    "contract_info_section",
+    "contract_contract_dates",
+  ],
+  contract_info_end_date: ["contract_info_section", "contract_contract_dates"],
 
   // 🔹 ContractDetails - Stats Cards
-  contract_stat_total_value: ["contract_info_section"],
-  contract_stat_performed_work: ["contract_info_section"],
-  contract_stat_invoiced: ["contract_info_section"],
-  contract_stat_not_invoiced: ["contract_info_section"],
+  contract_stat_total_value: ["contract_info_section", "contract_list_value"],
+  contract_stat_performed_work: [
+    "contract_info_section",
+    "contract_list_value",
+  ],
+  contract_stat_invoiced: ["contract_info_section", "contract_list_value"],
+  contract_stat_not_invoiced: ["contract_info_section", "contract_list_value"],
 
   // 🔹 ContractDetails - Progress Bars
-  contract_progress_work: ["contract_info_section"],
-  contract_progress_invoice: ["contract_info_section"],
-  contract_progress_time: ["contract_info_section"],
+  contract_progress_work: [
+    "contract_info_section",
+    "contract_stat_performed_work",
+  ],
+  contract_progress_invoice: [
+    "contract_info_section",
+    "contract_stat_invoiced",
+  ],
+  contract_progress_time: ["contract_info_section", "contract_progress_bar"],
 
-  // 🔹 ContractDetails - Reminder
+  // 🔹 ContractDetails - Reminder & Tariffs
   contract_reminder_section: ["contract_info_section"],
-
-  // 🔹 ContractDetails - Tariffs
-  contract_tariffs_section: ["contract_info_section"],
-
-  // ═══════════════════════════════════════
-  // 💵 Invoice Dependencies
-  // ═══════════════════════════════════════
-
-  invoice_card_total: ["invoice_list_item"],
-  invoice_list_item_click: ["invoice_list_item"],
-  invoice_btn_create: ["invoice_list_item"],
-  invoice_btn_export: ["invoice_list_item"],
-  invoice_stat_total: ["invoice_list_item_click"],
+  contract_table_tariffs: [
+    "contract_info_section",
+    "contract_stat_total_value",
+    "contract_stat_invoiced",
+    "contract_stat_not_invoiced",
+  ],
 
   // ═══════════════════════════════════════
   // 🔍 Inspection Dependencies
   // ═══════════════════════════════════════
 
-  inspection_card_total: ["inspection_list_item"],
-  inspection_list_item_click: ["inspection_list_item"],
-  inspection_btn_create: ["inspection_list_item"],
-  inspection_progress: ["inspection_list_item_click"],
+  inspector_list_item_click: ["inspector_list_view"],
 
-  // ═══════════════════════════════════════
-  // 📊 Dashboard Dependencies
-  // ═══════════════════════════════════════
+  // Actions
+  inspector_btn_add: ["inspector_list_view"],
 
-  dashboard_stat_clients: [],
-  dashboard_stat_contracts: [],
-  dashboard_stat_invoices: [],
-  dashboard_chart_revenue: [],
-  dashboard_chart_inspections: [],
+  // Details
+  inspector_btn_edit: ["inspector_list_item_click"],
+  inspector_btn_delete: ["inspector_list_item_click"],
+  inspector_details_download_resume: ["inspector_list_item_click"],
 };
-/**
- * 🔗 گرفتن تمام dependencies زنجیره‌ای (recursive)
- * مثال: client_btn_edit → client_list_item_click → client_list_item
- */
+
 export function getAllDependenciesChain(
   elementId: string,
   visited: Set<string> = new Set(),

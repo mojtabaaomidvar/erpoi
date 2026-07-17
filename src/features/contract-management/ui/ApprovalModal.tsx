@@ -210,7 +210,6 @@ export function ApprovalModal({
       onClose={onClose}
       title="🔍 Review Amendment"
       size="xl"
-      // 🔧 FIX: دکمه‌ها در footer prop - ثابت در پایین
       footer={
         <div className="flex justify-end gap-3">
           {canTakeAction ? (

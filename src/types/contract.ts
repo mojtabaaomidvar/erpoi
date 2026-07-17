@@ -141,6 +141,7 @@ export interface Contract {
   service_description?: string;
   type: "CONTRACT" | "WORK_ORDER";
   status:
+    | "DRAFT"
     | "ACTIVE"
     | "COMPLETED"
     | "TERMINATED"
@@ -184,6 +185,7 @@ export interface Contract {
   guarantees?: Guarantee[];
   modifications?: ContractModification[];
   adjustments?: Adjustment[];
+  created_by?: string;
   created_at?: string;
   updated_at?: string;
   createdAt?: string;

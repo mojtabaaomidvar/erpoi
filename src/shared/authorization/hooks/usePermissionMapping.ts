@@ -1,4 +1,4 @@
-﻿// src/shared/authorization/hooks/usePermissionMapping.ts
+﻿﻿// src/shared/authorization/hooks/usePermissionMapping.ts
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@shared/database/supabase";
@@ -140,62 +140,54 @@ export function usePermissionMapping() {
 
     const allowed = new Set<string>();
 
-    // 🔧 FIX: اضافه کردن المان‌های Base - چک مستقیم
+    // 🔧 تعریف متغیر allRegisteredIds برای جستجوی سریع (O(1))
+    const allRegisteredIds = new Set(uiElements.map((el) => el.id));
+
+    // ۱. پردازش دسترسی‌های پایه (Base)
     basePermissions.forEach((permission: string) => {
       const variants = normalizePermission(permission);
-
-      // چک هر فرمت
       variants.forEach((variant: string) => {
-        // اگر permission دقیقاً یک element ID باشد
-        if (uiElements.some((el: DBUIElement) => el.id === variant)) {
+        if (allRegisteredIds.has(variant)) {
+          allowed.add(variant);
+        }
+      });
+    });
+
+    // ۲. پردازش دسترسی‌های دستی و بچ (Custom)
+    customPermissions.forEach((permission: string) => {
+      const variants = normalizePermission(permission);
+
+      variants.forEach((variant: string) => {
+        // 🔧 لاگ دیباگ برای ردیابی عدم تطابق حروف بزرگ/کوچک
+        const isRegistered = allRegisteredIds.has(variant);
+        if (!isRegistered) {
+          console.warn(
+            `⚠️ [Mismatch] Custom perm "${variant}" NOT FOUND in registry!`,
+          );
+          console.log(
+            "Registry sample (first 5):",
+            Array.from(allRegisteredIds).slice(0, 5),
+          );
+        }
+
+        // الف) بررسی دسترسی دستی (Manual)
+        if (isRegistered) {
           allowed.add(variant);
         }
 
-        // اگر permission به صورت entity:action باشد، المان‌های منطبق را پیدا کن
-        const parts = variant.includes(":")
-          ? variant.split(":")
-          : variant.split("_");
-        if (parts.length >= 2) {
-          const entity = parts[0];
-          const action = parts.slice(1).join("_");
-
-          uiElements.forEach((el: DBUIElement) => {
-            // چک تطابق entity
-            if (el.entity === entity) {
-              // چک تطابق action در ID
-              if (
-                el.id === `${entity}_${action}` ||
-                el.id === `${entity}:${action}` ||
-                el.id.endsWith(`_${action}`) ||
-                el.id.endsWith(`:${action}`)
-              ) {
-                allowed.add(el.id);
-              }
+        // ب) بررسی دسترسی بچ (Batch)
+        const mapping = mappings.get(variant);
+        if (mapping) {
+          mapping.allowedElements.forEach((el: string) => {
+            if (allRegisteredIds.has(el)) {
+              allowed.add(el);
             }
           });
         }
       });
     });
 
-    // اضافه کردن المان‌های Custom از mappings
-    customPermissions.forEach((permission: string) => {
-      // چک permission اصلی
-      const mapping = mappings.get(permission);
-      if (mapping) {
-        mapping.allowedElements.forEach((el: string) => allowed.add(el));
-      }
-
-      // چک فرمت‌های مختلف
-      const variants = normalizePermission(permission);
-      variants.forEach((v: string) => {
-        const m = mappings.get(v);
-        if (m) {
-          m.allowedElements.forEach((el: string) => allowed.add(el));
-        }
-      });
-    });
-
-    // چک dependencies
+    // ۳. بررسی وابستگی‌ها (Dependencies) - فیلتر نهایی
     const allowedArray = Array.from(allowed);
     const filtered = allowedArray.filter((elementId: string) => {
       const { satisfied } = checkDependenciesChain(elementId, allowedArray);
@@ -263,6 +255,38 @@ export function usePermissionMapping() {
     },
     [uiElements, canAccessElement],
   );
+
+  useEffect(() => {
+    console.group(
+      `🔐 [Permission Debug] User: ${user?.username || "Guest"} (${user?.role})`,
+    );
+    console.log("Base Permissions:", basePermissions);
+    console.log("Custom Permissions (from DB):", customPermissions);
+    console.log("Total Allowed Elements Count:", allowedElements.size);
+
+    // تست یک المان خاص (مثلاً دکمه افزودن قرارداد)
+    const testElement = "contract_btn_add";
+    console.log(
+      `Can access "${testElement}"? :`,
+      canAccessElement(testElement),
+    );
+
+    // اگر false است، ببینیم چرا
+    if (!canAccessElement(testElement)) {
+      console.warn(`⚠️ "${testElement}" is NOT in allowedElements Set.`);
+      console.log(
+        "First 20 allowed elements:",
+        Array.from(allowedElements).slice(0, 20),
+      );
+    }
+    console.groupEnd();
+  }, [
+    user,
+    allowedElements,
+    canAccessElement,
+    basePermissions,
+    customPermissions,
+  ]);
 
   return {
     canAccess,

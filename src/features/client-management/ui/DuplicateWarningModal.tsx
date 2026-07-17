@@ -20,7 +20,7 @@ export function DuplicateWarningModal({
   onSaveContact,
   duplicateClient,
   currentDepartment,
-  isSameDepartmentDuplicate = false, // 🔧 NEW
+  isSameDepartmentDuplicate = false,
 }: DuplicateWarningModalProps) {
   const { isDark } = useTheme();
   const isLegal = duplicateClient?.type === "LEGAL";
@@ -62,8 +62,6 @@ export function DuplicateWarningModal({
     } else {
       onSaveContact(null);
     }
-
-    // 🔧 NEW: بستن همه مودال‌ها
     onClose();
   };
 

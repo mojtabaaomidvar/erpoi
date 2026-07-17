@@ -1,9 +1,8 @@
 ﻿// src/features/contract-management/ui/ContractList.tsx
 
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { usePermission } from "@shared/authorization/hooks/usePermission";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { showToast } from "@shared/ui/ToastContainer";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
@@ -16,7 +15,6 @@ import {
   isExpiringSoon,
   getDaysProgressColor,
 } from "@entities/contract/services/contractCalculations";
-import { contractPermissionGroups } from "../elements";
 import type { ActionPriority } from "../utils/contractPriority";
 
 interface ContractListProps {
@@ -31,124 +29,13 @@ interface ContractListProps {
   setStatusFilter: (
     status: "ALL" | "ACTIVE" | "NOT_STARTED" | "NEEDS_REVIEW" | "COMPLETED",
   ) => void;
-  sortBy: "date" | "value" | "status";
-  setSortBy: (sort: "date" | "value" | "status") => void;
   selectedContract: Contract | null;
   setSelectedContract: (contract: Contract) => void;
   onAddClick: () => void;
+  onEditDraft?: (contract: Contract) => void;
   onExport: () => void;
   loading?: boolean;
 }
-
-// ═══════════════════════════════════════
-// 🔹 Skeleton Component
-// ═══════════════════════════════════════
-
-function ContractSkeleton({ isDark }: { isDark: boolean }) {
-  return (
-    <div
-      className={`px-4 py-3 border-b animate-pulse ${isDark ? "border-slate-700" : "border-slate-100"}`}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex-1 space-y-2">
-          <div className="flex items-center gap-2">
-            <div
-              className={`h-5 w-24 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
-            />
-            <div
-              className={`h-4 w-20 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
-            />
-          </div>
-          <div
-            className={`h-4 w-3/4 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
-          />
-          <div
-            className={`h-3 w-1/2 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
-          />
-        </div>
-        <div
-          className={`h-5 w-16 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
-        />
-      </div>
-      <div className="mt-2 flex items-center justify-between">
-        <div
-          className={`h-3 w-32 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
-        />
-        <div
-          className={`h-3 w-20 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
-        />
-      </div>
-      <div
-        className={`mt-2 h-1.5 w-full rounded-full ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
-      />
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════
-// 🔹 Sort Function - خارج از کامپوننت
-// ═══════════════════════════════════════
-
-function sortContractsByPriority(
-  contracts: Contract[],
-  contractPriorities?: Map<string, ActionPriority>,
-): Contract[] {
-  return [...contracts].sort((a, b) => {
-    const priorityA = contractPriorities?.get(a.id);
-    const priorityB = contractPriorities?.get(b.id);
-
-    // اولویت 1: قراردادهای با اکشن (level 1-4)
-    const hasActionA = priorityA && priorityA.level > 0 && priorityA.level <= 4;
-    const hasActionB = priorityB && priorityB.level > 0 && priorityB.level <= 4;
-
-    if (hasActionA && !hasActionB) return -1;
-    if (hasActionB && !hasActionA) return 1;
-
-    // اگر هر دو اکشن دارند، بر اساس level sort کن
-    if (hasActionA && hasActionB) {
-      if (priorityA!.level !== priorityB!.level) {
-        return priorityA!.level - priorityB!.level;
-      }
-    }
-
-    // اولویت 2: NEEDS_REVIEW
-    if (a.status === "NEEDS_REVIEW" && b.status !== "NEEDS_REVIEW") return -1;
-    if (b.status === "NEEDS_REVIEW" && a.status !== "NEEDS_REVIEW") return 1;
-
-    // اولویت 3: Expired (end_date < today)
-    const today = new Date();
-    const aEndDate = new Date(a.end_date);
-    const bEndDate = new Date(b.end_date);
-    const aExpired = aEndDate < today;
-    const bExpired = bEndDate < today;
-
-    if (aExpired && !bExpired) return -1;
-    if (bExpired && !aExpired) return 1;
-
-    // اگر هر دو expired هستند، آن که بیشتر expired شده اول باشد
-    if (aExpired && bExpired) {
-      return aEndDate.getTime() - bEndDate.getTime();
-    }
-
-    // اولویت 4: Expiring Soon (30 روز)
-    const aExpiring = isExpiringSoon(a).expiring;
-    const bExpiring = isExpiringSoon(b).expiring;
-
-    if (aExpiring && !bExpiring) return -1;
-    if (bExpiring && !aExpiring) return 1;
-
-    // اولویت 5: ACTIVE
-    if (a.status === "ACTIVE" && b.status !== "ACTIVE") return -1;
-    if (b.status === "ACTIVE" && a.status !== "ACTIVE") return 1;
-
-    // بقیه موارد - بر اساس end_date
-    return aEndDate.getTime() - bEndDate.getTime();
-  });
-}
-
-// ═══════════════════════════════════════
-// 🔹 Main Component
-// ═══════════════════════════════════════
 
 export function ContractList({
   contracts,
@@ -163,31 +50,46 @@ export function ContractList({
   selectedContract,
   setSelectedContract,
   onAddClick,
+  onEditDraft,
   onExport,
   loading = false,
 }: ContractListProps) {
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
-  const canViewFinancial = contractPermissionGroups.financial.some(
-    (elementId: string) => canAccessElement(elementId),
-  );
 
-  useEffect(() => {
-    console.log("🔍 ContractList Debug:", {
-      contractsCount: contracts?.length,
-      filteredContractsCount: filteredContracts?.length,
-      canClickItem: canAccessElement("contract_list_item_click"),
-      canAdd: canAccessElement("contract_btn_add"),
-    });
-  }, [contracts, filteredContracts, canAccessElement]);
+  //  دسترسی
+  const canViewItems = canAccessElement("contract_list_item_view");
+  const canClickItem = canAccessElement("contract_list_item_click");
+  const canSearch = canAccessElement("contract_search_box");
+  const canFilterType = canAccessElement("contract_filter_type");
+  const canFilterStatus = canAccessElement("contract_filter_status");
+  const canStatusBadge = canAccessElement("contract_ status_badge");
+  const canViewFinancial = canAccessElement("contract_list_value");
+  const canDate = canAccessElement("contract_dates");
+  const canProgressBar = canAccessElement("contract_progress_bar");
+  const canAdd = canAccessElement("contract_btn_add");
+  const canExport = canAccessElement("contract_btn_export");
 
-  // 🔧 NEW: Sort کردن قراردادها بر اساس اولویت
   const sortedContracts = useMemo(() => {
-    return sortContractsByPriority(filteredContracts, contractPriorities);
-  }, [filteredContracts, contractPriorities]);
+    return filteredContracts;
+  }, [filteredContracts]);
 
+  // 🔐 هندلر کلیک: فقط در صورتی اجازه می‌دهد که canClickItem فعال باشد
   const handleContractClick = (contract: Contract) => {
-    if (!canAccessElement("contract_list_item_click")) {
+    if (contract.status === "DRAFT") {
+      if (onEditDraft) {
+        onEditDraft(contract);
+      } else {
+        showToast(
+          "warning",
+          "Action Required",
+          "Please use the edit option for drafts",
+        );
+      }
+      return;
+    }
+
+    if (!canClickItem) {
       showToast(
         "error",
         "Access Denied",
@@ -198,23 +100,15 @@ export function ContractList({
     setSelectedContract(contract);
   };
 
-  const canFilterType = canAccessElement("contract_filter_type");
-  const canFilterStatus = canAccessElement("contract_filter_status");
-  const canSearch = canAccessElement("contract_search_box");
-  const canAdd = canAccessElement("contract_btn_add");
-  const canExport = canAccessElement("contract_btn_export");
-
   return (
     <div
-      className={`col-span-1 lg:col-span-4 relative flex flex-col rounded-2xl overflow-hidden transition-all duration-300 ${
+      className={`col-span-1 lg:col-span-4 flex flex-col rounded-2xl overflow-hidden transition-all duration-300 ${
         isDark
           ? "bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-700/50 shadow-2xl shadow-black/30"
           : "bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/70 shadow-xl shadow-slate-200/50"
       }`}
     >
-      {/* ═══════════════════════════════════════ */}
-      {/* 🔹 HEADER */}
-      {/* ═══════════════════════════════════════ */}
+      {/* Header */}
       <div
         className={`relative px-5 py-4 border-b ${
           isDark
@@ -254,6 +148,7 @@ export function ContractList({
             </div>
           </div>
 
+          {/* 🔐 Conditional Buttons */}
           <div className="flex gap-1.5">
             {canSearch && (
               <FloatingSearch
@@ -289,16 +184,10 @@ export function ContractList({
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════ */}
-      {/* 🔹 TYPE FILTER TABS */}
-      {/* ═══════════════════════════════════════ */}
+      {/* 🔐 Conditional Filter Tabs (Type) */}
       {canFilterType && (
         <div
-          className={`px-4 py-2.5 border-b ${
-            isDark
-              ? "border-slate-700/50 bg-slate-900/30"
-              : "border-slate-200/70 bg-slate-50/50"
-          }`}
+          className={`px-4 py-2.5 border-b ${isDark ? "border-slate-700/50 bg-slate-900/30" : "border-slate-200/70 bg-slate-50/50"}`}
         >
           <div className="flex gap-1.5">
             {(["ALL", "CONTRACT", "WORK_ORDER"] as const).map((t) => {
@@ -335,14 +224,10 @@ export function ContractList({
         </div>
       )}
 
-      {/* ═══════════════════════════════════════ */}
-      {/* 🔹 STATUS FILTER TABS */}
-      {/* ═══════════════════════════════════════ */}
+      {/* 🔐 Conditional Filter Tabs (Status) */}
       {canFilterStatus && (
         <div
-          className={`px-4 py-2 border-b ${
-            isDark ? "border-slate-700/50" : "border-slate-200/70"
-          }`}
+          className={`px-4 py-2 border-b ${isDark ? "border-slate-700/50" : "border-slate-200/70"}`}
         >
           <div className="flex gap-1.5">
             {(
@@ -407,24 +292,31 @@ export function ContractList({
         </div>
       )}
 
-      {/* ═══════════════════════════════════════ */}
-      {/* 🔹 CONTRACT LIST - با Sort */}
-      {/* ═══════════════════════════════════════ */}
+      {/* Contract List Content */}
       <div className="flex-1 overflow-y-auto">
-        {loading ? (
-          <div className="divide-y divide-slate-100 dark:divide-slate-700">
-            <ContractSkeleton isDark={isDark} />
-            <ContractSkeleton isDark={isDark} />
-            <ContractSkeleton isDark={isDark} />
-            <ContractSkeleton isDark={isDark} />
-            <ContractSkeleton isDark={isDark} />
+        {/* 🔐 ۳. اگر دسترسی View نداشت، پیام Access Denied نشان بده */}
+        {!canViewItems ? (
+          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+            <div
+              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
+            >
+              🔒
+            </div>
+            <p
+              className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
+            >
+              Access Denied
+            </p>
+            <p
+              className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
+            >
+              You do not have permission to view the contract list.
+            </p>
           </div>
         ) : sortedContracts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
             <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${
-                isDark ? "bg-slate-800/50" : "bg-slate-100"
-              }`}
+              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
             >
               📄
             </div>
@@ -443,13 +335,13 @@ export function ContractList({
           <div className="p-2 space-y-1.5">
             {sortedContracts.map((contract) => {
               const isSelected = selectedContract?.id === contract.id;
+              const isDraft = contract.status === "DRAFT";
               const financialStatus = getContractFinancialStatus(contract);
               const expiringInfo = isExpiringSoon(contract);
               const daysProgress = calculateDaysProgress(contract);
               const daysLeft = calculateDaysLeft(contract.end_date);
               const isExpired = daysLeft < 0;
               const notStarted = daysProgress === null || daysProgress === 0;
-
               const priority = contractPriorities?.get(contract.id);
               const hasAction =
                 priority && priority.level > 0 && priority.level <= 4;
@@ -458,30 +350,67 @@ export function ContractList({
                 <button
                   key={contract.id}
                   onClick={() => handleContractClick(contract)}
+                  disabled={!canClickItem}
                   className={`group relative w-full text-left rounded-xl p-3 transition-all duration-200 ${
-                    isSelected
-                      ? isDark
-                        ? "bg-gradient-to-r from-indigo-900/50 to-violet-900/50 border border-indigo-500/50 shadow-lg shadow-indigo-500/20"
-                        : "bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-300/50 shadow-lg shadow-indigo-500/10"
-                      : isDark
-                        ? "bg-slate-800/30 border border-transparent hover:bg-slate-800/60 hover:border-slate-700/50 hover:shadow-md"
-                        : "bg-white/50 border border-transparent hover:bg-white hover:border-slate-200/70 hover:shadow-md"
+                    !canClickItem
+                      ? "cursor-not-allowed opacity-60"
+                      : "cursor-pointer"
                   } ${
-                    hasAction && priority?.color === "amber"
-                      ? "border-l-4 border-l-amber-500"
-                      : ""
-                  } ${
-                    hasAction && priority?.color === "rose"
-                      ? "border-l-4 border-l-rose-500"
-                      : ""
-                  } ${
-                    hasAction && priority?.color === "indigo"
-                      ? "border-l-4 border-l-indigo-500"
-                      : ""
-                  }`}
+                    isDraft
+                      ? isSelected
+                        ? isDark
+                          ? "bg-gradient-to-r from-slate-800 to-slate-700 border-2 border-dashed border-slate-500 shadow-lg"
+                          : "bg-gradient-to-r from-slate-100 to-slate-50 border-2 border-dashed border-slate-400 shadow-lg"
+                        : isDark
+                          ? "bg-slate-800/40 border-2 border-dashed border-slate-600 hover:border-slate-400 hover:bg-slate-800/60"
+                          : "bg-slate-50 border-2 border-dashed border-slate-300 hover:border-slate-400 hover:bg-slate-100"
+                      : isSelected
+                        ? isDark
+                          ? "bg-gradient-to-r from-indigo-900/50 to-violet-900/50 border border-indigo-500/50 shadow-lg shadow-indigo-500/20"
+                          : "bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-300/50 shadow-lg shadow-indigo-500/10"
+                        : isDark
+                          ? "bg-slate-800/30 border border-transparent hover:bg-slate-800/60 hover:border-slate-700/50 hover:shadow-md"
+                          : "bg-white/50 border border-transparent hover:bg-white hover:border-slate-200/70 hover:shadow-md"
+                  } ${!isDraft && hasAction && priority?.color === "amber" ? "border-l-4 border-l-amber-500" : ""} ${!isDraft && hasAction && priority?.color === "rose" ? "border-l-4 border-l-rose-500" : ""} ${!isDraft && hasAction && priority?.color === "indigo" ? "border-l-4 border-l-indigo-500" : ""}`}
                 >
-                  {/* Badge اکشن */}
-                  {hasAction && (
+                  {/* Selection Indicator */}
+                  {isSelected && (
+                    <div
+                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full ${
+                        isDraft
+                          ? isDark
+                            ? "bg-slate-400"
+                            : "bg-slate-500"
+                          : "bg-indigo-500"
+                      }`}
+                    />
+                  )}
+
+                  {/* Draft Badge */}
+                  {isDraft && (
+                    <div
+                      className={`flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-md text-[10px] font-bold w-fit ${
+                        isDark
+                          ? "bg-slate-700 text-slate-200 border border-slate-600"
+                          : "bg-slate-200 text-slate-700 border border-slate-300"
+                      }`}
+                    >
+                      <span className="text-sm">✏️</span>
+                      <span>Draft - In Progress</span>
+                      <span
+                        className={`ml-1 px-1.5 py-0.5 rounded text-[9px] ${
+                          isDark
+                            ? "bg-slate-600 text-slate-300"
+                            : "bg-white text-slate-600"
+                        }`}
+                      >
+                        Click to continue
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Action Badge */}
+                  {!isDraft && hasAction && (
                     <div
                       className={`flex items-center gap-1 mb-2 px-2 py-0.5 rounded text-[10px] font-semibold w-fit ${
                         priority?.color === "amber"
@@ -502,15 +431,6 @@ export function ContractList({
                     </div>
                   )}
 
-                  {/* Selection Indicator */}
-                  {isSelected && (
-                    <div
-                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full ${
-                        isDark ? "bg-indigo-500" : "bg-indigo-500"
-                      }`}
-                    />
-                  )}
-
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -518,25 +438,50 @@ export function ContractList({
                           tone={
                             contract.type === "CONTRACT" ? "indigo" : "amber"
                           }
-                          className="text-[9px]"
+                          className={`text-[9px] ${isDraft ? "opacity-60" : ""}`}
                         >
                           {contract.type === "CONTRACT"
                             ? "📄 Contract"
                             : "📦 Work Order"}
                         </Badge>
                         <span
-                          className={`font-mono text-[11px] truncate ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                          className={`font-mono text-[11px] truncate ${
+                            isDraft
+                              ? isDark
+                                ? "text-slate-500"
+                                : "text-slate-500"
+                              : isDark
+                                ? "text-slate-400"
+                                : "text-slate-600"
+                          }`}
                         >
                           {contract.contract_no}
                         </span>
                       </div>
                       <h3
-                        className={`text-sm font-bold truncate ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                        className={`text-sm font-bold truncate ${
+                          isDraft
+                            ? isDark
+                              ? "text-slate-300 italic"
+                              : "text-slate-600 italic"
+                            : isDark
+                              ? "text-slate-100"
+                              : "text-slate-900"
+                        }`}
                       >
-                        {contract.contract_title}
+                        {contract.contract_title ||
+                          (isDraft ? "Untitled Draft" : "")}
                       </h3>
                       <p
-                        className={`text-[11px] truncate ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                        className={`text-[11px] truncate ${
+                          isDraft
+                            ? isDark
+                              ? "text-slate-500"
+                              : "text-slate-500"
+                            : isDark
+                              ? "text-slate-400"
+                              : "text-slate-600"
+                        }`}
                       >
                         {contract.client_name}
                       </p>
@@ -544,7 +489,18 @@ export function ContractList({
 
                     {/* Status Badge */}
                     <div className="shrink-0 ml-2">
-                      {contract.status === "COMPLETED" ? (
+                      {isDraft ? (
+                        <div
+                          className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold ${
+                            isDark
+                              ? "bg-slate-700 text-slate-300 border border-slate-600"
+                              : "bg-slate-200 text-slate-700 border border-slate-300"
+                          }`}
+                        >
+                          <span>📝</span>
+                          <span>Draft</span>
+                        </div>
+                      ) : contract.status === "COMPLETED" ? (
                         <Badge tone="slate" className="text-[10px]">
                           ✓ Completed
                         </Badge>
@@ -572,86 +528,151 @@ export function ContractList({
                     </div>
                   </div>
 
-                  {/* Dates & Value */}
-                  <div className="flex items-center justify-between text-xs">
-                    <span
-                      className={isDark ? "text-slate-400" : "text-slate-500"}
+                  {/* Footer Info Section */}
+                  {isDraft ? (
+                    <div
+                      className={`mt-2 p-2 rounded-lg ${
+                        isDark
+                          ? "bg-slate-900/50 border border-slate-700"
+                          : "bg-white border border-slate-200"
+                      }`}
                     >
-                      📅 {contract.start_date} → {contract.end_date}
-                    </span>
-                    {canViewFinancial ? (
-                      <span
-                        className={`font-semibold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
-                      >
-                        {formatCurrency(
-                          contract.total_value,
-                          contract.currency,
-                        )}
-                      </span>
-                    ) : (
-                      <span
-                        className={`font-semibold ${isDark ? "text-slate-500" : "text-slate-400"}`}
-                      >
-                        🔒 Locked
-                      </span>
-                    )}
-                  </div>
+                      {/* 🔧 Conditional Date for Draft */}
+                      {canDate && (
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span
+                            className={
+                              isDark ? "text-slate-400" : "text-slate-600"
+                            }
+                          >
+                            📅 {contract.start_date || "No start date"} →{" "}
+                            {contract.end_date || "No end date"}
+                          </span>
+                        </div>
+                      )}
 
-                  {/* Progress Bar */}
-                  {contract.status !== "COMPLETED" && daysProgress !== null && (
-                    <div className="mt-2">
-                      <div
-                        className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700/50" : "bg-slate-200/70"}`}
-                      >
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${getDaysProgressColor(daysProgress)}`}
-                          style={{ width: `${Math.min(daysProgress, 100)}%` }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between mt-1 text-[10px]">
+                      {/* Value for Draft (Always visible or based on financial permission if needed) */}
+                      <div className="flex items-center justify-end text-xs">
                         <span
-                          className={
-                            isDark ? "text-slate-500" : "text-slate-400"
-                          }
+                          className={`font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
                         >
-                          Time Progress
+                          {contract.total_value > 0
+                            ? formatCurrency(
+                                contract.total_value,
+                                contract.currency,
+                              )
+                            : "—"}
                         </span>
-                        <span
-                          className={`font-semibold ${
-                            notStarted
-                              ? isDark
-                                ? "text-amber-400"
-                                : "text-amber-600"
-                              : isExpired
-                                ? isDark
-                                  ? "text-rose-400"
-                                  : "text-rose-600"
-                                : daysLeft <= 30
-                                  ? isDark
-                                    ? "text-amber-400"
-                                    : "text-amber-600"
-                                  : isDark
-                                    ? "text-emerald-400"
-                                    : "text-emerald-600"
-                          }`}
-                        >
-                          {notStarted
-                            ? "⏳ Not Started"
-                            : isExpired
-                              ? `${Math.abs(daysLeft)} days overdue`
-                              : daysLeft === 0
-                                ? "Expires today"
-                                : `${daysLeft} days left`}
-                          {!notStarted && (
-                            <span
-                              className={`ml-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}
-                            >
-                              ({daysProgress.toFixed(0)}%)
-                            </span>
-                          )}
+                      </div>
+
+                      <div
+                        className={`mt-1.5 flex items-center gap-1.5 text-[10px] ${
+                          isDark ? "text-slate-500" : "text-slate-500"
+                        }`}
+                      >
+                        <span>⚠️</span>
+                        <span>
+                          This contract is not yet submitted for approval
                         </span>
                       </div>
                     </div>
+                  ) : (
+                    <>
+                      {/* 🔧 Conditional Date & Value for Active Contracts */}
+                      {(canDate || canViewFinancial) && (
+                        <div className="flex items-center justify-between text-xs mt-2">
+                          {canDate ? (
+                            <span
+                              className={
+                                isDark ? "text-slate-400" : "text-slate-500"
+                              }
+                            >
+                              📅 {contract.start_date} → {contract.end_date}
+                            </span>
+                          ) : (
+                            <span></span> // Spacer to keep value aligned if date is hidden
+                          )}
+
+                          {canViewFinancial ? (
+                            <span
+                              className={`font-semibold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
+                            >
+                              {formatCurrency(
+                                contract.total_value,
+                                contract.currency,
+                              )}
+                            </span>
+                          ) : (
+                            <span
+                              className={`font-semibold ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                            >
+                              🔒 Locked
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 🔧 Conditional Progress Bar */}
+                      {canProgressBar &&
+                        contract.status !== "COMPLETED" &&
+                        daysProgress !== null && (
+                          <div className="mt-2">
+                            <div
+                              className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700/50" : "bg-slate-200/70"}`}
+                            >
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${getDaysProgressColor(daysProgress)}`}
+                                style={{
+                                  width: `${Math.min(daysProgress, 100)}%`,
+                                }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between mt-1 text-[10px]">
+                              <span
+                                className={
+                                  isDark ? "text-slate-500" : "text-slate-400"
+                                }
+                              >
+                                Time Progress
+                              </span>
+                              <span
+                                className={`font-semibold ${
+                                  notStarted
+                                    ? isDark
+                                      ? "text-amber-400"
+                                      : "text-amber-600"
+                                    : isExpired
+                                      ? isDark
+                                        ? "text-rose-400"
+                                        : "text-rose-600"
+                                      : daysLeft <= 30
+                                        ? isDark
+                                          ? "text-amber-400"
+                                          : "text-amber-600"
+                                        : isDark
+                                          ? "text-emerald-400"
+                                          : "text-emerald-600"
+                                }`}
+                              >
+                                {notStarted
+                                  ? "⏳ Not Started"
+                                  : isExpired
+                                    ? `${Math.abs(daysLeft)} days overdue`
+                                    : daysLeft === 0
+                                      ? "Expires today"
+                                      : `${daysLeft} days left`}
+                                {!notStarted && (
+                                  <span
+                                    className={`ml-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                                  >
+                                    ({daysProgress.toFixed(0)}%)
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                    </>
                   )}
                 </button>
               );
@@ -660,9 +681,7 @@ export function ContractList({
         )}
       </div>
 
-      {/* ═══════════════════════════════════════ */}
-      {/* 🔹 FOOTER STATS */}
-      {/* ═══════════════════════════════════════ */}
+      {/* Footer Stats */}
       <div
         className={`px-4 py-2.5 border-t ${
           isDark
@@ -672,7 +691,7 @@ export function ContractList({
       >
         <div className="flex items-center justify-between text-[10px]">
           <span className={isDark ? "text-slate-400" : "text-slate-600"}>
-            {sortedContracts.length} Agreements
+            Showing {sortedContracts.length} agreements
           </span>
         </div>
       </div>

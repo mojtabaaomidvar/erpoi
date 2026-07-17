@@ -25,9 +25,10 @@ import { useAuth } from "@features/auth/hooks/useAuth";
 import { useContracts } from "@features/contract-management/hooks/useContracts";
 import { ContractList } from "@features/contract-management/ui/ContractList";
 import { ContractDetails } from "@features/contract-management/ui/ContractDetails";
-import { ContractAddForm } from "@features/contract-management/ui/ContractAddForm";
+import { ContractAddForm } from "@features/contract-management/ui/contract-add-form/ContractAddForm";
 import { ContractEditForm } from "@features/contract-management/ui/ContractEditForm";
 import { useEvent, EVENT_TYPES } from "@infra/events";
+import { contractService } from "@features/contract-management/services/ContractService";
 
 export function Contracts() {
   const { isDark } = useTheme();
@@ -52,10 +53,7 @@ export function Contracts() {
     setStatusFilter,
     sortBy,
     setSortBy,
-    isDetailsOpen,
     setIsDetailsOpen,
-    baseContracts,
-    filterCounts,
     filteredContracts,
     currentDepartment,
   } = useContracts();
@@ -149,6 +147,8 @@ export function Contracts() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
 
+  const [editingDraft, setEditingDraft] = useState<Contract | null>(null);
+
   const [isClientContractsOpen, setIsClientContractsOpen] = useState(false);
   const [clientContractsList, setClientContractsList] = useState<Contract[]>(
     [],
@@ -180,42 +180,37 @@ export function Contracts() {
     setIsAddModalOpen(true);
   }, []);
 
-  // 🔧 FIX: handleAddSave با ذخیره تعرفه‌ها در Supabase
+  // handleAddSave با ذخیره تعرفه‌ها در Supabase
+
   const handleAddSave = useCallback(
     async (formData: any) => {
       try {
         const client = clients.find((c: any) => c.id === formData.client_id);
-        const contractId = `ct${Date.now()}`;
 
-        const newContract: Contract = {
-          id: contractId,
+        const contractPayload = {
+          client_id: formData.client_id,
+          client_name: client?.name_en || client?.name_fa || "N/A",
           contract_no: formData.contract_no,
           external_contract_no: formData.external_contract_no,
-          source_type: formData.source_type,
-          source_ref: formData.source_ref,
-          source_file: formData.source_file,
-          source_file_object: formData.source_file_object,
-          source_letter_date: formData.source_letter_date,
-          source_letter_image: formData.source_letter_image,
-          source_letter_image_object: formData.source_letter_image_object,
-          source_letter_image_preview: formData.source_letter_image_preview,
-          source_email_from: formData.source_email_from,
-          source_email_date: formData.source_email_date,
-          client_id: formData.client_id,
-          client_name: client?.name_en || "N/A",
           contract_title: formData.contract_title,
           start_date: formData.start_date,
           end_date: formData.end_date,
           total_value: formData.total_value,
-          invoiced: 0,
           currency: formData.currency,
-          status: formData.status,
+          status: formData.status || "DRAFT",
           type: formData.type,
-          tariffs: formData.tariffs.length,
-          contract_count: formData.contract_count,
-          tariffLines: formData.tariffs,
           department: currentDepartment,
           description: formData.description,
+          service_description: formData.service_description,
+
+          source_type: formData.source_type,
+          source_ref: formData.source_ref,
+          source_file: formData.source_file,
+          source_letter_date: formData.source_letter_date,
+          source_letter_image: formData.source_letter_image,
+          source_email_from: formData.source_email_from,
+          source_email_date: formData.source_email_date,
+
           financial_terms: {
             adjustment: formData.adjustment,
             payment_method: formData.payment_method,
@@ -225,53 +220,160 @@ export function Contracts() {
             warranty_period: formData.warranty_period,
             penalty_clause: formData.penalty_clause,
           },
-          service_description: formData.service_description,
+
+          created_by: editingDraft?.created_by || user?.id || "system_draft",
         };
 
-        // 🔧 NEW: ذخیره قرارداد در Supabase
-        await setContracts([newContract, ...contracts]);
+        let savedContract;
 
-        // 🔧 NEW: ذخیره تعرفه‌ها در Supabase
+        if (editingDraft) {
+          savedContract = await contractService.update(
+            editingDraft.id,
+            contractPayload,
+          );
+
+          const oldTariffs = await tariffService.getByContractId(
+            editingDraft.id,
+          );
+          console.log(
+            `[Contracts] Replacing ${oldTariffs.length} old tariffs with ${formData.tariffs?.length || 0} new ones`,
+          );
+
+          for (const oldTariff of oldTariffs) {
+            await tariffService.delete(oldTariff.id);
+          }
+        } else {
+          savedContract = await contractService.create(contractPayload);
+        }
+
         if (formData.tariffs && formData.tariffs.length > 0) {
-          console.log("[Contracts] Saving tariffs:", formData.tariffs.length);
           for (const tariff of formData.tariffs) {
             await tariffService.create({
-              contract_id: contractId,
+              contract_id: savedContract.id,
               description: tariff.description,
               unit: tariff.unit,
               rate:
                 typeof tariff.rate === "string"
                   ? Number(tariff.rate.replace(/,/g, "")) || 0
                   : tariff.rate || 0,
-              consumed_quantity: tariff.consumed_quantity || 0,
-              invoiced: tariff.invoiced || 0,
+              currency: tariff.currency || "IRR",
+              consumed_quantity: 0,
+              invoiced: 0,
+              is_lump_sum: tariff.isLumpSum || false,
             });
           }
         }
 
-        setSelectedContract(newContract);
-        setIsDetailsOpen(true);
+        setEditingDraft(null);
 
-        // 🔧 NEW: Refresh tariffs
-        refresh();
+        await refresh();
+
+        setSelectedContract(null);
+        setIsDetailsOpen(false);
+
+        showToast(
+          "success",
+          "Saved",
+          editingDraft
+            ? "Draft updated successfully!"
+            : `Contract saved as ${formData.status || "Draft"} successfully!`,
+        );
+
+        // بستن فرم
+        setIsAddModalOpen(false);
       } catch (err: any) {
         console.error("[Contracts] Add failed:", err);
         showToast(
           "error",
           "Save Failed",
-          err.message || "Failed to create contract",
+          err.message || "Failed to save contract",
         );
       }
     },
-    [
-      clients,
-      contracts,
-      setContracts,
-      setSelectedContract,
-      currentDepartment,
-      refresh,
-    ],
+    [clients, editingDraft, currentDepartment, user, refresh],
   );
+
+  const handleEditDraft = useCallback(async (contract: Contract) => {
+    try {
+      const tariffs = await tariffService.getByContractId(contract.id);
+
+      const draftWithTariffs = {
+        ...contract,
+        tariffLines: tariffs.map((t) => ({
+          ...t,
+          rate: typeof t.rate === "number" ? String(t.rate) : t.rate,
+          isLumpSum: t.is_lump_sum || false,
+        })),
+      };
+
+      console.log("[Contracts] Loading draft with tariffs:", {
+        contractId: contract.id,
+        tariffsCount: tariffs.length,
+      });
+
+      setSelectedContract(null);
+      setIsDetailsOpen(false);
+
+      setEditingDraft(draftWithTariffs as Contract);
+      setIsAddModalOpen(true);
+    } catch (err: any) {
+      console.error("[Contracts] Failed to load draft:", err);
+      showToast(
+        "error",
+        "Load Failed",
+        err.message || "Failed to load draft data",
+      );
+    }
+  }, []);
+
+  const handleCloseForm = useCallback(() => {
+    setIsAddModalOpen(false);
+    setEditingDraft(null);
+  }, []);
+
+  const handleDeleteDraft = useCallback(async () => {
+    if (!editingDraft) return;
+
+    const confirmed = await confirmDialog({
+      title: "Delete Draft",
+      message: `Are you sure you want to delete this draft?\n\n"${editingDraft.contract_title || "Untitled Draft"}"\n\nAll associated tariff lines will also be deleted.\n\nThis action cannot be undone.`,
+      confirmText: "Delete",
+      variant: "danger",
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const tariffs = await tariffService.getByContractId(editingDraft.id);
+      console.log(
+        `[Contracts] Deleting ${tariffs.length} tariffs for draft ${editingDraft.id}`,
+      );
+
+      for (const tariff of tariffs) {
+        await tariffService.delete(tariff.id);
+      }
+
+      await contractService.delete(editingDraft.id);
+
+      showToast(
+        "success",
+        "Deleted",
+        "Draft and all associated tariffs have been deleted",
+      );
+
+      setEditingDraft(null);
+      setIsAddModalOpen(false);
+
+      await refresh();
+    } catch (err: any) {
+      console.error("[Contracts] Delete failed:", err);
+      showToast(
+        "error",
+        "Delete Failed",
+        err.message || "Failed to delete draft",
+      );
+    }
+  }, [editingDraft, refresh]);
 
   const handleEditClick = useCallback(() => {
     if (!selectedContract) return;
@@ -279,7 +381,7 @@ export function Contracts() {
     setIsEditModalOpen(true);
   }, [selectedContract]);
 
-  // 🔧 FIX: handleEditSave با ذخیره تعرفه‌ها در Supabase
+  // handleEditSave با ذخیره تعرفه‌ها در Supabase
   const handleEditSave = useCallback(
     async (formData: any) => {
       if (!editingContract) return;
@@ -289,7 +391,7 @@ export function Contracts() {
         );
         await setContracts(updatedContracts);
 
-        // 🔧 NEW: حذف تعرفه‌های قدیمی و ذخیره تعرفه‌های جدید
+        // حذف تعرفه‌های قدیمی و ذخیره تعرفه‌های جدید
         if (formData.tariffs && formData.tariffs.length > 0) {
           console.log("[Contracts] Updating tariffs:", formData.tariffs.length);
 
@@ -311,8 +413,10 @@ export function Contracts() {
                 typeof tariff.rate === "string"
                   ? Number(tariff.rate.replace(/,/g, "")) || 0
                   : tariff.rate || 0,
+              currency: tariff.currency || "IRR",
               consumed_quantity: tariff.consumed_quantity || 0,
               invoiced: tariff.invoiced || 0,
+              is_lump_sum: tariff.isLumpSum || false,
             });
           }
         }
@@ -518,14 +622,13 @@ export function Contracts() {
           setTypeFilter={setTypeFilter}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
           selectedContract={selectedContract}
           setSelectedContract={(contract: Contract) => {
             setSelectedContract(contract);
             setIsDetailsOpen(true);
           }}
           onAddClick={handleAddClick}
+          onEditDraft={handleEditDraft}
           onExport={handleExportToExcel}
           loading={loading}
         />
@@ -546,7 +649,6 @@ export function Contracts() {
             }}
             onEdit={handleEditClick}
             onRequestComplete={handleRequestComplete}
-            userRole={user?.role || "user"}
             loading={loading}
             contractTariffs={tariffs}
             clients={clients}
@@ -556,14 +658,19 @@ export function Contracts() {
         {/* 🔑 ADD CONTRACT MODAL */}
         <ContractAddForm
           isOpen={isAddModalOpen}
-          onClose={() => setIsAddModalOpen(false)}
+          onClose={handleCloseForm}
           onSave={handleAddSave}
           typeFilter={typeFilter}
           contracts={contracts}
-          generateContractNo={(type, contracts) =>
-            generateContractNo(type, contracts, currentDepartment)
-          }
+          generateContractNo={(
+            type: "CONTRACT" | "WORK_ORDER",
+            contracts: any[],
+          ) => generateContractNo(type, contracts, currentDepartment)}
           onNavigateToClients={handleNavigateToClients}
+          isAdmin={user?.role === "admin" || user?.role === "super_admin"}
+          clients={clients}
+          initialData={editingDraft || undefined}
+          onDeleteDraft={handleDeleteDraft}
         />
 
         {/* 🔑 EDIT CONTRACT MODAL */}

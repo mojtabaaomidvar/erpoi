@@ -26,7 +26,6 @@ export const clientElements = {
     agreement_progress_invoice: "Invoice Progress Bar",
     contract_dates: "Contract Dates Display",
   },
-
   ContractDetailsModal: {
     info_section: "Contract Information Section",
     info_start_date: "Start Date Display",

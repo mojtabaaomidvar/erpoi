@@ -39,5 +39,3 @@ export const ENTITY_GROUPS: Record<
   dashboard: { label: "Dashboard", icon: "📈" },
   department: { label: "Departments", icon: "🏢" },
 };
-
-// 🔧 FIX: حذف ALL_PERMISSIONS - فقط از DB خونده میشه

@@ -89,23 +89,60 @@ export const parseDateFlexible = (
 // 🔑 توابع فرمت اعداد
 // ═══════════════════════════════════════
 
-export const formatNumberInput = (value: string): string => {
-  const cleaned = value.replace(/[^\d.]/g, "");
+// src/entities/contract/services/contractCalculations.ts
+
+export const formatNumberInput = (
+  value: string | number | undefined | null,
+  allowDecimals: boolean = false,
+): string => {
+  // 1. هندل کردن مقادیر خالی
+  if (value === undefined || value === null) return "";
+
+  // 2. تبدیل به رشته و حذف کاراکترهای غیرعددی (به جز نقطه و منفی)
+  let strValue = typeof value === "number" ? value.toString() : String(value);
+  let cleaned = strValue.replace(/[^\d.-]/g, "");
+
+  // 3. مدیریت علامت منفی
+  const isNegative = cleaned.startsWith("-");
+  if (isNegative) cleaned = cleaned.substring(1);
+
+  if (!cleaned) return "";
+
+  // 4. جداسازی بخش صحیح و اعشاری
   const parts = cleaned.split(".");
-  if (parts.length > 2) {
-    return parts[0] + "." + parts.slice(1).join("");
+  let intPart = parts[0];
+  let decPart = parts.length > 1 ? parts[1] : undefined;
+
+  // 5. اگر اعشار مجاز نیست، بخش اعشاری را دور بریز
+  if (!allowDecimals) {
+    decPart = undefined;
+  } else {
+    // اگر اعشار مجاز است، فقط دو رقم اول را نگه دار
+    if (decPart && decPart.length > 2) {
+      decPart = decPart.substring(0, 2);
+    }
   }
-  const [intPart, decPart] = parts;
+
+  // 6. فرمت کردن بخش صحیح با کاما (هزارگان)
   const formattedInt = intPart ? Number(intPart).toLocaleString("en-US") : "";
+
+  // 7. ساخت خروجی نهایی
+  let result = formattedInt;
   if (decPart !== undefined) {
-    return formattedInt + "." + decPart;
+    result += "." + decPart;
   }
-  return formattedInt;
+
+  return (isNegative ? "-" : "") + result;
 };
 
-export const parseNumberInput = (value: string): number => {
-  const num = value.replace(/,/g, "");
-  return Number(num) || 0;
+export const parseNumberInput = (
+  value: string | number | undefined | null,
+): number => {
+  if (value === undefined || value === null) return 0;
+  if (typeof value === "number") return value;
+  // حذف کاماها قبل از تبدیل به عدد
+  const num = parseFloat(String(value).replace(/,/g, ""));
+  return isNaN(num) ? 0 : num;
 };
 
 // ═══════════════════════════════════════

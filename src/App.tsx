@@ -19,6 +19,11 @@ import { ConfirmDialogProvider } from "@shared/ui/ConfirmDialog";
 import { ToastProvider } from "@shared/ui/ToastContainer";
 import { amendmentService } from "@features/contract-management/services/AmendmentService";
 import { DebugPermission } from "@shared/authorization/ui/DebugPermission";
+import { autoDiscoverAndRegister } from "@shared/authorization/ui/ui-elements/auto-discovery";
+
+// 🔧 NEW: فراخوانی ثبت المان‌ها قبل از رندر اپلیکیشن
+// این کار تضمین می‌کند که تمام المان‌ها (شامل custom permissions) قبل از چک شدن دسترسی‌ها شناخته شده‌اند.
+autoDiscoverAndRegister();
 
 const meta: Record<ViewKey, { title: string; subtitle: string }> = {
   dashboard: {
@@ -69,7 +74,6 @@ function AppContent() {
   const [view, setView] = useState<ViewKey>("dashboard");
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
 
-  // 🔧 FIX: این خط باید قبل از return شرطی باشد
   const expiringCount = 0;
 
   const handleLogout = useCallback(async () => {

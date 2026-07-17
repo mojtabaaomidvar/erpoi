@@ -520,3 +520,17 @@ input[type="number"] {
 .animate-scaleIn {
   animation: scaleIn 0.3s ease-out forwards;
 }
+
+/* انیمیشن shimmer برای Draft */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2.5s infinite;
+}
