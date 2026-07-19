@@ -5,7 +5,8 @@ import { Button, Badge, Avatar } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useClickOutside } from "@shared/hooks/useClickOutside";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
-import type { Client, Contract, TariffLine } from "@entities/contract/types";
+import type { Contract, TariffLine } from "@/types/contract";
+import type { Client } from "@/types/client";
 import { formatCurrency } from "@shared/lib/formatters";
 import {
   calculateProgressFromTariffs,

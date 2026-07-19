@@ -4,7 +4,7 @@ import { useCallback, useState, useEffect, useMemo } from "react";
 import { Button } from "@design-system";
 import { Modal } from "@shared/ui/Modal";
 import { useTheme } from "@app/providers/ThemeProvider";
-import type { Client } from "@/types/contract";
+import type { Client } from "@/types/client";
 import {
   validateNationalCode,
   validateNationalId,

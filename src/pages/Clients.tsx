@@ -13,7 +13,8 @@ import { ClientDetails } from "@features/client-management/ui/ClientDetails";
 import { ClientForm } from "@features/client-management/ui/ClientForm";
 import { ContractDetailsModal } from "@features/client-management/ui/ContractDetailsModal";
 import { ClientEditModal } from "@features/client-management/ui/ClientEditModal";
-import type { Client, Contract } from "@entities/contract/types";
+import type { Contract } from "@entities/contract/types";
+import type { Client } from "@/types/client";
 import { departmentService } from "@shared/authorization/services/DepartmentService";
 
 export function Clients() {

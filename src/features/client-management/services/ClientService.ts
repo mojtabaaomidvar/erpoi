@@ -1,7 +1,7 @@
 // src/features/client-management/services/ClientService.ts
 
 import { supabase } from "@shared/database/supabase";
-import type { Client } from "@/types/contract";
+import type { Client } from "@/types/client";
 
 class ClientService {
   async getAll(): Promise<Client[]> {
@@ -50,7 +50,6 @@ class ClientService {
 
     return this.dbToClient(data, contacts || []);
   }
-
 
   async create(client: Partial<Client>): Promise<Client> {
     const { contactPersons, ...clientWithoutContacts } = client;
@@ -110,7 +109,7 @@ class ClientService {
       .update({
         ...dbClient,
         contact_persons: contactPersons || [],
-        contacts: contactPersons?.length || 0, 
+        contacts: contactPersons?.length || 0,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)

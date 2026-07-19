@@ -7,6 +7,7 @@ import { Sidebar, type ViewKey } from "@widgets/layout/Sidebar";
 import { Dashboard } from "@pages/Dashboard";
 import { Clients } from "@pages/Clients";
 import { Contracts } from "@pages/Contracts";
+import { Projects } from "@pages/Projects";
 import { Inspectors } from "@pages/Inspectors";
 import { Inspections } from "@pages/Inspections";
 import { Billing } from "@pages/Billing";
@@ -18,11 +19,8 @@ import { LoginPage } from "@features/auth/ui/LoginPage";
 import { ConfirmDialogProvider } from "@shared/ui/ConfirmDialog";
 import { ToastProvider } from "@shared/ui/ToastContainer";
 import { amendmentService } from "@features/contract-management/services/AmendmentService";
-import { DebugPermission } from "@shared/authorization/ui/DebugPermission";
 import { autoDiscoverAndRegister } from "@shared/authorization/ui/ui-elements/auto-discovery";
 
-// 🔧 NEW: فراخوانی ثبت المان‌ها قبل از رندر اپلیکیشن
-// این کار تضمین می‌کند که تمام المان‌ها (شامل custom permissions) قبل از چک شدن دسترسی‌ها شناخته شده‌اند.
 autoDiscoverAndRegister();
 
 const meta: Record<ViewKey, { title: string; subtitle: string }> = {
@@ -37,6 +35,10 @@ const meta: Record<ViewKey, { title: string; subtitle: string }> = {
   contracts: {
     title: "Agreement(s) Management",
     subtitle: "Master service agreements and work orders",
+  },
+  projects: {
+    title: "Projects",
+    subtitle: "Project Managment",
   },
   inspectors: {
     title: "Inspector Roster",
@@ -133,6 +135,7 @@ function AppContent() {
           {view === "dashboard" && <Dashboard />}
           {view === "clients" && <Clients />}
           {view === "contracts" && <Contracts />}
+          {view === "projects" && <Projects />}
           {view === "inspectors" && <Inspectors />}
           {view === "inspections" && <Inspections />}
           {view === "billing" && <Billing />}
@@ -148,7 +151,6 @@ function AppContent() {
 export default function App() {
   return (
     <ThemeProvider>
-      <DebugPermission />
       <ToastProvider>
         <ConfirmDialogProvider>
           <AppContent />

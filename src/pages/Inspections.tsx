@@ -1,45 +1,226 @@
 // src/pages/Inspections.tsx
 
+import { useState, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
+import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
+import { useAuth } from "@features/auth/hooks/useAuth";
+import { inspectionRequestAppService } from "@features/inspection-management/application/InspectionRequestApplicationService";
+import { InspectionList } from "@features/inspection-management/ui/InspectionList";
+import { InspectionRequestForm } from "@features/inspection-management/ui/InspectionRequestForm";
+import { InspectionDetailsModal } from "@features/inspection-management/ui/InspectionDetailsModal";
+import { confirmDialog } from "@shared/ui/ConfirmDialog";
+import type {
+  InspectionRequest,
+  InspectionStatus,
+  Priority,
+} from "@/types/inspection";
+import { showToast } from "@shared/ui/ToastContainer";
 
 export function Inspections() {
   const { isDark } = useTheme();
+  const { user } = useAuth();
+  const { canAccessElement } = usePermissionMapping();
 
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh]">
-      <div
-        className={`rounded-2xl border p-12 text-center max-w-md ${
-          isDark
-            ? "border-slate-700 bg-slate-800/30"
-            : "border-slate-200 bg-white"
-        }`}
-      >
-        <div className="text-6xl mb-4">🔍</div>
-        <h2
-          className={`text-2xl font-bold mb-2 ${
-            isDark ? "text-slate-100" : "text-slate-900"
-          }`}
-        >
-          Inspections
-        </h2>
-        <p
-          className={`text-sm mb-6 ${
-            isDark ? "text-slate-400" : "text-slate-600"
-          }`}
-        >
-          This module is under development and will be available soon.
-        </p>
-        <div
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold ${
-            isDark
-              ? "bg-amber-900/30 text-amber-300"
-              : "bg-amber-100 text-amber-700"
-          }`}
-        >
-          <span>⏳</span>
-          <span>Coming Soon</span>
+  // State های سطح بالا
+  const [inspectionRequests, setInspectionRequests] = useState<
+    InspectionRequest[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingRequest, setEditingRequest] =
+    useState<InspectionRequest | null>(null);
+  const [selectedRequest, setSelectedRequest] =
+    useState<InspectionRequest | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  const [filterStatus, setFilterStatus] = useState<InspectionStatus | "ALL">(
+    "ALL",
+  );
+  const [filterPriority, setFilterPriority] = useState<Priority | "ALL">("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+
+  // دسترسی‌ها
+  const canViewItems = canAccessElement("inspection_list_item_view");
+  const canClickItem = canAccessElement("inspection_list_item_click");
+  const canAdd = canAccessElement("inspection_btn_add");
+  const canEdit = canAccessElement("inspection_btn_edit");
+  const canDelete = canAccessElement("inspection_btn_delete");
+  const canExport = canAccessElement("inspection_btn_export");
+
+  // بارگذاری داده‌ها
+  const loadInspectionRequests = async () => {
+    setLoading(true);
+    try {
+      const data = await inspectionRequestAppService.getAll();
+      setInspectionRequests(data);
+    } catch (err: any) {
+      showToast("error", "Load Failed", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadInspectionRequests();
+  }, []);
+
+  // Handlers
+  const handleSaveRequest = async (formData: any, isEdit: boolean) => {
+    try {
+      if (isEdit && editingRequest) {
+        await inspectionRequestAppService.update(
+          editingRequest.id,
+          formData,
+          user?.id || "unknown",
+        );
+      } else {
+        await inspectionRequestAppService.create(
+          formData,
+          user?.id || "unknown",
+        );
+      }
+
+      setEditingRequest(null);
+      setIsAddModalOpen(false);
+      await loadInspectionRequests();
+      showToast("success", "Saved", "Inspection request saved successfully!");
+    } catch (err: any) {
+      showToast("error", "Save Failed", err.message || "Failed to save");
+    }
+  };
+
+  const handleRequestClick = (request: InspectionRequest) => {
+    if (!canClickItem) {
+      showToast(
+        "error",
+        "Access Denied",
+        "You do not have permission to view inspection details",
+      );
+      return;
+    }
+    setSelectedRequest(request);
+    setIsDetailsOpen(true);
+  };
+
+  const handleEditFromDetails = (request: InspectionRequest) => {
+    if (!canEdit) {
+      showToast(
+        "error",
+        "Access Denied",
+        "You do not have permission to edit inspection requests",
+      );
+      return;
+    }
+    setEditingRequest(request);
+    setIsAddModalOpen(true);
+  };
+
+  const handleDeleteRequest = async (request: InspectionRequest) => {
+    if (!canDelete) {
+      showToast(
+        "error",
+        "Access Denied",
+        "You do not have permission to delete inspection requests",
+      );
+      return;
+    }
+
+    const confirmed = await confirmDialog({
+      title: "Delete Inspection Request",
+      message: `Are you sure you want to delete "${request.inspection_scope}"?\n\nThis action cannot be undone.`,
+      confirmText: "Yes, Delete",
+      cancelText: "Cancel",
+      variant: "danger",
+    });
+
+    if (!confirmed) return;
+
+    setIsDetailsOpen(false);
+    setSelectedRequest(null);
+
+    setInspectionRequests((prev) => prev.filter((r) => r.id !== request.id));
+    showToast("success", "Deleted", "Inspection request has been removed");
+
+    await inspectionRequestAppService
+      .delete(request.id, user?.id || "unknown")
+      .catch((err: any) => {
+        setInspectionRequests((prev) => [request, ...prev]);
+        showToast("error", "Delete Failed", err.message || "Failed to delete");
+      });
+  };
+
+  // بررسی دسترسی مشاهده
+  if (!canViewItems) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div
+            className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
+          >
+            🔒
+          </div>
+          <h2
+            className={`text-xl font-bold mb-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
+          >
+            Access Denied
+          </h2>
+          <p
+            className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}
+          >
+            You do not have permission to view the inspections module.
+          </p>
         </div>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <>
+      <InspectionList
+        inspectionRequests={inspectionRequests}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        filterStatus={filterStatus}
+        setFilterStatus={setFilterStatus}
+        filterPriority={filterPriority}
+        setFilterPriority={setFilterPriority}
+        onRequestClick={handleRequestClick}
+        onAddClick={() => {
+          setEditingRequest(null);
+          setIsAddModalOpen(true);
+        }}
+        canClickItem={canClickItem}
+        canAdd={canAdd}
+        canExport={canExport}
+        loading={loading}
+      />
+
+      <InspectionDetailsModal
+        isOpen={isDetailsOpen}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          setSelectedRequest(null);
+        }}
+        inspectionRequest={selectedRequest}
+        onEdit={handleEditFromDetails}
+        onDelete={handleDeleteRequest}
+        canEdit={canEdit}
+        canDelete={canDelete}
+      />
+
+      <InspectionRequestForm
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setEditingRequest(null);
+        }}
+        onSave={handleSaveRequest}
+        initialData={editingRequest}
+        isAdmin={isAdmin}
+      />
+    </>
   );
 }

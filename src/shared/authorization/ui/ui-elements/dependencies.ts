@@ -142,7 +142,7 @@ export const elementDependencies: Record<string, string[]> = {
   ],
 
   // ═══════════════════════════════════════
-  // 🔍 Inspection Dependencies
+  // 🔍 Inspector Dependencies
   // ═══════════════════════════════════════
 
   inspector_list_item_click: ["inspector_list_view"],
@@ -154,6 +154,84 @@ export const elementDependencies: Record<string, string[]> = {
   inspector_btn_edit: ["inspector_list_item_click"],
   inspector_btn_delete: ["inspector_list_item_click"],
   inspector_details_download_resume: ["inspector_list_item_click"],
+
+  // ═══════════════════════════════════════
+  // 🔍 Inspection Dependencies
+  // ═══════════════════════════════════════
+
+  // 🔹 1. List Level (پایه و اساس همه چیز)
+  inspection_list_item_click: ["inspection_list_item_view"],
+  inspection_search_box: ["inspection_list_item_view"],
+  inspection_filter_status: ["inspection_list_item_view"],
+  inspection_filter_priority: ["inspection_list_item_view"],
+  inspection_filter_client: ["inspection_list_item_view"],
+  inspection_filter_contract: ["inspection_list_item_view"],
+  inspection_status_badge: ["inspection_list_item_view"],
+  inspection_priority_badge: ["inspection_list_item_view"],
+  inspection_btn_add: ["inspection_list_item_view"],
+  inspection_btn_export: ["inspection_list_item_view"],
+
+  // 🔹 2. Details Actions (وابسته به کلیک روی آیتم)
+  inspection_btn_edit: ["inspection_list_item_click"],
+  inspection_btn_delete: ["inspection_list_item_click"],
+  inspection_btn_submit_review: ["inspection_list_item_click"],
+  inspection_btn_approve_request: ["inspection_list_item_click"],
+
+  // 🔹 3. Info Section
+  inspection_info_section: ["inspection_list_item_click"],
+  inspection_info_client: ["inspection_info_section"],
+  inspection_info_contract: ["inspection_info_section"],
+  inspection_info_scope: ["inspection_info_section"],
+  inspection_info_notification_date: ["inspection_info_section"],
+  inspection_info_priority: ["inspection_info_section"],
+
+  // 🔹 4. Document Review Section
+  inspection_document_section: ["inspection_list_item_click"],
+  inspection_document_upload: ["inspection_document_section"],
+  inspection_document_download: ["inspection_document_section"],
+  inspection_document_approve: ["inspection_document_section"],
+  inspection_document_reject: ["inspection_document_section"],
+  inspection_document_comment: ["inspection_document_section"],
+  inspection_review_status_badge: ["inspection_document_section"],
+
+  // 🔹 5. Inspection Execution
+  inspection_inspector_assignment: ["inspection_list_item_click"],
+  inspection_assign_inspector: ["inspection_inspector_assignment"],
+  inspection_schedule_inspection: ["inspection_inspector_assignment"],
+  inspection_execution_date: ["inspection_inspector_assignment"],
+  inspection_location_field: ["inspection_inspector_assignment"],
+  inspection_start_inspection: ["inspection_inspector_assignment"],
+  inspection_complete_inspection: ["inspection_inspector_assignment"],
+
+  // 🔹 6. Checklist Section
+  inspection_checklist_section: ["inspection_list_item_click"],
+  inspection_checklist_add: ["inspection_checklist_section"],
+  inspection_checklist_edit: ["inspection_checklist_section"],
+  inspection_checklist_complete: ["inspection_checklist_section"],
+  inspection_checklist_item_pass: ["inspection_checklist_section"],
+  inspection_checklist_item_fail: ["inspection_checklist_section"],
+
+  // 🔹 7. NCR Section
+  inspection_ncr_section: ["inspection_list_item_click"],
+  inspection_ncr_create: ["inspection_ncr_section"],
+  inspection_ncr_view: ["inspection_ncr_section"],
+  inspection_ncr_edit: ["inspection_ncr_section"],
+  inspection_ncr_close: ["inspection_ncr_section"],
+  inspection_ncr_severity: ["inspection_ncr_section"],
+  inspection_ncr_status: ["inspection_ncr_section"],
+
+  // 🔹 8. Report Section
+  inspection_report_section: ["inspection_list_item_click"],
+  inspection_report_generate: ["inspection_report_section"],
+  inspection_report_download: ["inspection_report_section"],
+  inspection_report_send_client: ["inspection_report_section"],
+  inspection_report_type: ["inspection_report_section"],
+
+  // 🔹 9. Certificate Section
+  inspection_certificate_section: ["inspection_list_item_click"],
+  inspection_certificate_upload: ["inspection_certificate_section"],
+  inspection_certificate_verify: ["inspection_certificate_section"],
+  inspection_certificate_download: ["inspection_certificate_section"],
 };
 
 export function getAllDependenciesChain(

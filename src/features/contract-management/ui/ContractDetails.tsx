@@ -4,12 +4,8 @@ import { useState, useMemo, useEffect } from "react";
 import { Button, Badge, Card } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
-import type {
-  Client,
-  Contract,
-  TariffLine,
-  ContractAmendment,
-} from "@/types/contract";
+import type { Contract, TariffLine, ContractAmendment } from "@/types/contract";
+import type { Client } from "@/types/client";
 import { formatCurrency } from "@shared/lib/formatters";
 import {
   calculateProgressFromTariffs,

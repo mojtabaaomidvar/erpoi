@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { clientService } from "@/features/client-management/services/ClientService";
 import { Badge, Button } from "@shared/ui";
-import type { Client } from "@/types/contract";
+import type { Client } from "@/types/client";
 
 interface ClientSelectorProps {
   value: string;
@@ -28,12 +28,10 @@ export function ClientSelector({
     setLoading(true);
     setLoadError(null);
     try {
-      console.log("[ClientSelector] 📥 Loading clients from Supabase");
       const data = await clientService.getAll();
-      console.log("[ClientSelector] ✅ Clients loaded:", data.length);
+
       setClients(data);
     } catch (err: any) {
-      console.error("[ClientSelector] ❌ Failed to load clients:", err);
       setLoadError("Failed to load clients");
     } finally {
       setLoading(false);

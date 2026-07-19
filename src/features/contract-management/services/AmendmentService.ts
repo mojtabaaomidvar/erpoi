@@ -42,10 +42,6 @@ class AmendmentService {
 
       return `AMD-${contract.contract_no}-${paddedSequence}`;
     } catch (error: any) {
-      console.error(
-        "[AmendmentService] Failed to generate amendment_no:",
-        error,
-      );
       throw new Error(error.message);
     }
   }
@@ -55,11 +51,6 @@ class AmendmentService {
    */
   async getByContractId(contractId: string): Promise<ContractAmendment[]> {
     try {
-      console.log(
-        "[AmendmentService] Getting amendments for contract_id:",
-        contractId,
-      );
-
       const { data, error } = await supabase
         .from("contract_amendments")
         .select(
@@ -72,23 +63,11 @@ class AmendmentService {
         .order("effective_date", { ascending: false });
 
       if (error) {
-        console.error("[AmendmentService] Failed to get amendments:", error);
         return [];
       }
 
-      console.log("[AmendmentService] Found amendments:", {
-        contractId,
-        count: data?.length || 0,
-        amendments: data?.map((a) => ({
-          id: a.id,
-          contract_id: a.contract_id,
-          amendment_no: a.amendment_no,
-        })),
-      });
-
       return data || [];
     } catch (error: any) {
-      console.error("[AmendmentService] Failed to get amendments:", error);
       return [];
     }
   }
@@ -100,11 +79,6 @@ class AmendmentService {
 
   async getById(amendmentId: string): Promise<ContractAmendment | null> {
     try {
-      console.log(
-        "[AmendmentService] 🔍 Getting amendment by ID:",
-        amendmentId,
-      );
-
       const { data: amendment, error } = await supabase
         .from("contract_amendments")
         .select(
@@ -117,20 +91,12 @@ class AmendmentService {
         .single();
 
       if (error) {
-        console.error("[AmendmentService] ❌ Failed to get amendment:", error);
         return null;
       }
 
       if (!amendment) {
-        console.warn("[AmendmentService] ⚠️ Amendment not found:", amendmentId);
         return null;
       }
-
-      console.log("[AmendmentService] 📦 Raw amendment data:", {
-        id: amendment.id,
-        attachment_urls: amendment.attachment_urls,
-        attachment_names: amendment.attachment_names,
-      });
 
       const result: ContractAmendment = {
         id: amendment.id,
@@ -158,7 +124,6 @@ class AmendmentService {
 
       return result;
     } catch (error: any) {
-      console.error("[AmendmentService] ❌ Failed to get amendment:", error);
       return null;
     }
   }
@@ -171,14 +136,6 @@ class AmendmentService {
     names: string[],
   ): Promise<void> {
     try {
-      console.log("[AmendmentService] 📝 Updating attachments:", {
-        amendmentId,
-        urlsCount: urls.length,
-        namesCount: names.length,
-        urls,
-        names,
-      });
-
       const { data, error } = await supabase
         .from("contract_amendments")
         .update({
@@ -189,19 +146,9 @@ class AmendmentService {
         .select();
 
       if (error) {
-        console.error(
-          "[AmendmentService] ❌ Failed to update attachments:",
-          error,
-        );
         throw new Error(error.message);
       }
-
-      console.log("[AmendmentService] ✅ Attachments updated:", data);
     } catch (error: any) {
-      console.error(
-        "[AmendmentService] ❌ Failed to update attachments:",
-        error,
-      );
       throw new Error(error.message);
     }
   }
@@ -367,7 +314,6 @@ class AmendmentService {
 
       return amendment;
     } catch (error: any) {
-      console.error("[AmendmentService] Failed to create amendment:", error);
       throw new Error(error.message);
     }
   }
@@ -428,10 +374,7 @@ class AmendmentService {
           },
         });
       }
-
-      console.log("[AmendmentService] Amendment approved:", amendmentId);
     } catch (error: any) {
-      console.error("[AmendmentService] Failed to approve amendment:", error);
       throw new Error(error.message);
     }
   }
@@ -501,10 +444,7 @@ class AmendmentService {
           },
         });
       }
-
-      console.log("[AmendmentService] Amendment rejected:", amendmentId);
     } catch (error: any) {
-      console.error("[AmendmentService] Failed to reject amendment:", error);
       throw new Error(error.message);
     }
   }
@@ -512,8 +452,6 @@ class AmendmentService {
   // متد همگام‌سازی amendments قدیمی
   async syncPendingAmendments(): Promise<void> {
     try {
-      console.log("[AmendmentService] 🔄 Syncing pending amendments...");
-
       // 1. دریافت همه amendments با status PENDING
       const { data: pendingAmendments, error } = await supabase
         .from("contract_amendments")
@@ -526,21 +464,12 @@ class AmendmentService {
         .eq("approval_status", "PENDING");
 
       if (error) {
-        console.error(
-          "[AmendmentService] Failed to fetch pending amendments:",
-          error,
-        );
         return;
       }
 
       if (!pendingAmendments || pendingAmendments.length === 0) {
-        console.log("[AmendmentService] No pending amendments found");
         return;
       }
-
-      console.log(
-        `[AmendmentService] Found ${pendingAmendments.length} pending amendments`,
-      );
 
       // 2. دریافت notifications موجود
       const existingNotifications = notificationService.getAll();
@@ -580,20 +509,9 @@ class AmendmentService {
               amendmentTypes: amendment.amendment_types,
             },
           });
-
-          console.log(
-            `[AmendmentService] ✅ Created notification for amendment: ${amendment.id}`,
-          );
         }
       }
-
-      console.log("[AmendmentService] ✅ Sync complete");
-    } catch (error: any) {
-      console.error(
-        "[AmendmentService] Failed to sync pending amendments:",
-        error,
-      );
-    }
+    } catch (error: any) {}
   }
 
   // دریافت الحاقیه‌های در انتظار تأیید
@@ -611,19 +529,11 @@ class AmendmentService {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error(
-          "[AmendmentService] Failed to get pending amendments:",
-          error,
-        );
         return [];
       }
 
       return data || [];
     } catch (error: any) {
-      console.error(
-        "[AmendmentService] Failed to get pending amendments:",
-        error,
-      );
       return [];
     }
   }
@@ -652,14 +562,6 @@ class AmendmentService {
       const updates: any = {};
       let hasContractUpdate = false;
 
-      console.log("[AmendmentService] Applying amendment:", {
-        id: amendmentId,
-        types: amendment.amendment_types,
-        has_date: amendment.amendment_types.includes("DATE_EXTENSION"),
-        has_value: amendment.amendment_types.includes("VALUE_INCREASE"),
-        has_tariff: amendment.amendment_types.includes("TARIFF_ADJUSTMENT"),
-      });
-
       // 🔧 فقط اگر DATE_EXTENSION انتخاب شده باشد
       if (
         amendment.amendment_types.includes("DATE_EXTENSION") &&
@@ -667,10 +569,6 @@ class AmendmentService {
       ) {
         updates.end_date = amendment.new_end_date;
         hasContractUpdate = true;
-        console.log(
-          "[AmendmentService] ✅ Date extension applied:",
-          amendment.new_end_date,
-        );
       }
 
       // 🔧 فقط اگر VALUE_INCREASE انتخاب شده باشد
@@ -680,10 +578,6 @@ class AmendmentService {
       ) {
         updates.total_value = amendment.new_value;
         hasContractUpdate = true;
-        console.log(
-          "[AmendmentService] ✅ Value increase applied:",
-          amendment.new_value,
-        );
       }
 
       // 🔧 فقط اگر TARIFF_ADJUSTMENT انتخاب شده باشد
@@ -747,13 +641,6 @@ class AmendmentService {
             parent_tariff_id: adjustment.tariff_line_id,
             version: (currentTariff.version || 1) + 1,
           });
-
-          console.log("[AmendmentService] ✅ Tariff adjusted:", {
-            old_id: adjustment.tariff_line_id,
-            new_id: newTariffId,
-            old_rate: currentTariff.rate,
-            new_rate: adjustment.new_rate,
-          });
         }
       }
 
@@ -769,16 +656,8 @@ class AmendmentService {
         if (updateError) {
           throw new Error(updateError.message);
         }
-
-        console.log("[AmendmentService] ✅ Contract updated:", updates);
       }
-
-      console.log(
-        "[AmendmentService] Amendment applied successfully:",
-        amendmentId,
-      );
     } catch (error: any) {
-      console.error("[AmendmentService] Failed to apply amendment:", error);
       throw new Error(error.message);
     }
   }
@@ -794,13 +673,9 @@ class AmendmentService {
         .eq("id", amendmentId);
 
       if (error) {
-        console.error("[AmendmentService] Failed to delete amendment:", error);
         throw new Error(error.message);
       }
-
-      console.log("[AmendmentService] Amendment deleted:", amendmentId);
     } catch (error: any) {
-      console.error("[AmendmentService] Failed to delete amendment:", error);
       throw new Error(error.message);
     }
   }
@@ -829,19 +704,12 @@ class AmendmentService {
         if (error.code === "PGRST116") {
           return null;
         }
-        console.error(
-          "[AmendmentService] Failed to get latest amendment:",
-          error,
-        );
+
         return null;
       }
 
       return data;
     } catch (error: any) {
-      console.error(
-        "[AmendmentService] Failed to get latest amendment:",
-        error,
-      );
       return null;
     }
   }
@@ -857,13 +725,11 @@ class AmendmentService {
         .eq("contract_id", contractId);
 
       if (error) {
-        console.error("[AmendmentService] Failed to check amendments:", error);
         return false;
       }
 
       return (count || 0) > 0;
     } catch (error: any) {
-      console.error("[AmendmentService] Failed to check amendments:", error);
       return false;
     }
   }

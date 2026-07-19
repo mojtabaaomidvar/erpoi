@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Button, Badge, Modal } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import type { Client } from "@entities/contract/types";
+import type { Client } from "@/types/client";
 import { validateMobile } from "@shared/lib/validators";
 import { showToast } from "@shared/ui/ToastContainer";
 import { clientService } from "../services/ClientService";

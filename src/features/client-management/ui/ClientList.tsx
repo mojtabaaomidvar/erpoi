@@ -6,7 +6,8 @@ import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { showToast } from "@shared/ui/ToastContainer";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
-import type { Client, Contract } from "@/types/contract";
+import type { Contract } from "@/types/contract";
+import type { Client } from "@/types/client";
 
 interface ClientListProps {
   clients: Client[];

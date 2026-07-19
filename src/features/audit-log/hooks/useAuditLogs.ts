@@ -1,50 +1,42 @@
 // src/features/audit-log/hooks/useAuditLogs.ts
-import { useState, useEffect, useCallback } from 'react';
-import { AuditLogEntry, AuditLogFilter } from '../types';
-import { auditLogService } from '../services/AuditLogService';
-import { eventBus } from '@infra/events';
+
+import { useState, useEffect } from "react";
+import { auditLogService } from "../services/AuditLogService";
+import type { AuditLogEntry, AuditLogFilter } from "../domain/types";
 
 export function useAuditLogs(filter?: AuditLogFilter) {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(() => {
-    setIsLoading(true);
+  const loadLogs = async (newFilter?: AuditLogFilter) => {
+    setLoading(true);
     try {
-      const filteredLogs = filter
-        ? auditLogService.getFiltered(filter)
-        : auditLogService.getAll();
-      setLogs(filteredLogs);
+      const currentFilter = newFilter || filter;
+      const data = currentFilter
+        ? await auditLogService.getFiltered(currentFilter)
+        : await auditLogService.getAll();
+      setLogs(data);
+    } catch (err) {
+      console.error("Failed to load audit logs:", err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [filter]);
-
-  const exportLogs = useCallback(() => {
-    const json = auditLogService.exportAll(); // ✅ Export all including archived
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `audit-log-all-${new Date().toISOString()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, []);
+  };
 
   useEffect(() => {
-    refresh();
+    loadLogs();
+  }, [filter]);
 
-    const unsubscribe = eventBus.subscribe('*', () => {
-      refresh();
-    });
-
-    return unsubscribe;
-  }, [refresh]);
-
-  return {
-    logs,
-    isLoading,
-    refresh,
-    exportLogs,
+  const exportLogs = async () => {
+    const json = await auditLogService.exportAll();
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `audit-logs-${new Date().toISOString()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
+
+  return { logs, isLoading: loading, loadLogs, exportLogs }; // ✅ تغییر loading به isLoading
 }

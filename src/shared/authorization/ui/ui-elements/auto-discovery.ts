@@ -7,6 +7,7 @@ import { dashboardElements } from "@pages/dashboard/elements";
 import { clientElements } from "@features/client-management/elements";
 import { contractElements } from "@features/contract-management/elements";
 import { inspectorElements } from "@features/inspector-managment/elements";
+import { inspectionElements } from "@features/inspection-management/elements";
 
 function extractTypeFromId(id: string): UIElementType {
   const prefix = id.split("_")[0];
@@ -63,32 +64,25 @@ export function convertToUIElements(
 }
 
 export function autoDiscoverAndRegister(): void {
-  console.log("[AutoDiscovery] 🚀 Starting...");
-
   // 🔧 FIX: ثبت مستقیم ماژول‌های import شده
   const modules = [
     { elements: dashboardElements, name: "dashboard" },
     { elements: clientElements, name: "client" },
     { elements: contractElements, name: "contract" },
+    { elements: inspectionElements, name: "project" },
     { elements: inspectorElements, name: "inspector" },
+    { elements: inspectionElements, name: "inspection" },
   ];
 
   for (const { elements, name } of modules) {
     if (elements) {
       const uiElements = convertToUIElements(name, elements);
       registerUIElements(name, uiElements);
-      console.log(
-        `[AutoDiscovery] ✅ Registered ${uiElements.length} elements for "${name}"`,
-      );
     }
   }
 
   const totalElements = uiElementRegistry.getAllElements().length;
-  console.log(
-    `[AutoDiscovery] ✅ Registry ready with ${totalElements} elements`,
-  );
 
-  // 🔧 FIX: Dispatch event
   window.dispatchEvent(
     new CustomEvent("ui-elements-ready", {
       detail: { count: totalElements },

@@ -1,7 +1,8 @@
 // src/features/client-management/hooks/useClients.ts
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import type { Client, Contract, TariffLine } from "@entities/contract/types";
+import type { Contract, TariffLine } from "@entities/contract/types";
+import type { Client } from "@/types/client";
 
 // 🔧 تغییر ۱: استفاده از usePermissionMapping به جای usePermission برای چک المان‌ها
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";

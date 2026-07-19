@@ -1,24 +1,34 @@
 // src/features/audit-log/hooks/useAuditLogger.ts
-import { useEffect } from'react';
-import { eventBus } from'@infra/events';
-import { auditLogService } from'../services/AuditLogService';
 
-/**
- * Hook برای گوش دادن به تمام رویدادها و ثبت در Audit Log
- */
-export function useAuditLogger(): void {
-  useEffect(() => {
-    console.log('🎧 [AuditLogger] Starting to listen to all events...');
-    
-    // گوش دادن به همه رویدادها با wildcard
-    const unsubscribe = eventBus.subscribe('*', (event) => {
-      console.log('📝 [AuditLogger] Logging event:', event.type, event.payload);
-      auditLogService.log(event);
-    });
+import { useEvent } from "@infra/events/hooks/useEvent";
+import { auditLogService } from "../services/AuditLogService";
+import type { DomainEvent } from "@infra/events/types";
+import { AuditActorType } from "../domain/types";
 
-    return () => {
-      console.log('🔇 [AuditLogger] Stopped listening');
-      unsubscribe();
+export function useAuditLogger() {
+  useEvent("*", (event: DomainEvent<any>) => {
+    const auditData = {
+      user_id: event.userId || "system",
+      action: event.type,
+      entity_type: event.type.split(".")[0],
+      entity_id:
+        (event.payload as any)?.projectId ||
+        (event.payload as any)?.id ||
+        "unknown",
+      new_value: event.payload,
+      level: "info" as const,
+      title: event.type.replace(".", " ").toUpperCase(),
+      description: `Action ${event.type} performed`,
+      timestamp: event.timestamp.toISOString(),
+      actorType: event.userId ? "user" : "system",
+      userName: event.userId || "System",
     };
-  }, []);
+
+    auditLogService
+      .log({
+        ...auditData,
+        actorType: (event.userId ? "user" : "system") as AuditActorType,
+      })
+      .catch(console.error);
+  });
 }

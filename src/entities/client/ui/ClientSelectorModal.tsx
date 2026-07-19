@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { Modal, Badge, Button } from "@design-system";
 import { clientService } from "@/features/client-management/services/ClientService";
-import type { Client } from "@/types/contract";
+import type { Client } from "@/types/client";
 
 interface ClientSelectorModalProps {
   value: string;
@@ -30,12 +30,10 @@ export function ClientSelectorModal({
     setLoading(true);
     setLoadError(null);
     try {
-      console.log("[ClientSelectorModal] 📥 Loading clients from Supabase");
       const data = await clientService.getAll();
-      console.log("[ClientSelectorModal] ✅ Clients loaded:", data.length);
+
       setClients(data);
     } catch (err: any) {
-      console.error("[ClientSelectorModal] ❌ Failed to load clients:", err);
       setLoadError("Failed to load clients");
     } finally {
       setLoading(false);

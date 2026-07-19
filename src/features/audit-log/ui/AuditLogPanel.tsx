@@ -1,40 +1,46 @@
 // src/features/audit-log/ui/AuditLogPanel.tsx
-import { useState } from 'react';
-import { useAuditLogs } from '../hooks/useAuditLogs';
-import { AuditLogFilter, AuditLogLevel, AuditActorType, AuditLogEntry } from '../types';
-import { AuditLogDetailModal } from './AuditLogDetailModal';
+import { useState } from "react";
+import { useAuditLogs } from "../hooks/useAuditLogs";
+import {
+  AuditLogFilter,
+  AuditLogLevel,
+  AuditActorType,
+  AuditLogEntry,
+} from "../types";
+import { AuditLogDetailModal } from "./AuditLogDetailModal";
 
 const levelColors: Record<AuditLogLevel, string> = {
-  info: 'border-l-blue-500',
-  warning: 'border-l-yellow-500',
-  error: 'border-l-red-500',
-  success: 'border-l-green-500',
+  info: "border-l-blue-500",
+  warning: "border-l-yellow-500",
+  error: "border-l-red-500",
+  success: "border-l-green-500",
 };
 
 const levelIcons: Record<AuditLogLevel, string> = {
-  info: 'ℹ️',
-  warning: '⚠️',
-  error: '❌',
-  success: '✅',
+  info: "ℹ️",
+  warning: "⚠️",
+  error: "❌",
+  success: "✅",
 };
 
 const levelBadgeColors: Record<AuditLogLevel, string> = {
-  info: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  warning: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-  error: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  success: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  info: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  warning:
+    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  error: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  success: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
 };
 
 const levelLabels: Record<AuditLogLevel, string> = {
-  info: 'Info',
-  warning: 'Warning',
-  error: 'Error',
-  success: 'Success',
+  info: "Info",
+  warning: "Warning",
+  error: "Error",
+  success: "Success",
 };
 
 export function AuditLogPanel() {
   const [filter, setFilter] = useState<AuditLogFilter>({});
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [selectedLog, setSelectedLog] = useState<AuditLogEntry | null>(null);
   const { logs, isLoading, exportLogs } = useAuditLogs(filter);
 
@@ -92,13 +98,13 @@ export function AuditLogPanel() {
                 onClick={() => handleLevelFilter(undefined)}
                 className={`px-3 py-1 rounded-lg text-sm ${
                   !filter.level
-                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                    : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                    : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
                 }`}
               >
                 All
               </button>
-              {(['info', 'success', 'warning', 'error'] as AuditLogLevel[]).map(
+              {(["info", "success", "warning", "error"] as AuditLogLevel[]).map(
                 (level) => (
                   <button
                     key={level}
@@ -106,12 +112,12 @@ export function AuditLogPanel() {
                     className={`px-3 py-1 rounded-lg text-sm ${
                       filter.level === level
                         ? levelBadgeColors[level]
-                        : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                        : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
                     }`}
                   >
                     {levelIcons[level]} {levelLabels[level]}
                   </button>
-                )
+                ),
               )}
             </div>
 
@@ -124,28 +130,28 @@ export function AuditLogPanel() {
                 onClick={() => handleActorFilter(undefined)}
                 className={`px-3 py-1 rounded-lg text-sm ${
                   !filter.actorType
-                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                    : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                    : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
                 }`}
               >
                 All
               </button>
               <button
-                onClick={() => handleActorFilter('user')}
+                onClick={() => handleActorFilter("user")}
                 className={`px-3 py-1 rounded-lg text-sm ${
-                  filter.actorType === 'user'
-                    ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
-                    : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                  filter.actorType === "user"
+                    ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200"
+                    : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
                 }`}
               >
                 👤 Users
               </button>
               <button
-                onClick={() => handleActorFilter('system')}
+                onClick={() => handleActorFilter("system")}
                 className={`px-3 py-1 rounded-lg text-sm ${
-                  filter.actorType === 'system'
-                    ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                    : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                  filter.actorType === "system"
+                    ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                    : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
                 }`}
               >
                 🤖 System
@@ -157,24 +163,32 @@ export function AuditLogPanel() {
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-6">
           <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{logs.length}</div>
-            <div className="text-sm text-blue-700 dark:text-blue-300">Total Logs</div>
+            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+              {logs.length}
+            </div>
+            <div className="text-sm text-blue-700 dark:text-blue-300">
+              Total Logs
+            </div>
           </div>
           <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
             <div className="text-2xl font-bold text-green-900 dark:text-green-100">
-              {logs.filter(l => l.level === 'success').length}
+              {logs.filter((l) => l.level === "success").length}
             </div>
-            <div className="text-sm text-green-700 dark:text-green-300">Success</div>
+            <div className="text-sm text-green-700 dark:text-green-300">
+              Success
+            </div>
           </div>
           <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3">
             <div className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">
-              {logs.filter(l => l.level === 'warning').length}
+              {logs.filter((l) => l.level === "warning").length}
             </div>
-            <div className="text-sm text-yellow-700 dark:text-yellow-300">Warnings</div>
+            <div className="text-sm text-yellow-700 dark:text-yellow-300">
+              Warnings
+            </div>
           </div>
           <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
             <div className="text-2xl font-bold text-red-900 dark:text-red-100">
-              {logs.filter(l => l.level === 'error').length}
+              {logs.filter((l) => l.level === "error").length}
             </div>
             <div className="text-sm text-red-700 dark:text-red-300">Errors</div>
           </div>
@@ -182,7 +196,9 @@ export function AuditLogPanel() {
 
         {/* Table View */}
         {isLoading ? (
-          <div className="text-center py-8 text-slate-500 dark:text-slate-400">Loading...</div>
+          <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+            Loading...
+          </div>
         ) : logs.length === 0 ? (
           <div className="text-center py-8 text-slate-500 dark:text-slate-400">
             No logs recorded yet
@@ -192,40 +208,56 @@ export function AuditLogPanel() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-700">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300">Event</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300">Timestamp</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300">User</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300">IP</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300">Action</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Event
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Timestamp
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    User
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    IP
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {logs.map((log) => (
-                  <tr 
-                    key={log.id} 
-                    className={`border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer border-l-4 ${levelColors[log.level]}`}
+                  <tr
+                    key={log.id}
+                    className={`border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer border-l-4 ${levelColors[log.level || "info"]}`}
                     onClick={() => setSelectedLog(log)}
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        <span>{levelIcons[log.level]}</span>
+                        <span>{levelIcons[log.level || "info"]}</span>
                         <div>
-                          <div className="font-medium text-slate-900 dark:text-slate-100">{log.title}</div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">{log.description}</div>
+                          <div className="font-medium text-slate-900 dark:text-slate-100">
+                            {log.title}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            {log.description}
+                          </div>
                         </div>
                       </div>
                     </td>
                     <td className="py-3 px-4 text-sm text-slate-600 dark:text-slate-400">
-                      {new Date(log.timestamp).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
+                      {new Date(
+                        log.timestamp || log.created_at || new Date(),
+                      ).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
                       })}
                     </td>
                     <td className="py-3 px-4">
-                      {log.actorType === 'system' ? (
+                      {log.actorType === "system" ? (
                         <span className="px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                           🤖 System
                         </span>
@@ -236,7 +268,7 @@ export function AuditLogPanel() {
                       )}
                     </td>
                     <td className="py-3 px-4 text-sm font-mono text-slate-600 dark:text-slate-400">
-                      {log.ipAddress || 'N/A'}
+                      {log.ipAddress || "N/A"}
                     </td>
                     <td className="py-3 px-4">
                       <button className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium">
@@ -252,9 +284,9 @@ export function AuditLogPanel() {
       </div>
 
       {selectedLog && (
-        <AuditLogDetailModal 
-          log={selectedLog} 
-          onClose={() => setSelectedLog(null)} 
+        <AuditLogDetailModal
+          log={selectedLog}
+          onClose={() => setSelectedLog(null)}
         />
       )}
     </>

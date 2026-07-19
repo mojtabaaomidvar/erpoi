@@ -11,16 +11,18 @@ import {
   BarChart3,
   ShieldCheck,
   Shield,
+  Folder,
 } from "lucide-react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { usePermission } from "@shared/authorization/hooks/usePermission";
-import { supabase } from "@shared/database/supabase"; // 🔧 NEW
+import { supabase } from "@shared/database/supabase";
 
 export type ViewKey =
   | "dashboard"
   | "clients"
   | "contracts"
+  | "projects"
   | "inspectors"
   | "inspections"
   | "billing"
@@ -65,6 +67,13 @@ const navItems: Array<{
     gradient: "from-violet-500 to-purple-600",
   },
   {
+    key: "projects",
+    label: "Projects",
+    icon: Folder,
+    entity: "projects",
+    gradient: "from-violet-500 to-purple-600",
+  },
+  {
     key: "inspectors",
     label: "Inspectors",
     icon: UserCheck,
@@ -73,7 +82,7 @@ const navItems: Array<{
   },
   {
     key: "inspections",
-    label: "Workflow",
+    label: "Inspections",
     icon: ClipboardCheck,
     entity: "inspection",
     gradient: "from-cyan-500 to-blue-600",

@@ -1,7 +1,8 @@
 // src/features/contract-management/hooks/useContracts.ts
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import type { Contract, Client, TariffLine } from "@entities/contract/types"; // 🔧 FIX: اضافه کردن TariffLine
+import type { Contract, TariffLine } from "@/types/contract";
+import type { Client } from "@/types/client";
 import { usePermission } from "@shared/authorization/hooks/usePermission";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { contractService } from "../services/ContractService";

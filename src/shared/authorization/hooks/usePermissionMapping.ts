@@ -3,14 +3,14 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@shared/database/supabase";
 import { uiElementRegistry } from "../ui/ui-elements/registry";
-import "@shared/authorization/ui/ui-elements";
-import type { Permission, EntityType } from "../types";
+import "@shared/authorization/ui/ui-elements"; // برای اجرای side-effect ثبت المان‌ها
+import type { EntityType } from "../types";
 import type { DBPermissionMapping, DBUIElement } from "@shared/database/types";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { checkDependenciesChain } from "../ui/ui-elements/dependencies";
 import { getBasePermissions } from "../config/RoleBasePermissions";
 
-// نرمال‌سازی فرمت permission
+// نرمال‌سازی فرمت permission برای پشتیبانی همزمان از formatهای "entity:action" و "entity_action"
 function normalizePermission(permission: string): string[] {
   const variants = new Set<string>();
   variants.add(permission);
@@ -35,14 +35,14 @@ export function usePermissionMapping() {
   const { user } = useAuth();
   const role = (user as any)?.role || "viewer";
   const customPermissions: string[] = (user as any)?.customPermissions || [];
-  const isAdmin = role === "admin";
+  const isAdmin = role === "admin" || role === "super_admin";
 
-  // 🔧 FIX: Base Permissions
+  // ۱. دریافت دسترسی‌های پایه بر اساس نقش سراسری
   const basePermissions = useMemo((): string[] => {
     return getBasePermissions(role);
   }, [role]);
 
-  // ترکیب Base + Custom
+  // ۲. ترکیب دسترسی‌های پایه و سفارشی (جلوگیری از تکرار با Set)
   const allPermissions = useMemo((): string[] => {
     if (isAdmin) return ["*:*"];
 
@@ -57,16 +57,20 @@ export function usePermissionMapping() {
   );
   const [loading, setLoading] = useState(true);
 
+  // ۳. بارگذاری تنظیمات دقیق (Granular) از دیتابیس
   useEffect(() => {
     const loadFromDB = async () => {
       try {
         setLoading(true);
         const { data, error } = await supabase
           .from("permission_mappings")
-          .select("*");
+          .select("permission, allowed_elements, denied_elements, updated_at");
 
         if (error) {
-          console.error("[usePermissionMapping] Failed to load:", error);
+          console.error(
+            "[usePermissionMapping] Failed to load mappings:",
+            error,
+          );
           return;
         }
 
@@ -88,9 +92,12 @@ export function usePermissionMapping() {
         setLoading(false);
       }
     };
+
+    // فقط یک بار در شروع کار لود می‌شود (مگر اینکه نیاز به Real-time داشته باشید)
     loadFromDB();
   }, []);
 
+  // ۴. دریافت لیست تمام المان‌های ثبت‌شده در سیستم
   const uiElements = useMemo((): DBUIElement[] => {
     return uiElementRegistry.getAllElements().map((el) => ({
       ...el,
@@ -101,13 +108,60 @@ export function usePermissionMapping() {
   }, []);
 
   // ═══════════════════════════════════════
-  // 🔐 ENTITY-LEVEL ACCESS
+  // 🔐 CORE LOGIC: محاسبه نهایی المان‌های مجاز
+  // ═══════════════════════════════════════
+  const allowedElements = useMemo((): Set<string> => {
+    if (isAdmin) {
+      return new Set(uiElements.map((el) => el.id));
+    }
+
+    const allowed = new Set<string>();
+    const allRegisteredIds = new Set(uiElements.map((el) => el.id));
+
+    // مرحله الف: اضافه کردن دسترسی‌های مستقیم (Base + Custom)
+    allPermissions.forEach((permission: string) => {
+      const variants = normalizePermission(permission);
+      variants.forEach((variant: string) => {
+        if (allRegisteredIds.has(variant)) {
+          allowed.add(variant);
+        }
+      });
+    });
+
+    // مرحله ب: اعمال تنظیمات دیتابیس (DB Mappings)
+    // 🔧 FIX: حالا روی allPermissions چک می‌شود، نه فقط customPermissions
+    allPermissions.forEach((permission: string) => {
+      const variants = normalizePermission(permission);
+      variants.forEach((variant: string) => {
+        const mapping = mappings.get(variant);
+        if (mapping) {
+          mapping.allowedElements.forEach((el: string) => {
+            if (allRegisteredIds.has(el)) {
+              allowed.add(el);
+            }
+          });
+        }
+      });
+    });
+
+    // مرحله ج: فیلتر نهایی بر اساس زنجیره وابستگی‌ها (Dependencies)
+    // اگر المانی مجاز باشد اما پیش‌نیازش مجاز نباشد، حذف می‌شود
+    const allowedArray = Array.from(allowed);
+    const finalAllowed = allowedArray.filter((elementId: string) => {
+      const { satisfied } = checkDependenciesChain(elementId, allowedArray);
+      return satisfied;
+    });
+
+    return new Set(finalAllowed);
+  }, [isAdmin, allPermissions, mappings, uiElements]);
+
+  // ═══════════════════════════════════════
+  // 🔐 HELPER FUNCTIONS
   // ═══════════════════════════════════════
 
   const canAccess = useCallback(
     (entity: string): boolean => {
       if (isAdmin) return true;
-
       return allPermissions.some((perm: string) => {
         const variants = normalizePermission(perm);
         return variants.some((v: string) => {
@@ -128,83 +182,12 @@ export function usePermissionMapping() {
     [canAccess],
   );
 
-  // ═══════════════════════════════════════
-  // 🔐 ELEMENT-LEVEL ACCESS
-  // ═══════════════════════════════════════
-
-  // 🔧 FIX: منطق ساده‌تر و درست‌تر
-  const allowedElements = useMemo((): Set<string> => {
-    if (isAdmin) {
-      return new Set(uiElements.map((el) => el.id));
-    }
-
-    const allowed = new Set<string>();
-
-    // 🔧 تعریف متغیر allRegisteredIds برای جستجوی سریع (O(1))
-    const allRegisteredIds = new Set(uiElements.map((el) => el.id));
-
-    // ۱. پردازش دسترسی‌های پایه (Base)
-    basePermissions.forEach((permission: string) => {
-      const variants = normalizePermission(permission);
-      variants.forEach((variant: string) => {
-        if (allRegisteredIds.has(variant)) {
-          allowed.add(variant);
-        }
-      });
-    });
-
-    // ۲. پردازش دسترسی‌های دستی و بچ (Custom)
-    customPermissions.forEach((permission: string) => {
-      const variants = normalizePermission(permission);
-
-      variants.forEach((variant: string) => {
-        // 🔧 لاگ دیباگ برای ردیابی عدم تطابق حروف بزرگ/کوچک
-        const isRegistered = allRegisteredIds.has(variant);
-        if (!isRegistered) {
-          console.warn(
-            `⚠️ [Mismatch] Custom perm "${variant}" NOT FOUND in registry!`,
-          );
-          console.log(
-            "Registry sample (first 5):",
-            Array.from(allRegisteredIds).slice(0, 5),
-          );
-        }
-
-        // الف) بررسی دسترسی دستی (Manual)
-        if (isRegistered) {
-          allowed.add(variant);
-        }
-
-        // ب) بررسی دسترسی بچ (Batch)
-        const mapping = mappings.get(variant);
-        if (mapping) {
-          mapping.allowedElements.forEach((el: string) => {
-            if (allRegisteredIds.has(el)) {
-              allowed.add(el);
-            }
-          });
-        }
-      });
-    });
-
-    // ۳. بررسی وابستگی‌ها (Dependencies) - فیلتر نهایی
-    const allowedArray = Array.from(allowed);
-    const filtered = allowedArray.filter((elementId: string) => {
-      const { satisfied } = checkDependenciesChain(elementId, allowedArray);
-      return satisfied;
-    });
-
-    return new Set(filtered);
-  }, [isAdmin, basePermissions, customPermissions, mappings, uiElements]);
-
   const canAccessElement = useCallback(
     (elementId: string): boolean => {
       if (isAdmin) return true;
-
-      // چک مستقیم
       if (allowedElements.has(elementId)) return true;
 
-      // چک فرمت‌های مختلف
+      // چک کردن فرمت‌های مختلف (مثلاً اگر با : پاس داده شد ولی در registry با _ ثبت شده)
       const variants = normalizePermission(elementId);
       return variants.some((v: string) => allowedElements.has(v));
     },
@@ -224,10 +207,6 @@ export function usePermissionMapping() {
     },
     [canAccessElement],
   );
-
-  // ═══════════════════════════════════════
-  // 🔧 HELPER FUNCTIONS
-  // ═══════════════════════════════════════
 
   const getAllowedElementsByEntity = useCallback(
     (entity: EntityType): DBUIElement[] => {
@@ -255,38 +234,6 @@ export function usePermissionMapping() {
     },
     [uiElements, canAccessElement],
   );
-
-  useEffect(() => {
-    console.group(
-      `🔐 [Permission Debug] User: ${user?.username || "Guest"} (${user?.role})`,
-    );
-    console.log("Base Permissions:", basePermissions);
-    console.log("Custom Permissions (from DB):", customPermissions);
-    console.log("Total Allowed Elements Count:", allowedElements.size);
-
-    // تست یک المان خاص (مثلاً دکمه افزودن قرارداد)
-    const testElement = "contract_btn_add";
-    console.log(
-      `Can access "${testElement}"? :`,
-      canAccessElement(testElement),
-    );
-
-    // اگر false است، ببینیم چرا
-    if (!canAccessElement(testElement)) {
-      console.warn(`⚠️ "${testElement}" is NOT in allowedElements Set.`);
-      console.log(
-        "First 20 allowed elements:",
-        Array.from(allowedElements).slice(0, 20),
-      );
-    }
-    console.groupEnd();
-  }, [
-    user,
-    allowedElements,
-    canAccessElement,
-    basePermissions,
-    customPermissions,
-  ]);
 
   return {
     canAccess,

@@ -106,8 +106,6 @@ class AuthService {
 
     // 🔧 Sync با Supabase Auth (حالا خودکار است چون triggers وجود دارند)
     try {
-      console.log("[AuthService] 🔗 Syncing with Supabase Auth...");
-
       const { data: authData, error: authError } =
         await supabase.auth.signInWithPassword({
           email: dbUser.email,

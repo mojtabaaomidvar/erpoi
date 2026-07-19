@@ -127,6 +127,50 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
       "details_view",
       "details_download_resume",
     ]),
+
+    // ═══════════════════════════════════════
+    // 📁 Projects
+    // ═══════════════════════════════════════
+    ...entityActions("project", [
+      "list_item_view",
+      "list_item_click",
+      "search_box",
+      "filter_status",
+      "btn_add",
+      "btn_edit",
+      "btn_delete",
+      "details_view",
+    ]),
+
+    // ═══════════════════════════════════════
+    // 🔍 Inspections
+    // ═══════════════════════════════════════
+    ...entityActions("inspection", [
+      "list_item_view",
+      "list_item_click",
+      "search_box",
+      "filter_status",
+      "filter_priority",
+      "status_badge",
+      "priority_badge",
+      "btn_add",
+      "btn_edit",
+      "btn_delete",
+      "btn_export",
+      "info_section",
+      "document_section",
+      "document_upload",
+      "document_approve",
+      "document_reject",
+      "inspector_assignment",
+      "assign_inspector",
+      "checklist_section",
+      "checklist_add",
+      "ncr_section",
+      "ncr_create",
+      "report_section",
+      "report_generate",
+    ]),
   ],
 
   expert: [

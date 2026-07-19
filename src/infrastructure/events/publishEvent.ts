@@ -1,24 +1,22 @@
 // src/infrastructure/events/publishEvent.ts
 
-import { eventBus } from'./EventBus';
-import { DomainEvent } from'./types';
+import type { DomainEvent, EventType } from "./types";
+import { eventBus } from "./EventBus";
 
-let eventCounter = 0;
-
-/**
- * Helper برای انتشار آسان رویداد
- */
 export function publishEvent<T>(
-  type: string,
+  type: EventType,
   payload: T,
-  options: { source?: string; userId?: string; correlationId?: string } = {}
+  userId?: string,
+  source: string = "application-service",
 ): void {
   const event: DomainEvent<T> = {
-    type,
+    type: type as EventType,
     payload,
     timestamp: new Date(),
-    eventId: `evt_${Date.now()}_${++eventCounter}`,
-    ...options,
+    eventId: crypto.randomUUID(),
+    userId,
+    source,
   };
+
   eventBus.publish(event);
 }

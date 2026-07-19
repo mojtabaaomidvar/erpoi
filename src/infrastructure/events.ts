@@ -20,6 +20,13 @@ export type EventType =
   | "contract.terminated"
   | "contract.renewed"
 
+  // Project Events
+  | "project.created"
+  | "project.updated"
+  | "project.deleted"
+  | "project.member.added"
+  | "project.member.removed"
+
   // Inspection Events
   | "inspection.created"
   | "inspection.updated"
