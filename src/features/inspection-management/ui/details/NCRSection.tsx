@@ -6,15 +6,14 @@ import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
-import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
 import { ncrAppService } from "../../application/NCRApplicationService";
-import { inspectionAppService } from "../../application/InspectionApplicationService";
+import { inspectionAppService } from "../../application";
 import type {
   NonConformity,
   NCRSeverity,
   NCRStatus,
   Inspection,
-} from "@/types/inspection";
+} from "@/features/inspection-management/domain/types";
 import { NCR_SEVERITY_CONFIG, NCR_STATUS_CONFIG } from "../../constants";
 
 interface NCRSectionProps {

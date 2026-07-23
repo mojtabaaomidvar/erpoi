@@ -7,12 +7,12 @@ import { useAuth } from "@features/auth/hooks/useAuth";
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 import { reportAppService } from "../../application/ReportApplicationService";
-import { inspectionAppService } from "../../application/InspectionApplicationService";
+import { inspectionAppService } from "../../application";
 import type {
   InspectionReport,
   ReportType,
   Inspection,
-} from "@/types/inspection";
+} from "@/features/inspection-management/domain/types";
 import { REPORT_TYPE_CONFIG } from "../../constants";
 
 interface ReportSectionProps {

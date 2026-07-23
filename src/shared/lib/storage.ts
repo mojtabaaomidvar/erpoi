@@ -1,11 +1,11 @@
 // ============ STORAGE KEYS ============
 const STORAGE_KEYS = {
-  CLIENTS:'ics_clients',
-  CONTRACTS:'ics_contracts',
-  CONTRACT_TARIFFS:'ics_contract_tariffs',
-  INSPECTORS:'ics_inspectors',
-  INSPECTIONS:'ics_inspections',
-  BILLING:'ics_billing',
+  CLIENTS: "ics_clients",
+  CONTRACTS: "ics_contracts",
+  CONTRACT_TARIFFS: "ics_contract_tariffs",
+  INSPECTORS: "ics_inspectors",
+  INSPECTIONS: "ics_inspections",
+  BILLING: "ics_billing",
 } as const;
 
 // ============ GENERIC FUNCTIONS ============
@@ -78,7 +78,3 @@ export function resetAllData(): void {
   });
   window.location.reload();
 }
-
-
-
-

@@ -5,8 +5,12 @@ import { Button, Badge, Avatar } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useClickOutside } from "@shared/hooks/useClickOutside";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
-import type { Contract, TariffLine } from "@/types/contract";
-import type { Client } from "@/types/client";
+import { ClientElements } from "@shared/authorization/ui/elements/ClientElements";
+import type {
+  Contract,
+  TariffLine,
+} from "@/features/contract-management/domain";
+import type { Client } from "@/features/client-management/domain/models/Client";
 import { formatCurrency } from "@shared/lib/formatters";
 import {
   calculateProgressFromTariffs,
@@ -28,7 +32,6 @@ interface ClientDetailsProps {
   onClose: () => void;
   currentDepartment: string;
   onContractClick?: (contract: Contract) => void;
-  onDelete?: () => void; // 🔧 حذف canUpdate, canDelete, canRead و اتکا به usePermissionMapping
 }
 
 export function ClientDetails({
@@ -43,7 +46,6 @@ export function ClientDetails({
   onClose,
   currentDepartment,
   onContractClick,
-  onDelete,
 }: ClientDetailsProps) {
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
@@ -64,28 +66,47 @@ export function ClientDetails({
     );
   }, [client, currentDepartment]);
 
-  // 🔐 چک کردن دسترسی‌ها دقیقاً منطبق بر clientElements
-  const canEditBtn = canAccessElement("client_btn_edit");
-  const canDeleteBtn = canAccessElement("client_btn_delete");
-  const canEmails = canAccessElement("client_emails_dropdown");
-  const canContacts = canAccessElement("client_contacts_dropdown");
-  const canStatAgreements = canAccessElement("client_stat_agreements");
-  const canStatValue = canAccessElement("client_stat_value_agreements");
-  const canStatInvoiced = canAccessElement("client_stat_invoiced");
-  const canStatUninvoiced = canAccessElement("client_stat_uninvoiced");
-  const canAgreements = canAccessElement("client_agreements_section");
+  // ✅ استفاده از Registry به جای رشته‌های سخت‌کد شده
+  const canEditBtn = canAccessElement(ClientElements.ClientDetails.btn_edit.id);
+  const canEmails = canAccessElement(
+    ClientElements.ClientDetails.emails_dropdown.id,
+  );
+  const canContacts = canAccessElement(
+    ClientElements.ClientDetails.contacts_dropdown.id,
+  );
+  const canStatAgreements = canAccessElement(
+    ClientElements.ClientDetails.stat_agreements.id,
+  );
+  const canStatValue = canAccessElement(
+    ClientElements.ClientDetails.stat_value_agreements.id,
+  );
+  const canStatInvoiced = canAccessElement(
+    ClientElements.ClientDetails.stat_invoiced.id,
+  );
+  const canStatUninvoiced = canAccessElement(
+    ClientElements.ClientDetails.stat_uninvoiced.id,
+  );
+  const canAgreements = canAccessElement(
+    ClientElements.ClientDetails.agreements_section.id,
+  );
 
-  // 🔧 اصلاح: استفاده از client_list_item_click برای کلیک روی آیتم‌های قرارداد در لیست
-  const canClickContractItem = canAccessElement("client_list_item_click");
+  // برای کلیک روی آیتم قرارداد، از المان لیست استفاده می‌کنیم
+  const canClickContractItem = canAccessElement(
+    ClientElements.ClientList.list_item_click.id,
+  );
 
-  const canAgreementValue = canAccessElement("client_agreement_value");
+  const canAgreementValue = canAccessElement(
+    ClientElements.ClientDetails.agreement_value.id,
+  );
   const canAgreementProgressWork = canAccessElement(
-    "client_agreement_progress_work",
+    ClientElements.ClientDetails.agreement_progress_work.id,
   );
   const canAgreementProgressInvoice = canAccessElement(
-    "client_agreement_progress_invoice",
+    ClientElements.ClientDetails.agreement_progress_invoice.id,
   );
-  const canContractDates = canAccessElement("client_contract_dates");
+  const canContractDates = canAccessElement(
+    ClientElements.ClientDetails.contract_dates.id,
+  );
 
   // Empty state
   if (!client) {
@@ -244,7 +265,6 @@ export function ClientDetails({
           </div>
 
           <div className="flex gap-2">
-            {/* 🔐 client_btn_edit */}
             {canEditBtn && (
               <Button
                 variant="outline"
@@ -253,17 +273,6 @@ export function ClientDetails({
                 className="gap-2 shadow-sm transition-all hover:scale-105"
               >
                 <span>✏️</span> Edit Client
-              </Button>
-            )}
-            {/* 🔐 client_btn_delete */}
-            {canDeleteBtn && onDelete && (
-              <Button
-                variant="danger"
-                size="md"
-                onClick={onDelete}
-                className="gap-2 shadow-sm transition-all hover:scale-105"
-              >
-                <span>🗑️</span> Delete
               </Button>
             )}
           </div>
@@ -333,7 +342,6 @@ export function ClientDetails({
                   </div>
                 </div>
 
-                {/* 🔐 client_emails_dropdown */}
                 {canEmails && (
                   <div className="relative" ref={emailDropdownRef}>
                     <div
@@ -380,7 +388,6 @@ export function ClientDetails({
                       <div
                         className={`absolute top-full left-0 mt-1 w-72 rounded-xl border shadow-xl z-50 py-2 max-h-80 overflow-y-auto ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}
                       >
-                        {/* محتوای دراپ‌داون ایمیل (همان کد قبلی شما) */}
                         {client.email && (
                           <button
                             onClick={(e) => {
@@ -403,7 +410,6 @@ export function ClientDetails({
                   </div>
                 )}
 
-                {/* 🔐 client_contacts_dropdown */}
                 {canContacts && (
                   <div className="relative" ref={contactDropdownRef}>
                     <div
@@ -476,7 +482,6 @@ export function ClientDetails({
               </div>
             </div>
           ) : (
-            // Personal Information (ساختار مشابه بالا با canEmails)
             <div
               className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-slate-50/50"}`}
             >
@@ -510,7 +515,6 @@ export function ClientDetails({
                     {client.phone || "—"}
                   </div>
                 </div>
-                {/* 🔐 client_emails_dropdown (مشابه بخش حقوقی) */}
                 {canEmails && (
                   <div className="relative" ref={emailDropdownRef}>
                     <div
@@ -537,7 +541,7 @@ export function ClientDetails({
             </div>
           )}
 
-          {/* 🔐 Stats Cards */}
+          {/* Stats Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {canStatAgreements && (
               <div
@@ -605,7 +609,7 @@ export function ClientDetails({
             )}
           </div>
 
-          {/* 🔐 client_agreements_section */}
+          {/* Agreements Section */}
           {canAgreements && (
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -614,7 +618,6 @@ export function ClientDetails({
                 >
                   Agreements
                 </h3>
-                {/* 🔧 اصلاح: حذف canAgreementsTabs و نمایش مستقیم تب‌ها در صورت دسترسی به بخش agreements */}
                 <div
                   className={`flex gap-1 rounded-lg p-0.5 ${isDark ? "bg-slate-800/50 border border-slate-700/50" : "bg-slate-100 border border-slate-200/70"}`}
                 >
@@ -704,7 +707,6 @@ export function ClientDetails({
                           </h4>
                         </div>
                         <div className="text-right ml-4 shrink-0">
-                          {/* 🔐 client_agreement_value */}
                           {canAgreementValue && (
                             <div
                               className={`text-sm font-bold truncate mb-1 ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
@@ -732,7 +734,6 @@ export function ClientDetails({
                         </div>
                       </div>
 
-                      {/* 🔐 client_agreement_progress_work */}
                       {canAgreementProgressWork && (
                         <>
                           <div
@@ -758,7 +759,6 @@ export function ClientDetails({
                         </>
                       )}
 
-                      {/* 🔐 client_agreement_progress_invoice */}
                       {canAgreementProgressInvoice && (
                         <>
                           <div
@@ -784,7 +784,6 @@ export function ClientDetails({
                         </>
                       )}
 
-                      {/* 🔐 client_contract_dates */}
                       {canContractDates && (
                         <div
                           className={`flex items-center justify-between text-[11px] mt-3 pt-3 border-t ${isDark ? "border-slate-700/50 text-slate-400" : "border-slate-200/70 text-slate-600"}`}

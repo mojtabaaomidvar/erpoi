@@ -4,7 +4,7 @@ import { Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import type { DBUser } from "@shared/database/types";
 import { UserTable } from "./UserTable";
-import type { DBDepartment } from "@shared/database/types";
+import type { Department } from "@shared/authorization";
 
 interface UsersTabProps {
   users: DBUser[];
@@ -14,7 +14,7 @@ interface UsersTabProps {
   onEditUser: (user: DBUser) => void;
   onDeleteUser: (user: DBUser) => void;
   onElementAccess: (user: DBUser) => void;
-  departments?: DBDepartment[];
+  departments?: Department[];
 }
 
 export function UsersTab({

@@ -7,7 +7,8 @@ import type { IDocumentReviewRepository } from "./IDocumentReviewRepository";
 export class SupabaseDocumentReviewRepository implements IDocumentReviewRepository {
   async getAll(): Promise<DocumentReview[]> {
     const { data, error } = await supabase
-      .from("inspection.document_reviews")
+      .schema("inspection")
+      .from("document_reviews")
       .select("*")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -16,7 +17,8 @@ export class SupabaseDocumentReviewRepository implements IDocumentReviewReposito
 
   async getById(id: string): Promise<DocumentReview | null> {
     const { data, error } = await supabase
-      .from("inspection.document_reviews")
+      .schema("inspection")
+      .from("document_reviews")
       .select("*")
       .eq("id", id)
       .single();
@@ -26,7 +28,8 @@ export class SupabaseDocumentReviewRepository implements IDocumentReviewReposito
 
   async getByInspectionRequest(requestId: string): Promise<DocumentReview[]> {
     const { data, error } = await supabase
-      .from("inspection.document_reviews")
+      .schema("inspection")
+      .from("document_reviews")
       .select("*")
       .eq("inspection_request_id", requestId)
       .order("created_at", { ascending: false });
@@ -39,7 +42,8 @@ export class SupabaseDocumentReviewRepository implements IDocumentReviewReposito
   ): Promise<DocumentReview> {
     const id = `doc_rev_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const { data: newRecord, error } = await supabase
-      .from("inspection.document_reviews")
+      .schema("inspection")
+      .from("document_reviews")
       .insert({
         id,
         ...data,
@@ -57,7 +61,8 @@ export class SupabaseDocumentReviewRepository implements IDocumentReviewReposito
     data: Partial<DocumentReview>,
   ): Promise<DocumentReview> {
     const { data: updatedRecord, error } = await supabase
-      .from("inspection.document_reviews")
+      .schema("inspection")
+      .from("document_reviews")
       .update({ ...data, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select()
@@ -68,7 +73,8 @@ export class SupabaseDocumentReviewRepository implements IDocumentReviewReposito
 
   async delete(id: string): Promise<void> {
     const { error } = await supabase
-      .from("inspection.document_reviews")
+      .schema("inspection")
+      .from("document_reviews")
       .delete()
       .eq("id", id);
     if (error) throw new Error(error.message);

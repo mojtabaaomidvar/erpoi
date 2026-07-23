@@ -1,1 +1,1 @@
-export * from"@/types/contract";
+export * from "@/features/contract-management/domain";

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
-import type { DBDepartment, DBUser } from "@shared/database/types";
+import type { DBUser } from "@shared/database/types";
+import type { Department } from "@shared/authorization";
 
 interface DepartmentModalProps {
-  department: DBDepartment | null;
+  department: Department | null;
   users: DBUser[];
   onClose: () => void;
   onSave: (formData: any) => void;

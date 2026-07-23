@@ -1,12 +1,11 @@
 ﻿// src/features/contract-management/ui/ContractList.tsx
 
-import { useMemo } from "react";
 import { Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
+import { ContractElements } from "@shared/authorization/ui/elements/ContractElements";
 import { showToast } from "@shared/ui/ToastContainer";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
-import type { Contract } from "@entities/contract/types";
 import { formatCurrency } from "@shared/lib/formatters";
 import {
   calculateDaysProgress,
@@ -16,10 +15,11 @@ import {
   getDaysProgressColor,
 } from "@entities/contract/services/contractCalculations";
 import type { ActionPriority } from "../utils/contractPriority";
+import type { Contract } from "../domain"; // ✅ استفاده از تایپ جدید دامنه
 
 interface ContractListProps {
-  contracts: Contract[];
-  filteredContracts: Contract[];
+  contracts: Contract[]; // برای نمایش تعداد کل در فیلترها (بدون اعمال جستجو)
+  sortedContracts: Contract[]; // ✅ جایگزین filteredContracts (شامل جستجو، فیلتر و مرتب‌سازی)
   contractPriorities?: Map<string, ActionPriority>;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -39,7 +39,7 @@ interface ContractListProps {
 
 export function ContractList({
   contracts,
-  filteredContracts,
+  sortedContracts, // ✅ دریافت مستقیم داده‌های پردازش‌شده از هوک
   contractPriorities,
   searchQuery,
   setSearchQuery,
@@ -57,22 +57,36 @@ export function ContractList({
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
 
-  //  دسترسی
-  const canViewItems = canAccessElement("contract_list_item_view");
-  const canClickItem = canAccessElement("contract_list_item_click");
-  const canSearch = canAccessElement("contract_search_box");
-  const canFilterType = canAccessElement("contract_filter_type");
-  const canFilterStatus = canAccessElement("contract_filter_status");
-  const canStatusBadge = canAccessElement("contract_ status_badge");
-  const canViewFinancial = canAccessElement("contract_list_value");
-  const canDate = canAccessElement("contract_dates");
-  const canProgressBar = canAccessElement("contract_progress_bar");
-  const canAdd = canAccessElement("contract_btn_add");
-  const canExport = canAccessElement("contract_btn_export");
-
-  const sortedContracts = useMemo(() => {
-    return filteredContracts;
-  }, [filteredContracts]);
+  // ✅ دسترسی‌ها با استفاده از Registry (بدون رشته‌های سخت‌کد شده)
+  const canViewItems = canAccessElement(
+    ContractElements.ContractList.list_item_view.id,
+  );
+  const canClickItem = canAccessElement(
+    ContractElements.ContractList.list_item_click.id,
+  );
+  const canSearch = canAccessElement(
+    ContractElements.ContractList.search_box.id,
+  );
+  const canFilterType = canAccessElement(
+    ContractElements.ContractList.filter_type.id,
+  );
+  const canFilterStatus = canAccessElement(
+    ContractElements.ContractList.filter_status.id,
+  );
+  const canStatusBadge = canAccessElement(
+    ContractElements.ContractList.status_badge.id,
+  );
+  const canViewFinancial = canAccessElement(
+    ContractElements.ContractList.list_value.id,
+  );
+  const canDate = canAccessElement(ContractElements.ContractList.dates.id);
+  const canProgressBar = canAccessElement(
+    ContractElements.ContractList.progress_bar.id,
+  );
+  const canAdd = canAccessElement(ContractElements.ContractList.btn_add.id);
+  const canExport = canAccessElement(
+    ContractElements.ContractList.btn_export.id,
+  );
 
   // 🔐 هندلر کلیک: فقط در صورتی اجازه می‌دهد که canClickItem فعال باشد
   const handleContractClick = (contract: Contract) => {
@@ -294,7 +308,6 @@ export function ContractList({
 
       {/* Contract List Content */}
       <div className="flex-1 overflow-y-auto">
-        {/* 🔐 ۳. اگر دسترسی View نداشت، پیام Access Denied نشان بده */}
         {!canViewItems ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
             <div
@@ -376,33 +389,19 @@ export function ContractList({
                   {/* Selection Indicator */}
                   {isSelected && (
                     <div
-                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full ${
-                        isDraft
-                          ? isDark
-                            ? "bg-slate-400"
-                            : "bg-slate-500"
-                          : "bg-indigo-500"
-                      }`}
+                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full ${isDraft ? (isDark ? "bg-slate-400" : "bg-slate-500") : "bg-indigo-500"}`}
                     />
                   )}
 
                   {/* Draft Badge */}
                   {isDraft && (
                     <div
-                      className={`flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-md text-[10px] font-bold w-fit ${
-                        isDark
-                          ? "bg-slate-700 text-slate-200 border border-slate-600"
-                          : "bg-slate-200 text-slate-700 border border-slate-300"
-                      }`}
+                      className={`flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-md text-[10px] font-bold w-fit ${isDark ? "bg-slate-700 text-slate-200 border border-slate-600" : "bg-slate-200 text-slate-700 border border-slate-300"}`}
                     >
                       <span className="text-sm">✏️</span>
                       <span>Draft - In Progress</span>
                       <span
-                        className={`ml-1 px-1.5 py-0.5 rounded text-[9px] ${
-                          isDark
-                            ? "bg-slate-600 text-slate-300"
-                            : "bg-white text-slate-600"
-                        }`}
+                        className={`ml-1 px-1.5 py-0.5 rounded text-[9px] ${isDark ? "bg-slate-600 text-slate-300" : "bg-white text-slate-600"}`}
                       >
                         Click to continue
                       </span>
@@ -445,43 +444,19 @@ export function ContractList({
                             : "📦 Work Order"}
                         </Badge>
                         <span
-                          className={`font-mono text-[11px] truncate ${
-                            isDraft
-                              ? isDark
-                                ? "text-slate-500"
-                                : "text-slate-500"
-                              : isDark
-                                ? "text-slate-400"
-                                : "text-slate-600"
-                          }`}
+                          className={`font-mono text-[11px] truncate ${isDraft ? (isDark ? "text-slate-500" : "text-slate-500") : isDark ? "text-slate-400" : "text-slate-600"}`}
                         >
                           {contract.contract_no}
                         </span>
                       </div>
                       <h3
-                        className={`text-sm font-bold truncate ${
-                          isDraft
-                            ? isDark
-                              ? "text-slate-300 italic"
-                              : "text-slate-600 italic"
-                            : isDark
-                              ? "text-slate-100"
-                              : "text-slate-900"
-                        }`}
+                        className={`text-sm font-bold truncate ${isDraft ? (isDark ? "text-slate-300 italic" : "text-slate-600 italic") : isDark ? "text-slate-100" : "text-slate-900"}`}
                       >
                         {contract.contract_title ||
                           (isDraft ? "Untitled Draft" : "")}
                       </h3>
                       <p
-                        className={`text-[11px] truncate ${
-                          isDraft
-                            ? isDark
-                              ? "text-slate-500"
-                              : "text-slate-500"
-                            : isDark
-                              ? "text-slate-400"
-                              : "text-slate-600"
-                        }`}
+                        className={`text-[11px] truncate ${isDraft ? (isDark ? "text-slate-500" : "text-slate-500") : isDark ? "text-slate-400" : "text-slate-600"}`}
                       >
                         {contract.client_name}
                       </p>
@@ -491,11 +466,7 @@ export function ContractList({
                     <div className="shrink-0 ml-2">
                       {isDraft ? (
                         <div
-                          className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold ${
-                            isDark
-                              ? "bg-slate-700 text-slate-300 border border-slate-600"
-                              : "bg-slate-200 text-slate-700 border border-slate-300"
-                          }`}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold ${isDark ? "bg-slate-700 text-slate-300 border border-slate-600" : "bg-slate-200 text-slate-700 border border-slate-300"}`}
                         >
                           <span>📝</span>
                           <span>Draft</span>
@@ -531,13 +502,8 @@ export function ContractList({
                   {/* Footer Info Section */}
                   {isDraft ? (
                     <div
-                      className={`mt-2 p-2 rounded-lg ${
-                        isDark
-                          ? "bg-slate-900/50 border border-slate-700"
-                          : "bg-white border border-slate-200"
-                      }`}
+                      className={`mt-2 p-2 rounded-lg ${isDark ? "bg-slate-900/50 border border-slate-700" : "bg-white border border-slate-200"}`}
                     >
-                      {/* 🔧 Conditional Date for Draft */}
                       {canDate && (
                         <div className="flex items-center justify-between text-xs mb-1">
                           <span
@@ -550,8 +516,6 @@ export function ContractList({
                           </span>
                         </div>
                       )}
-
-                      {/* Value for Draft (Always visible or based on financial permission if needed) */}
                       <div className="flex items-center justify-end text-xs">
                         <span
                           className={`font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
@@ -564,11 +528,8 @@ export function ContractList({
                             : "—"}
                         </span>
                       </div>
-
                       <div
-                        className={`mt-1.5 flex items-center gap-1.5 text-[10px] ${
-                          isDark ? "text-slate-500" : "text-slate-500"
-                        }`}
+                        className={`mt-1.5 flex items-center gap-1.5 text-[10px] ${isDark ? "text-slate-500" : "text-slate-500"}`}
                       >
                         <span>⚠️</span>
                         <span>
@@ -578,7 +539,6 @@ export function ContractList({
                     </div>
                   ) : (
                     <>
-                      {/* 🔧 Conditional Date & Value for Active Contracts */}
                       {(canDate || canViewFinancial) && (
                         <div className="flex items-center justify-between text-xs mt-2">
                           {canDate ? (
@@ -590,9 +550,8 @@ export function ContractList({
                               📅 {contract.start_date} → {contract.end_date}
                             </span>
                           ) : (
-                            <span></span> // Spacer to keep value aligned if date is hidden
+                            <span></span>
                           )}
-
                           {canViewFinancial ? (
                             <span
                               className={`font-semibold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
@@ -612,7 +571,6 @@ export function ContractList({
                         </div>
                       )}
 
-                      {/* 🔧 Conditional Progress Bar */}
                       {canProgressBar &&
                         contract.status !== "COMPLETED" &&
                         daysProgress !== null && (
@@ -683,11 +641,7 @@ export function ContractList({
 
       {/* Footer Stats */}
       <div
-        className={`px-4 py-2.5 border-t ${
-          isDark
-            ? "border-slate-700/50 bg-slate-900/50"
-            : "border-slate-200/70 bg-slate-50/50"
-        }`}
+        className={`px-4 py-2.5 border-t ${isDark ? "border-slate-700/50 bg-slate-900/50" : "border-slate-200/70 bg-slate-50/50"}`}
       >
         <div className="flex items-center justify-between text-[10px]">
           <span className={isDark ? "text-slate-400" : "text-slate-600"}>

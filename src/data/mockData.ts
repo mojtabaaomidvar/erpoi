@@ -1,8 +1,10 @@
 // src/data/mockData.ts
 
-import type { Contract, TariffLine } from "../types/contract";
-import type { Client } from "../types/client";
-
+import type {
+  Contract,
+  TariffLine,
+} from "@features/contract-management/domain";
+import type { Client } from "@features/client-management/domain";
 // ============ CLIENTS (12 مشتری متنوع) ============
 export const clients: Client[] = [
   {

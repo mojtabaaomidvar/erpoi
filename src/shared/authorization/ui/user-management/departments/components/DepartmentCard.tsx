@@ -2,16 +2,17 @@
 
 import { Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import type { DBUser, DBDepartment } from "@shared/database/types";
+import type { DBUser } from "@shared/database/types";
 import { getRoleConfig } from "../../../../config/RoleConfig";
+import type { Department } from "@shared/authorization";
 
 interface DepartmentCardProps {
-  department: DBDepartment;
+  department: Department;
   users: DBUser[];
   manager: DBUser | null;
-  onEdit?: (department: DBDepartment) => void;
-  onDelete?: (department: DBDepartment) => void;
-  onViewUsers?: (department: DBDepartment) => void;
+  onEdit?: (department: Department) => void;
+  onDelete?: (department: Department) => void;
+  onViewUsers?: (department: Department) => void;
   isDark?: boolean;
 }
 

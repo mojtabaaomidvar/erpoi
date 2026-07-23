@@ -1,11 +1,14 @@
 // src/features/contract-management/ui/ContractDocumentsModal.tsx
 
-import { useMemo, useState } from "react";
 import { Button, Badge, Modal } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import type { Contract, ContractAmendment } from "@/types/contract";
+import type {
+  Contract,
+  ContractAmendment,
+} from "@/features/contract-management/domain";
 import { formatCurrency } from "@shared/lib/formatters";
 import { AnimatedCollapse } from "@shared/ui/AnimatedCollapse";
+import { useContractDocumentsModal } from "../hooks/useContractDocumentsModal";
 
 interface ContractDocumentsModalProps {
   isOpen: boolean;
@@ -14,17 +17,6 @@ interface ContractDocumentsModalProps {
   amendments: ContractAmendment[];
 }
 
-interface ContractDocument {
-  id: string;
-  name: string;
-  url: string;
-  type: "contract" | "letter" | "amendment";
-  amendment_no?: string;
-  uploaded_at?: string;
-}
-
-type TabKey = "documents" | "ammendments" | "history";
-
 export function ContractDocumentsModal({
   isOpen,
   onClose,
@@ -32,95 +24,17 @@ export function ContractDocumentsModal({
   amendments,
 }: ContractDocumentsModalProps) {
   const { isDark } = useTheme();
-  const [activeTab, setActiveTab] = useState<TabKey>("documents");
-  const [expandedAmendment, setExpandedAmendment] = useState<string | null>(
-    null,
-  );
 
-  // 🔧 FIX: فقط amendments تایید شده
-  const approvedAmendments = useMemo(() => {
-    return amendments.filter((a) => a.approval_status === "APPROVED");
-  }, [amendments]);
-
-  // 🔧 NEW: همه amendments (برای History)
-  const allAmendments = useMemo(() => {
-    return [...amendments].sort((a, b) => {
-      // اول بر اساس status مرتب کن
-      const statusOrder = { APPROVED: 1, PENDING: 2, REJECTED: 3 };
-      const statusDiff =
-        (statusOrder[a.approval_status] || 99) -
-        (statusOrder[b.approval_status] || 99);
-      if (statusDiff !== 0) return statusDiff;
-
-      // اگر status یکسان، بر اساس تاریخ
-      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return dateB - dateA;
-    });
-  }, [amendments]);
-
-  // 🔧 FIX: استخراج مدارک - فقط از amendments تایید شده
-  const documents = useMemo((): ContractDocument[] => {
-    const docs: ContractDocument[] = [];
-
-    if (contract.source_file) {
-      const files = Array.isArray(contract.source_file)
-        ? contract.source_file
-        : [contract.source_file];
-
-      files.forEach((file, index) => {
-        docs.push({
-          id: `doc_contract_${contract.id}_${index}`,
-          name:
-            typeof file === "string"
-              ? file.split("/").pop() || `Contract Document ${index + 1}`
-              : `Contract Document ${index + 1}`,
-          url: typeof file === "string" ? file : "",
-          type: "contract",
-          uploaded_at: contract.created_at,
-        });
-      });
-    }
-
-    if (contract.source_letter_image) {
-      const files = Array.isArray(contract.source_letter_image)
-        ? contract.source_letter_image
-        : [contract.source_letter_image];
-
-      files.forEach((file, index) => {
-        docs.push({
-          id: `doc_letter_${contract.id}_${index}`,
-          name:
-            typeof file === "string"
-              ? file.split("/").pop() || `Reference Letter ${index + 1}`
-              : `Reference Letter ${index + 1}`,
-          url: typeof file === "string" ? file : "",
-          type: "letter",
-          uploaded_at: contract.source_letter_date || contract.created_at,
-        });
-      });
-    }
-
-    // 🔧 FIX: فقط amendments تایید شده
-    approvedAmendments.forEach((amendment) => {
-      if (amendment.attachment_urls && amendment.attachment_urls.length > 0) {
-        amendment.attachment_urls.forEach((url, index) => {
-          docs.push({
-            id: `doc_amendment_${amendment.id}_${index}`,
-            name:
-              amendment.attachment_names?.[index] ||
-              `Amendment ${amendment.amendment_no || amendment.id}`,
-            url: url,
-            type: "amendment",
-            amendment_no: amendment.amendment_no,
-            uploaded_at: amendment.created_at,
-          });
-        });
-      }
-    });
-
-    return docs;
-  }, [contract, approvedAmendments]);
+  // ✅ تمام منطق و State در هوک مدیریت می‌شود
+  const {
+    activeTab,
+    setActiveTab,
+    expandedAmendment,
+    toggleExpanded,
+    approvedAmendments,
+    allAmendments,
+    documents,
+  } = useContractDocumentsModal(contract, amendments);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -203,15 +117,7 @@ export function ContractDocumentsModal({
         >
           <button
             onClick={() => setActiveTab("documents")}
-            className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-all relative ${
-              activeTab === "documents"
-                ? isDark
-                  ? "text-indigo-300 bg-indigo-950/30"
-                  : "text-indigo-700 bg-indigo-50"
-                : isDark
-                  ? "text-slate-400 hover:text-slate-200"
-                  : "text-slate-600 hover:text-slate-900"
-            }`}
+            className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-all relative ${activeTab === "documents" ? (isDark ? "text-indigo-300 bg-indigo-950/30" : "text-indigo-700 bg-indigo-50") : isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-600 hover:text-slate-900"}`}
           >
             📄 Documents ({documents.length})
             {activeTab === "documents" && (
@@ -222,17 +128,9 @@ export function ContractDocumentsModal({
           </button>
           <button
             onClick={() => setActiveTab("ammendments")}
-            className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-all relative ${
-              activeTab === "ammendments"
-                ? isDark
-                  ? "text-emerald-300 bg-emerald-950/30"
-                  : "text-emerald-700 bg-emerald-50"
-                : isDark
-                  ? "text-slate-400 hover:text-slate-200"
-                  : "text-slate-600 hover:text-slate-900"
-            }`}
+            className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-all relative ${activeTab === "ammendments" ? (isDark ? "text-emerald-300 bg-emerald-950/30" : "text-emerald-700 bg-emerald-50") : isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-600 hover:text-slate-900"}`}
           >
-            ✓ Ammendments ({approvedAmendments.length})
+            ✓ Amendments ({approvedAmendments.length})
             {activeTab === "ammendments" && (
               <div
                 className={`absolute bottom-0 left-0 right-0 h-0.5 ${isDark ? "bg-emerald-500" : "bg-emerald-600"}`}
@@ -241,15 +139,7 @@ export function ContractDocumentsModal({
           </button>
           <button
             onClick={() => setActiveTab("history")}
-            className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-all relative ${
-              activeTab === "history"
-                ? isDark
-                  ? "text-slate-300 bg-slate-800/50"
-                  : "text-slate-700 bg-slate-100"
-                : isDark
-                  ? "text-slate-400 hover:text-slate-200"
-                  : "text-slate-600 hover:text-slate-900"
-            }`}
+            className={`flex-1 px-4 py-2.5 text-xs font-semibold transition-all relative ${activeTab === "history" ? (isDark ? "text-slate-300 bg-slate-800/50" : "text-slate-700 bg-slate-100") : isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-600 hover:text-slate-900"}`}
           >
             📜 History ({allAmendments.length})
             {activeTab === "history" && (
@@ -277,27 +167,11 @@ export function ContractDocumentsModal({
                   href={doc.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`flex items-center gap-3 p-3 rounded-lg border transition-all animate-fadeIn hover:scale-[1.01] ${
-                    isDark
-                      ? "border-slate-700 bg-slate-800/50 hover:bg-slate-800 hover:border-slate-600"
-                      : "border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300"
-                  }`}
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-all animate-fadeIn hover:scale-[1.01] ${isDark ? "border-slate-700 bg-slate-800/50 hover:bg-slate-800 hover:border-slate-600" : "border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300"}`}
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${
-                      doc.type === "contract"
-                        ? isDark
-                          ? "bg-indigo-900/50 text-indigo-300"
-                          : "bg-indigo-50 text-indigo-600"
-                        : doc.type === "letter"
-                          ? isDark
-                            ? "bg-violet-900/50 text-violet-300"
-                            : "bg-violet-50 text-violet-600"
-                          : isDark
-                            ? "bg-amber-900/50 text-amber-300"
-                            : "bg-amber-50 text-amber-600"
-                    }`}
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${doc.type === "contract" ? (isDark ? "bg-indigo-900/50 text-indigo-300" : "bg-indigo-50 text-indigo-600") : doc.type === "letter" ? (isDark ? "bg-violet-900/50 text-violet-300" : "bg-violet-50 text-violet-600") : isDark ? "bg-amber-900/50 text-amber-300" : "bg-amber-50 text-amber-600"}`}
                   >
                     {doc.type === "contract"
                       ? "📄"
@@ -305,7 +179,6 @@ export function ContractDocumentsModal({
                         ? "📨"
                         : "🔄"}
                   </div>
-
                   <div className="flex-1 min-w-0">
                     <div
                       className={`text-xs font-semibold truncate ${isDark ? "text-slate-100" : "text-slate-900"}`}
@@ -336,7 +209,6 @@ export function ContractDocumentsModal({
                       )}
                     </div>
                   </div>
-
                   <div
                     className={`text-lg ${isDark ? "text-slate-400" : "text-slate-500"}`}
                   >
@@ -348,7 +220,7 @@ export function ContractDocumentsModal({
           </div>
         )}
 
-        {/* Amendments Tab - فقط تایید شده‌ها */}
+        {/* Amendments Tab */}
         {activeTab === "ammendments" && (
           <div className="relative pl-6">
             {approvedAmendments.length === 0 ? (
@@ -373,7 +245,6 @@ export function ContractDocumentsModal({
                       <div
                         className={`absolute -left-4 top-3 w-4 h-4 rounded-full border-2 ${getDotColor(amendment.approval_status)}`}
                       />
-
                       <div
                         className={`rounded-lg border p-3 ${getStatusColor(amendment.approval_status)}`}
                       >
@@ -393,25 +264,14 @@ export function ContractDocumentsModal({
                             </span>
                           </div>
                           <button
-                            onClick={() =>
-                              setExpandedAmendment(
-                                expandedAmendment === amendment.id
-                                  ? null
-                                  : amendment.id,
-                              )
-                            }
-                            className={`text-xs px-2 py-1 rounded transition-all ${
-                              isDark
-                                ? "text-slate-400 hover:bg-slate-700"
-                                : "text-slate-600 hover:bg-slate-200"
-                            }`}
+                            onClick={() => toggleExpanded(amendment.id)}
+                            className={`text-xs px-2 py-1 rounded transition-all ${isDark ? "text-slate-400 hover:bg-slate-700" : "text-slate-600 hover:bg-slate-200"}`}
                           >
                             {expandedAmendment === amendment.id
                               ? "Hide"
                               : "Details"}
                           </button>
                         </div>
-
                         <div className="flex gap-1 flex-wrap mb-2">
                           {amendment.amendment_types.map((type) => (
                             <Badge
@@ -433,7 +293,6 @@ export function ContractDocumentsModal({
                             </Badge>
                           ))}
                         </div>
-
                         {amendment.description && (
                           <p
                             className={`text-xs mb-2 ${isDark ? "text-slate-300" : "text-slate-700"}`}
@@ -478,7 +337,6 @@ export function ContractDocumentsModal({
                                     </div>
                                   </div>
                                 )}
-
                               {amendment.amendment_types.includes(
                                 "VALUE_INCREASE",
                               ) &&
@@ -520,7 +378,6 @@ export function ContractDocumentsModal({
                                     </div>
                                   </div>
                                 )}
-
                               {amendment.amendment_types.includes(
                                 "TARIFF_ADJUSTMENT",
                               ) &&
@@ -580,7 +437,7 @@ export function ContractDocumentsModal({
           </div>
         )}
 
-        {/* History Tab - همه amendments */}
+        {/* History Tab */}
         {activeTab === "history" && (
           <div className="relative pl-6">
             {allAmendments.length === 0 ? (
@@ -605,7 +462,6 @@ export function ContractDocumentsModal({
                       <div
                         className={`absolute -left-4 top-3 w-4 h-4 rounded-full border-2 ${getDotColor(amendment.approval_status)}`}
                       />
-
                       <div
                         className={`rounded-lg border p-3 ${getStatusColor(amendment.approval_status)}`}
                       >
@@ -625,25 +481,14 @@ export function ContractDocumentsModal({
                             </span>
                           </div>
                           <button
-                            onClick={() =>
-                              setExpandedAmendment(
-                                expandedAmendment === amendment.id
-                                  ? null
-                                  : amendment.id,
-                              )
-                            }
-                            className={`text-xs px-2 py-1 rounded transition-all ${
-                              isDark
-                                ? "text-slate-400 hover:bg-slate-700"
-                                : "text-slate-600 hover:bg-slate-200"
-                            }`}
+                            onClick={() => toggleExpanded(amendment.id)}
+                            className={`text-xs px-2 py-1 rounded transition-all ${isDark ? "text-slate-400 hover:bg-slate-700" : "text-slate-600 hover:bg-slate-200"}`}
                           >
                             {expandedAmendment === amendment.id
                               ? "Hide"
                               : "Details"}
                           </button>
                         </div>
-
                         <div className="flex gap-1 flex-wrap mb-2">
                           {amendment.amendment_types.map((type) => (
                             <Badge
@@ -665,7 +510,6 @@ export function ContractDocumentsModal({
                             </Badge>
                           ))}
                         </div>
-
                         {amendment.description && (
                           <p
                             className={`text-xs mb-2 ${isDark ? "text-slate-300" : "text-slate-700"}`}
@@ -674,7 +518,6 @@ export function ContractDocumentsModal({
                           </p>
                         )}
 
-                        {/* Rejection Reason */}
                         {amendment.approval_status === "REJECTED" &&
                           amendment.rejection_reason && (
                             <div
@@ -732,7 +575,6 @@ export function ContractDocumentsModal({
                                     </div>
                                   </div>
                                 )}
-
                               {amendment.amendment_types.includes(
                                 "VALUE_INCREASE",
                               ) &&
@@ -774,7 +616,6 @@ export function ContractDocumentsModal({
                                     </div>
                                   </div>
                                 )}
-
                               {amendment.amendment_types.includes(
                                 "TARIFF_ADJUSTMENT",
                               ) &&

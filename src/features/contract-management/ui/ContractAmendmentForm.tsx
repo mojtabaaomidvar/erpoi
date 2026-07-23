@@ -1,25 +1,18 @@
 // src/features/contract-management/ui/ContractAmendmentForm.tsx
 
-import { useState, useEffect, useMemo } from "react";
 import { Button, Modal } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { usePermission } from "@shared/authorization/hooks/usePermission";
-import { showToast } from "@shared/ui/ToastContainer";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
-import { supabase } from "@shared/database/supabase";
-import { amendmentService } from "../services/AmendmentService";
 import type {
   Contract,
   TariffLine,
-  AmendmentType,
-  TariffAdjustmentMode,
-} from "@/types/contract";
-import { formatCurrency } from "@shared/lib/formatters";
+} from "@/features/contract-management/domain";
 import {
   formatNumberInput,
   parseNumberInput,
 } from "@entities/contract/services/contractCalculations";
-import { useAuth } from "@features/auth/hooks/useAuth";
+import { formatCurrency } from "@shared/lib/formatters";
+import { useContractAmendmentForm } from "../hooks/useContractAmendmentForm";
 
 interface ContractAmendmentFormProps {
   isOpen: boolean;
@@ -37,296 +30,36 @@ export function ContractAmendmentForm({
   onSuccess,
 }: ContractAmendmentFormProps) {
   const { isDark } = useTheme();
-  const { user } = useAuth();
 
-  const [isSaving, setIsSaving] = useState(false);
-  const [amendmentTypes, setAmendmentTypes] = useState<AmendmentType[]>([]);
-  const [effectiveDate, setEffectiveDate] = useState("");
-  const [amendmentNo, setAmendmentNo] = useState("");
-  const [description, setDescription] = useState("");
-
-  // 🔧 FIX: چند فایل
-  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
-  const [attachmentNames, setAttachmentNames] = useState<string[]>([]);
-
-  const [newEndDate, setNewEndDate] = useState("");
-  const [newValue, setNewValue] = useState<number>(0);
-
-  const [tariffAdjustments, setTariffAdjustments] = useState<
-    Array<{
-      tariff_line_id: string;
-      description: string;
-      unit: string;
-      adjustment_mode: TariffAdjustmentMode;
-      adjustment_percentage: number;
-      previous_rate: number;
-      new_rate: number;
-    }>
-  >([]);
-
-  // 🔧 Initialize tariff adjustments
-  useEffect(() => {
-    if (isOpen) {
-      const tariffs =
-        contract.tariffLines && contract.tariffLines.length > 0
-          ? contract.tariffLines
-          : contractTariffs.filter((t) => t.contract_id === contract.id);
-
-      if (tariffs.length > 0) {
-        setTariffAdjustments(
-          tariffs.map((tariff) => {
-            const rate =
-              typeof tariff.rate === "string"
-                ? Number(tariff.rate.replace(/,/g, "")) || 0
-                : tariff.rate || 0;
-
-            return {
-              tariff_line_id: tariff.id,
-              description: tariff.description,
-              unit: tariff.unit,
-              adjustment_mode: "PERCENTAGE" as TariffAdjustmentMode,
-              adjustment_percentage: 0,
-              previous_rate: rate,
-              new_rate: rate,
-            };
-          }),
-        );
-      }
-    }
-  }, [isOpen, contract, contractTariffs]);
-
-  // 🔧 Toggle amendment type
-  const toggleAmendmentType = (type: AmendmentType) => {
-    if (amendmentTypes.includes(type)) {
-      setAmendmentTypes(amendmentTypes.filter((t) => t !== type));
-    } else {
-      setAmendmentTypes([...amendmentTypes, type]);
-    }
-  };
-
-  // 🔧 Update tariff adjustment
-  const updateTariffAdjustment = (
-    tariffLineId: string,
-    field: string,
-    value: any,
-  ) => {
-    setTariffAdjustments((prev) =>
-      prev.map((adj) => {
-        if (adj.tariff_line_id === tariffLineId) {
-          const updated = { ...adj, [field]: value };
-
-          if (
-            field === "adjustment_percentage" &&
-            adj.adjustment_mode === "PERCENTAGE"
-          ) {
-            updated.new_rate = adj.previous_rate * (1 + value / 100);
-          }
-
-          return updated;
-        }
-        return adj;
-      }),
-    );
-  };
-
-  // 🔧 Validation
-  const isFormValid = useMemo(() => {
-    if (amendmentTypes.length === 0) return false;
-    if (!effectiveDate) return false;
-    if (amendmentTypes.includes("DATE_EXTENSION") && !newEndDate) return false;
-    if (amendmentTypes.includes("VALUE_INCREASE") && newValue <= 0)
-      return false;
-    if (amendmentTypes.includes("TARIFF_ADJUSTMENT")) {
-      if (tariffAdjustments.length === 0) return false;
-      const hasInvalidAdjustment = tariffAdjustments.some(
-        (adj) =>
-          (adj.adjustment_mode === "PERCENTAGE" &&
-            adj.adjustment_percentage <= 0) ||
-          (adj.adjustment_mode === "MANUAL" && adj.new_rate <= 0),
-      );
-      if (hasInvalidAdjustment) return false;
-    }
-    if (attachmentFiles.length === 0) return false;
-    return true;
-  }, [
+  const {
+    isSaving,
     amendmentTypes,
     effectiveDate,
-    newEndDate,
-    newValue,
-    tariffAdjustments,
+    setEffectiveDate,
+    amendmentNo,
+    setAmendmentNo,
+    description,
+    setDescription,
     attachmentFiles,
-  ]);
-
-  // 🔧 FIX: چند فایل انتخابی
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      setAttachmentFiles((prev) => [...prev, ...files]);
-      setAttachmentNames((prev) => [...prev, ...files.map((f) => f.name)]);
-    }
-  };
-
-  //  حذف یک فایل
-  const removeFile = (index: number) => {
-    setAttachmentFiles((prev) => prev.filter((_, i) => i !== index));
-    setAttachmentNames((prev) => prev.filter((_, i) => i !== index));
-    const input = document.getElementById(
-      "amendment-file-input",
-    ) as HTMLInputElement;
-    if (input) input.value = "";
-  };
-
-  //  Background Upload
-
-  const handleSave = async () => {
-    if (!isFormValid) {
-      showToast(
-        "error",
-        "Validation Error",
-        "Please complete all required fields",
-      );
-      return;
-    }
-
-    setIsSaving(true);
-
-    try {
-      // 🔧 FIX: ابتدا فایل‌ها را آپلود کنیم
-      console.log("[ContractAmendmentForm] 📤 Uploading files first...");
-
-      const uploadedUrls: string[] = [];
-      const uploadedNames: string[] = [];
-
-      // بررسی Supabase session
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData?.user) {
-        showToast("error", "Upload Failed", "Please logout and login again.");
-        setIsSaving(false);
-        return;
-      }
-
-      // آپلود فایل‌ها
-      for (let i = 0; i < attachmentFiles.length; i++) {
-        const file = attachmentFiles[i];
-        const fileExt = file.name.split(".").pop() || "file";
-        const tempId = `temp_${Date.now()}_${i}`;
-        const fileName = `${contract.id}/${tempId}/${Date.now()}_${i}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-
-        try {
-          console.log(
-            `[ContractAmendmentForm] 📤 Uploading file ${i + 1}/${attachmentFiles.length}:`,
-            file.name,
-          );
-
-          const { data: uploadData, error: uploadError } =
-            await supabase.storage.from("amendments").upload(fileName, file, {
-              cacheControl: "3600",
-              upsert: false,
-              contentType: file.type,
-            });
-
-          if (uploadError) {
-            console.error(
-              `[ContractAmendmentForm] ❌ Upload failed:`,
-              uploadError,
-            );
-            showToast(
-              "error",
-              "Upload Failed",
-              `Failed to upload ${file.name}: ${uploadError.message}`,
-            );
-            setIsSaving(false);
-            return;
-          }
-
-          const { data: urlData } = supabase.storage
-            .from("amendments")
-            .getPublicUrl(uploadData.path);
-
-          uploadedUrls.push(urlData.publicUrl);
-          uploadedNames.push(file.name);
-
-          console.log(
-            `[ContractAmendmentForm] ✅ File ${i + 1} uploaded:`,
-            urlData.publicUrl,
-          );
-        } catch (error: any) {
-          console.error(
-            `[ContractAmendmentForm] ❌ Error uploading ${file.name}:`,
-            error,
-          );
-          showToast(
-            "error",
-            "Upload Failed",
-            `Failed to upload ${file.name}: ${error.message}`,
-          );
-          setIsSaving(false);
-          return;
-        }
-      }
-
-      console.log(
-        "[ContractAmendmentForm] ✅ All files uploaded:",
-        uploadedUrls,
-      );
-
-      // 🔧 حالا amendment را با URL ها ایجاد کنیم
-      const amendmentData = {
-        contract_id: contract.id,
-        amendment_no: amendmentNo || undefined,
-        amendment_types: amendmentTypes,
-        effective_date: effectiveDate,
-        previous_end_date: amendmentTypes.includes("DATE_EXTENSION")
-          ? contract.end_date
-          : undefined,
-        new_end_date: amendmentTypes.includes("DATE_EXTENSION")
-          ? newEndDate
-          : undefined,
-        previous_value: amendmentTypes.includes("VALUE_INCREASE")
-          ? contract.total_value
-          : undefined,
-        new_value: amendmentTypes.includes("VALUE_INCREASE")
-          ? newValue
-          : undefined,
-        description,
-        attachment_urls: uploadedUrls, // 🔧 FIX: URL ها را مستقیماً پاس دهیم
-        attachment_names: uploadedNames,
-        created_by: user?.id,
-        tariff_adjustments: amendmentTypes.includes("TARIFF_ADJUSTMENT")
-          ? tariffAdjustments.map((adj) => ({
-              tariff_line_id: adj.tariff_line_id,
-              adjustment_mode: adj.adjustment_mode,
-              adjustment_percentage:
-                adj.adjustment_mode === "PERCENTAGE"
-                  ? adj.adjustment_percentage
-                  : undefined,
-              previous_rate: adj.previous_rate,
-              new_rate: adj.new_rate,
-            }))
-          : undefined,
-      };
-
-      const amendment = await amendmentService.create(amendmentData);
-
-      showToast(
-        "success",
-        "Amendment Created",
-        "Amendment has been created successfully with all files.",
-      );
-
-      onSuccess();
-      onClose();
-      setIsSaving(false);
-    } catch (err: any) {
-      console.error("[ContractAmendmentForm] Save failed:", err);
-      showToast(
-        "error",
-        "Save Failed",
-        err.message || "Failed to create amendment",
-      );
-      setIsSaving(false);
-    }
-  };
+    attachmentNames,
+    newEndDate,
+    setNewEndDate,
+    newValue,
+    setNewValue,
+    tariffAdjustments,
+    isFormValid,
+    toggleAmendmentType,
+    updateTariffAdjustment,
+    handleFileChange,
+    removeFile,
+    handleSubmit,
+  } = useContractAmendmentForm(
+    isOpen,
+    contract,
+    contractTariffs,
+    onSuccess,
+    onClose,
+  );
 
   return (
     <Modal
@@ -415,15 +148,7 @@ export function ContractAmendmentForm({
             <button
               type="button"
               onClick={() => toggleAmendmentType("DATE_EXTENSION")}
-              className={`rounded-xl border-2 p-4 text-left transition-all ${
-                amendmentTypes.includes("DATE_EXTENSION")
-                  ? isDark
-                    ? "border-indigo-500 bg-indigo-950/50"
-                    : "border-indigo-500 bg-indigo-50"
-                  : isDark
-                    ? "border-slate-700 bg-slate-800/30 hover:border-slate-600"
-                    : "border-slate-200 bg-white hover:border-slate-300"
-              }`}
+              className={`rounded-xl border-2 p-4 text-left transition-all ${amendmentTypes.includes("DATE_EXTENSION") ? (isDark ? "border-indigo-500 bg-indigo-950/50" : "border-indigo-500 bg-indigo-50") : isDark ? "border-slate-700 bg-slate-800/30 hover:border-slate-600" : "border-slate-200 bg-white hover:border-slate-300"}`}
             >
               <div className="text-2xl mb-2">📅</div>
               <div
@@ -441,15 +166,7 @@ export function ContractAmendmentForm({
             <button
               type="button"
               onClick={() => toggleAmendmentType("VALUE_INCREASE")}
-              className={`rounded-xl border-2 p-4 text-left transition-all ${
-                amendmentTypes.includes("VALUE_INCREASE")
-                  ? isDark
-                    ? "border-emerald-500 bg-emerald-950/50"
-                    : "border-emerald-500 bg-emerald-50"
-                  : isDark
-                    ? "border-slate-700 bg-slate-800/30 hover:border-slate-600"
-                    : "border-slate-200 bg-white hover:border-slate-300"
-              }`}
+              className={`rounded-xl border-2 p-4 text-left transition-all ${amendmentTypes.includes("VALUE_INCREASE") ? (isDark ? "border-emerald-500 bg-emerald-950/50" : "border-emerald-500 bg-emerald-50") : isDark ? "border-slate-700 bg-slate-800/30 hover:border-slate-600" : "border-slate-200 bg-white hover:border-slate-300"}`}
             >
               <div className="text-2xl mb-2">💰</div>
               <div
@@ -467,15 +184,7 @@ export function ContractAmendmentForm({
             <button
               type="button"
               onClick={() => toggleAmendmentType("TARIFF_ADJUSTMENT")}
-              className={`rounded-xl border-2 p-4 text-left transition-all ${
-                amendmentTypes.includes("TARIFF_ADJUSTMENT")
-                  ? isDark
-                    ? "border-amber-500 bg-amber-950/50"
-                    : "border-amber-500 bg-amber-50"
-                  : isDark
-                    ? "border-slate-700 bg-slate-800/30 hover:border-slate-600"
-                    : "border-slate-200 bg-white hover:border-slate-300"
-              }`}
+              className={`rounded-xl border-2 p-4 text-left transition-all ${amendmentTypes.includes("TARIFF_ADJUSTMENT") ? (isDark ? "border-amber-500 bg-amber-950/50" : "border-amber-500 bg-amber-50") : isDark ? "border-slate-700 bg-slate-800/30 hover:border-slate-600" : "border-slate-200 bg-white hover:border-slate-300"}`}
             >
               <div className="text-2xl mb-2">📊</div>
               <div
@@ -515,11 +224,7 @@ export function ContractAmendmentForm({
             <input
               value={amendmentNo}
               onChange={(e) => setAmendmentNo(e.target.value)}
-              className={`w-full rounded-lg border px-3 py-2 text-sm ${
-                isDark
-                  ? "border-slate-700 bg-slate-800 text-slate-100"
-                  : "border-slate-200 bg-white"
-              }`}
+              className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`}
               placeholder="Auto-generated if empty"
             />
           </div>
@@ -601,11 +306,7 @@ export function ContractAmendmentForm({
                   onChange={(e) =>
                     setNewValue(parseNumberInput(e.target.value))
                   }
-                  className={`w-full rounded-lg border px-3 py-2 text-sm font-mono text-right ${
-                    isDark
-                      ? "border-slate-700 bg-slate-800 text-slate-100"
-                      : "border-slate-200 bg-white"
-                  }`}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm font-mono text-right ${isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`}
                   placeholder="0"
                 />
               </div>
@@ -640,7 +341,6 @@ export function ContractAmendmentForm({
             >
               📊 Tariff Adjustment
             </h4>
-
             {tariffAdjustments.length === 0 ? (
               <div
                 className={`text-center py-8 text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}
@@ -680,7 +380,7 @@ export function ContractAmendmentForm({
                         : "divide-y divide-slate-200/70"
                     }
                   >
-                    {tariffAdjustments.map((adj) => (
+                    {tariffAdjustments.map((adj: any) => (
                       <tr
                         key={adj.tariff_line_id}
                         className={
@@ -717,13 +417,7 @@ export function ContractAmendmentForm({
                                   "PERCENTAGE",
                                 )
                               }
-                              className={`px-2 py-1 rounded text-[10px] font-semibold transition-all ${
-                                adj.adjustment_mode === "PERCENTAGE"
-                                  ? "bg-amber-600 text-white"
-                                  : isDark
-                                    ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                                    : "bg-slate-200 text-slate-600 hover:bg-slate-300"
-                              }`}
+                              className={`px-2 py-1 rounded text-[10px] font-semibold transition-all ${adj.adjustment_mode === "PERCENTAGE" ? "bg-amber-600 text-white" : isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-slate-200 text-slate-600 hover:bg-slate-300"}`}
                             >
                               %
                             </button>
@@ -736,13 +430,7 @@ export function ContractAmendmentForm({
                                   "MANUAL",
                                 )
                               }
-                              className={`px-2 py-1 rounded text-[10px] font-semibold transition-all ${
-                                adj.adjustment_mode === "MANUAL"
-                                  ? "bg-amber-600 text-white"
-                                  : isDark
-                                    ? "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                                    : "bg-slate-200 text-slate-600 hover:bg-slate-300"
-                              }`}
+                              className={`px-2 py-1 rounded text-[10px] font-semibold transition-all ${adj.adjustment_mode === "MANUAL" ? "bg-amber-600 text-white" : isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600" : "bg-slate-200 text-slate-600 hover:bg-slate-300"}`}
                             >
                               ✏️
                             </button>
@@ -823,16 +511,12 @@ export function ContractAmendmentForm({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            className={`w-full rounded-lg border px-3 py-2 text-sm ${
-              isDark
-                ? "border-slate-700 bg-slate-800 text-slate-100"
-                : "border-slate-200 bg-white"
-            }`}
+            className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`}
             placeholder="Optional description..."
           />
         </div>
 
-        {/*  Attachment - چند فایل */}
+        {/* Attachment */}
         <div>
           <label
             className={`mb-1.5 block text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
@@ -850,15 +534,7 @@ export function ContractAmendmentForm({
             />
             <label
               htmlFor="amendment-file-input"
-              className={`flex items-center justify-between gap-2 w-full rounded-lg border-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${
-                attachmentFiles.length > 0
-                  ? isDark
-                    ? "border-emerald-600 bg-emerald-900/30 text-emerald-300"
-                    : "border-emerald-400 bg-emerald-50 text-emerald-700"
-                  : isDark
-                    ? "border-dashed border-slate-600 bg-slate-800/30 text-slate-400 hover:border-indigo-500"
-                    : "border-dashed border-slate-300 bg-slate-50 text-slate-600 hover:border-indigo-400"
-              }`}
+              className={`flex items-center justify-between gap-2 w-full rounded-lg border-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${attachmentFiles.length > 0 ? (isDark ? "border-emerald-600 bg-emerald-900/30 text-emerald-300" : "border-emerald-400 bg-emerald-50 text-emerald-700") : isDark ? "border-dashed border-slate-600 bg-slate-800/30 text-slate-400 hover:border-indigo-500" : "border-dashed border-slate-300 bg-slate-50 text-slate-600 hover:border-indigo-400"}`}
             >
               <div className="flex items-center gap-2">
                 <span>📎</span>
@@ -871,7 +547,6 @@ export function ContractAmendmentForm({
             </label>
           </div>
 
-          {/* 🔧 NEW: لیست فایل‌های انتخاب شده */}
           {attachmentFiles.length > 0 && (
             <div
               className={`mt-2 space-y-1 rounded-lg border p-2 ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50"}`}
@@ -879,9 +554,7 @@ export function ContractAmendmentForm({
               {attachmentFiles.map((file, index) => (
                 <div
                   key={index}
-                  className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded ${
-                    isDark ? "bg-slate-700/50" : "bg-white"
-                  }`}
+                  className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded ${isDark ? "bg-slate-700/50" : "bg-white"}`}
                 >
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span className="text-sm">
@@ -910,11 +583,7 @@ export function ContractAmendmentForm({
                   <button
                     type="button"
                     onClick={() => removeFile(index)}
-                    className={`p-1 rounded transition-colors ${
-                      isDark
-                        ? "text-rose-400 hover:bg-rose-900/30"
-                        : "text-rose-600 hover:bg-rose-50"
-                    }`}
+                    className={`p-1 rounded transition-colors ${isDark ? "text-rose-400 hover:bg-rose-900/30" : "text-rose-600 hover:bg-rose-50"}`}
                   >
                     ✕
                   </button>
@@ -951,7 +620,7 @@ export function ContractAmendmentForm({
                     )}
                   {amendmentTypes.includes("TARIFF_ADJUSTMENT") &&
                     tariffAdjustments.some(
-                      (adj) =>
+                      (adj: any) =>
                         (adj.adjustment_mode === "PERCENTAGE" &&
                           adj.adjustment_percentage <= 0) ||
                         (adj.adjustment_mode === "MANUAL" && adj.new_rate <= 0),
@@ -966,13 +635,12 @@ export function ContractAmendmentForm({
         )}
 
         {/* Actions */}
-
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
           <Button
-            onClick={handleSave}
+            onClick={handleSubmit}
             disabled={isSaving || !isFormValid}
             className={`${isSaving || !isFormValid ? "opacity-50 cursor-not-allowed" : ""} ${isSaving ? "cursor-wait" : ""}`}
           >

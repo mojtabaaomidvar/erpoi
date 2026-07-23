@@ -2,15 +2,18 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@shared/database/supabase";
-import { uiElementRegistry } from "../ui/ui-elements/registry";
-import "@shared/authorization/ui/ui-elements"; // برای اجرای side-effect ثبت المان‌ها
-import type { EntityType } from "../types";
+import type { EntityType } from "@/shared/authorization";
 import type { DBPermissionMapping, DBUIElement } from "@shared/database/types";
 import { useAuth } from "@features/auth/hooks/useAuth";
-import { checkDependenciesChain } from "../ui/ui-elements/dependencies";
 import { getBasePermissions } from "../config/RoleBasePermissions";
 
-// نرمال‌سازی فرمت permission برای پشتیبانی همزمان از formatهای "entity:action" و "entity_action"
+// ✅ ایمپورت از رجیستری مرکزی جدید (جایگزین فایل‌های قدیمی ui-elements)
+import {
+  checkDependenciesChain,
+  getAllElements,
+} from "@shared/authorization/ui";
+
+// نرمال‌سازی فرمت permission برای پشتیبانی همزمان از فرمت‌های "entity:action" و "entity_action"
 function normalizePermission(permission: string): string[] {
   const variants = new Set<string>();
   variants.add(permission);
@@ -63,6 +66,7 @@ export function usePermissionMapping() {
       try {
         setLoading(true);
         const { data, error } = await supabase
+          .schema("core")
           .from("permission_mappings")
           .select("permission, allowed_elements, denied_elements, updated_at");
 
@@ -93,15 +97,16 @@ export function usePermissionMapping() {
       }
     };
 
-    // فقط یک بار در شروع کار لود می‌شود (مگر اینکه نیاز به Real-time داشته باشید)
     loadFromDB();
   }, []);
 
-  // ۴. دریافت لیست تمام المان‌های ثبت‌شده در سیستم
+  // ۴. دریافت لیست تمام المان‌های ثبت‌شده در سیستم از رجیستری جدید
   const uiElements = useMemo((): DBUIElement[] => {
-    return uiElementRegistry.getAllElements().map((el) => ({
+    return getAllElements().map((el: any) => ({
       ...el,
-      module: el.module || "unknown",
+      // حفظ سازگاری با تایپ DBUIElement برای فیلدهایی که در تایپ جدید UIElement ممکن است صریح نباشند
+      module: (el as any).module || "unknown",
+      entity: (el as any).entity || "unknown",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })) as DBUIElement[];
@@ -129,7 +134,6 @@ export function usePermissionMapping() {
     });
 
     // مرحله ب: اعمال تنظیمات دیتابیس (DB Mappings)
-    // 🔧 FIX: حالا روی allPermissions چک می‌شود، نه فقط customPermissions
     allPermissions.forEach((permission: string) => {
       const variants = normalizePermission(permission);
       variants.forEach((variant: string) => {
@@ -211,7 +215,7 @@ export function usePermissionMapping() {
   const getAllowedElementsByEntity = useCallback(
     (entity: EntityType): DBUIElement[] => {
       return uiElements.filter(
-        (el) => el.entity === entity && canAccessElement(el.id),
+        (el) => (el as any).entity === entity && canAccessElement(el.id),
       );
     },
     [uiElements, canAccessElement],
@@ -220,7 +224,7 @@ export function usePermissionMapping() {
   const getAllowedElementsByModule = useCallback(
     (module: string): DBUIElement[] => {
       return uiElements.filter(
-        (el) => el.module === module && canAccessElement(el.id),
+        (el) => (el as any).module === module && canAccessElement(el.id),
       );
     },
     [uiElements, canAccessElement],

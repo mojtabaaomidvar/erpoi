@@ -1,6 +1,6 @@
 // src/features/inspection-management/application/InspectionApplicationService.ts
 
-import { inspectionRepository } from "../repositories/SupabaseInspectionRepository";
+import type { IInspectionRepository } from "../repositories/IInspectionRepository";
 import type { Inspection } from "../domain/types";
 import {
   CreateInspectionSchema,
@@ -8,7 +8,7 @@ import {
 } from "./dto/InspectionCommand";
 
 class InspectionApplicationService {
-  private repository = inspectionRepository;
+  constructor(private repository: IInspectionRepository) {}
 
   async getAll(): Promise<Inspection[]> {
     return await this.repository.getAll();
@@ -62,4 +62,4 @@ class InspectionApplicationService {
   }
 }
 
-export const inspectionAppService = new InspectionApplicationService();
+export { InspectionApplicationService };

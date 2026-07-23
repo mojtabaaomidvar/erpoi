@@ -7,10 +7,10 @@ import { useAuth } from "@features/auth/hooks/useAuth";
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
-import { inspectionAppService } from "../../application/InspectionApplicationService";
-import { inspectorService } from "@features/inspector-managment/services/InspectorService";
-import type { Inspection } from "@/types/inspection";
-import type { Inspector } from "@/types/inspector";
+import { inspectionAppService } from "../../application";
+import { inspectorAppService } from "@/features/inspector-managment/application";
+import type { Inspection } from "@/features/inspection-management/domain/types";
+import type { Inspector } from "@/features/inspector-managment/domain/models/Inspector";
 import { INSPECTION_EXECUTION_STATUS_CONFIG } from "../../constants";
 
 interface InspectorAssignmentSectionProps {
@@ -40,7 +40,7 @@ export function InspectorAssignmentSection({
     try {
       const [inspData, inspList] = await Promise.all([
         inspectionAppService.getByInspectionRequest(requestId),
-        inspectorService.getAll(),
+        inspectorAppService.getAll(),
       ]);
       setInspections(inspData);
       setInspectors(inspList);

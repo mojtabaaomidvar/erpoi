@@ -1,4 +1,4 @@
-// src/features/project-management/repositories/SupabaseProjectRepository.ts
+﻿// src/features/project-management/repositories/SupabaseProjectRepository.ts
 
 import { supabase } from "@shared/database/supabase";
 import type { Project, ProjectMember, ProjectRole } from "../domain/types";
@@ -7,7 +7,8 @@ import type { IProjectRepository } from "./IProjectRepository";
 export class SupabaseProjectRepository implements IProjectRepository {
   async getAll(): Promise<Project[]> {
     const { data, error } = await supabase
-      .from("projects.projects")
+      .schema("projects")
+      .from("projects")
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -17,7 +18,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
 
   async getById(id: string): Promise<Project | null> {
     const { data, error } = await supabase
-      .from("projects.projects")
+      .schema("projects")
+      .from("projects")
       .select("*, members:project_members(*)")
       .eq("id", id)
       .single();
@@ -28,7 +30,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
 
   async getByContract(contractId: string): Promise<Project[]> {
     const { data, error } = await supabase
-      .from("projects.projects")
+      .schema("projects")
+      .from("projects")
       .select("*")
       .eq("contract_id", contractId)
       .order("created_at", { ascending: false });
@@ -39,7 +42,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
 
   async getByClient(clientId: string): Promise<Project[]> {
     const { data, error } = await supabase
-      .from("projects.projects")
+      .schema("projects")
+      .from("projects")
       .select("*")
       .eq("client_id", clientId)
       .order("created_at", { ascending: false });
@@ -54,7 +58,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
     const id = `proj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     const { data: project, error } = await supabase
-      .from("projects.projects")
+      .schema("projects")
+      .from("projects")
       .insert({ ...data, id })
       .select()
       .single();
@@ -65,7 +70,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
 
   async update(id: string, data: Partial<Project>): Promise<Project> {
     const { data: project, error } = await supabase
-      .from("projects.projects")
+      .schema("projects")
+      .from("projects")
       .update({ ...data, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select()
@@ -77,7 +83,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
 
   async delete(id: string): Promise<void> {
     const { error } = await supabase
-      .from("projects.projects")
+      .schema("projects")
+      .from("projects")
       .delete()
       .eq("id", id);
 
@@ -99,7 +106,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
     }
 
     const { data: existing } = await supabase
-      .from("projects.project_members")
+      .schema("projects")
+      .from("project_members")
       .select("*")
       .eq("project_id", projectId)
       .eq("user_id", userId)
@@ -111,7 +119,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
     }
     const id = `pmem_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const { data, error } = await supabase
-      .from("projects.project_members")
+      .schema("projects")
+      .from("project_members")
       .insert({ id, project_id: projectId, user_id: userId, role })
       .select()
       .single();
@@ -119,7 +128,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (error) {
       if (error.code === "23505") {
         const { data: fallback } = await supabase
-          .from("projects.project_members")
+          .schema("projects")
+          .from("project_members")
           .select("*")
           .eq("project_id", projectId)
           .eq("user_id", userId)
@@ -139,7 +149,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
     role: ProjectRole,
   ): Promise<void> {
     const { error } = await supabase
-      .from("projects.project_members")
+      .schema("projects")
+      .from("project_members")
       .delete()
       .eq("project_id", projectId)
       .eq("user_id", userId)
@@ -150,7 +161,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
 
   async getMembers(projectId: string): Promise<ProjectMember[]> {
     const { data, error } = await supabase
-      .from("projects.project_members")
+      .schema("projects")
+      .from("project_members")
       .select("*, user:users(id, full_name, username, email)")
       .eq("project_id", projectId);
 
@@ -163,7 +175,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
     userId: string,
   ): Promise<ProjectRole | null> {
     const { data, error } = await supabase
-      .from("projects.project_members")
+      .schema("projects")
+      .from("project_members")
       .select("role")
       .eq("project_id", projectId)
       .eq("user_id", userId)

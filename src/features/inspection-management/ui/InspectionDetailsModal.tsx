@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Modal, Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
-import type { InspectionRequest } from "@/types/inspection";
+import type { InspectionRequest } from "@/features/inspection-management/domain/types";
 import { INSPECTION_STATUS_CONFIG, PRIORITY_CONFIG } from "../constants";
+import { InspectionElements } from "@shared/authorization/ui/elements/InspectionElements";
+import { usePermissionMapping } from "@/shared/authorization";
 
 // Import Components
 import { DocumentReviewSection } from "./details/DocumentReviewSection";
@@ -13,6 +15,7 @@ import { InspectorAssignmentSection } from "./details/InspectorAssignmentSection
 import { ChecklistSection } from "./details/ChecklistSection";
 import { NCRSection } from "./details/NCRSection";
 import { ReportSection } from "./details/ReportSection";
+import { ImageMinus } from "lucide-react";
 
 interface InspectionDetailsModalProps {
   isOpen: boolean;
@@ -20,8 +23,6 @@ interface InspectionDetailsModalProps {
   inspectionRequest: InspectionRequest | null;
   onEdit: (request: InspectionRequest) => void;
   onDelete: (request: InspectionRequest) => void;
-  canEdit: boolean;
-  canDelete: boolean;
 }
 
 type TabType =
@@ -38,11 +39,17 @@ export function InspectionDetailsModal({
   inspectionRequest,
   onEdit,
   onDelete,
-  canEdit,
-  canDelete,
 }: InspectionDetailsModalProps) {
   const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
+
+  const { canAccessElement } = usePermissionMapping();
+  const canEdit = canAccessElement(
+    InspectionElements.InspectionDetails.btn_edit.id,
+  );
+  const canDelete = canAccessElement(
+    InspectionElements.InspectionDetails.btn_delete.id,
+  );
 
   if (!inspectionRequest) return null;
 

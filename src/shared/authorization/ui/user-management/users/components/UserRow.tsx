@@ -2,8 +2,9 @@
 
 import { useMemo } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
-import type { DBUser, DBDepartment } from "@shared/database/types";
+import type { DBUser } from "@shared/database/types";
 import { getRoleConfig } from "../../../../config/RoleConfig";
+import type { Department } from "@shared/authorization";
 
 interface UserRowProps {
   user: DBUser;
@@ -13,7 +14,7 @@ interface UserRowProps {
   onAssignPermissions?: (user: DBUser) => void;
   onElementAccess?: (user: DBUser) => void;
   isCurrentUser?: boolean;
-  departments?: DBDepartment[];
+  departments?: Department[];
 }
 
 export function UserRow({

@@ -38,7 +38,9 @@ export function CreatePermissionModal({
 
   const previewElements = useMemo(() => {
     if (!newEntity) return [];
-    return uiElements.filter((el) => el.id.startsWith(`${newEntity}_`));
+    return uiElements.filter(
+      (el) => el.entity.toLowerCase() === newEntity.toLowerCase(),
+    );
   }, [uiElements, newEntity]);
 
   const isDuplicate = useMemo(() => {
@@ -253,7 +255,7 @@ export function CreatePermissionModal({
                             isDark ? "text-slate-500" : "text-slate-400"
                           }`}
                         >
-                          {element.name}
+                          {element.name || element.id}
                         </span>
                       </div>
                     ))}
@@ -379,11 +381,7 @@ export function CreatePermissionModal({
             >
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleGoToDuplicate}
-            >
+            <Button variant="primary" size="md" onClick={handleGoToDuplicate}>
               🔗 Go to Permission
             </Button>
           </div>

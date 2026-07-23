@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { supabase } from "@shared/database/supabase";
-import type { DBDepartment } from "@shared/database/types";
+import type { Department } from "@shared/authorization";
 
 interface DepartmentSelectProps {
   value: string;
@@ -19,7 +19,7 @@ export function DepartmentSelect({
   placeholder = "Select department...",
 }: DepartmentSelectProps) {
   const { isDark } = useTheme();
-  const [departments, setDepartments] = useState<DBDepartment[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadDepartments = async () => {
@@ -29,7 +29,7 @@ export function DepartmentSelect({
 
       // 🔧 FIX: Use supabase directly instead of getDB().getAllDepartments()
       const { data, error } = await supabase
-        .from("departments")
+        .from("core.departments")
         .select("*")
         .order("name", { ascending: true });
 

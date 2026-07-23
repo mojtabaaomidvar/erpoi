@@ -1,4 +1,4 @@
-// src/shared/database/DatabaseProvider.ts
+﻿// src/shared/database/DatabaseProvider.ts
 
 import { supabase } from "./supabase";
 
@@ -28,7 +28,11 @@ class DatabaseProvider {
     console.log("[DatabaseProvider] Initializing Supabase connection...");
 
     // 🔧 تست اتصال به Supabase
-    const { error } = await supabase.from("clients").select("id").limit(1);
+    const { error } = await supabase
+      .schema("crm")
+      .from("clients")
+      .select("id")
+      .limit(1);
 
     if (error) {
       console.error(

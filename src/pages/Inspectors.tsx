@@ -1,114 +1,110 @@
 // src/pages/Inspectors.tsx
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
+import { InspectorElements } from "@shared/authorization/ui/elements/InspectorElements";
 import { useAuth } from "@features/auth/hooks/useAuth";
-import { inspectorService } from "@features/inspector-managment/services/InspectorService";
-import { InspectorList } from "@features/inspector-managment/ui/InspectorList";
-import { InspectorAddForm } from "@features/inspector-managment/ui/InspectorAddForm";
-import { InspectorDetailsModal } from "@features/inspector-managment/ui/InspectorDetailsModal";
+import { inspectorAppService } from "@/features/inspector-managment/application";
+import { InspectorList } from "@/features/inspector-managment/ui/InspectorList";
+import { InspectorAddForm } from "@/features/inspector-managment/ui/InspectorAddForm";
+import { InspectorDetailsModal } from "@/features/inspector-managment/ui/InspectorDetailsModal";
+import { useInspectors } from "@/features/inspector-managment/hooks/useInspectors";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
-import type {
-  Inspector,
-  InspectorType,
-  InspectorStatus,
-} from "@/types/inspector";
 import { showToast } from "@shared/ui/ToastContainer";
+import type { Inspector } from "@/features/inspector-managment/domain";
 
 export function Inspectors() {
   const { isDark } = useTheme();
   const { user } = useAuth();
   const { canAccessElement } = usePermissionMapping();
 
-  // 🔧 State های سطح بالا
-  const [inspectors, setInspectors] = useState<Inspector[]>([]);
-  const [loading, setLoading] = useState(true);
+  // ✅ استفاده از هوک هوشمند به جای Stateهای دستی
+  const {
+    inspectors,
+    loading,
+    refresh,
+    searchQuery,
+    setSearchQuery,
+    selectedInspector,
+    setSelectedInspector,
+    filterType,
+    setFilterType,
+    filterStatus,
+    setFilterStatus,
+    filteredInspectors, // ✅ حالا این متغیر تعریف شده است
+    stats, // ✅ حالا این متغیر تعریف شده است
+  } = useInspectors();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingInspector, setEditingInspector] = useState<Inspector | null>(
     null,
   );
-  const [selectedInspector, setSelectedInspector] = useState<Inspector | null>(
-    null,
-  );
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-
-  const [filterType, setFilterType] = useState<InspectorType | "ALL">("ALL");
-  const [filterStatus, setFilterStatus] = useState<InspectorStatus | "ALL">(
-    "ALL",
-  );
-  const [searchQuery, setSearchQuery] = useState("");
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
-  // 🔐 دسترسی‌ها
-  const canViewItems = canAccessElement("inspector_list_view");
-  const canClickItem = canAccessElement("inspector_list_item_click");
-  const canAdd = canAccessElement("inspector_btn_add");
-  const canEdit = canAccessElement("inspector_btn_edit");
-  const canDelete = canAccessElement("inspector_btn_delete");
-  const canDownloadResume = canAccessElement(
-    "inspector_details_download_resume",
+  // 🔐 دسترسی‌ها با استفاده از Registry
+  const canViewItems = canAccessElement(
+    InspectorElements.InspectorList.list_view.id,
+  );
+  const canClickItem = canAccessElement(
+    InspectorElements.InspectorList.list_item_click.id,
+  );
+  const canEdit = canAccessElement(InspectorElements.InspectorList.btn_edit.id);
+  const canDelete = canAccessElement(
+    InspectorElements.InspectorList.btn_delete.id,
   );
 
-  // 🔧 بارگذاری داده‌ها
-  const loadInspectors = async () => {
-    setLoading(true);
-    try {
-      const data = await inspectorService.getAll();
-      setInspectors(data);
-    } catch (err: any) {
-      showToast("error", "Load Failed", err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadInspectors();
-  }, []);
-
-  // 🔧 Handlers
+  // 🔧 هندلر ذخیره (ایجاد یا ویرایش)
   const handleSaveInspector = async (formData: any, isEdit: boolean) => {
     try {
-      let savedInspector;
+      let savedInspector: Inspector;
 
       if (isEdit && editingInspector) {
+        // حذف رزومه قدیمی در صورت وجود رزومه جدید
         if (editingInspector.resume_url && formData.resumeFile) {
-          await inspectorService.deleteResume(editingInspector.resume_url);
+          await inspectorAppService.deleteResume(editingInspector.resume_url);
         }
         const { resumeFile, ...inspectorData } = formData;
-        savedInspector = await inspectorService.update(
+        savedInspector = await inspectorAppService.update(
           editingInspector.id,
           inspectorData,
         );
       } else {
         const { resumeFile, ...inspectorData } = formData;
-        savedInspector = await inspectorService.create(inspectorData);
+        savedInspector = await inspectorAppService.create(inspectorData);
       }
 
       setEditingInspector(null);
       setIsAddModalOpen(false);
-      await loadInspectors();
+      await refresh();
       showToast("success", "Saved", "Inspector saved successfully!");
 
+      // آپلود رزومه در پس‌زمینه (Background Upload)
       if (formData.resumeFile && savedInspector) {
-        inspectorService
+        inspectorAppService
           .uploadResume(
             formData.resumeFile,
             savedInspector.id,
             formData.resume_name,
           )
-          .then(async (uploadResult) => {
-            await inspectorService.update(savedInspector.id, {
-              resume_name: uploadResult.name,
-              resume_url: uploadResult.url,
-              resume_size: uploadResult.size,
-              resume_uploaded_at: uploadResult.uploadedAt,
-            });
-            await loadInspectors();
-          })
+          .then(
+            async (uploadResult: {
+              url: string;
+              name: string;
+              size: number;
+              uploadedAt: string;
+            }) => {
+              await inspectorAppService.update(savedInspector.id, {
+                resume_name: uploadResult.name,
+                resume_url: uploadResult.url,
+                resume_size: uploadResult.size,
+                resume_uploaded_at: uploadResult.uploadedAt,
+              });
+              await refresh();
+            },
+          )
           .catch(() => {
             showToast(
               "warning",
@@ -126,6 +122,7 @@ export function Inspectors() {
     }
   };
 
+  // 🔧 هندلر کلیک روی آیتم (باز کردن مودال جزئیات)
   const handleInspectorClick = (inspector: Inspector) => {
     if (!canClickItem) {
       showToast(
@@ -139,6 +136,7 @@ export function Inspectors() {
     setIsDetailsOpen(true);
   };
 
+  // 🔧 هندلر ویرایش از داخل مودال جزئیات
   const handleEditFromDetails = (inspector: Inspector) => {
     if (!canEdit) {
       showToast(
@@ -149,9 +147,11 @@ export function Inspectors() {
       return;
     }
     setEditingInspector(inspector);
+    setIsDetailsOpen(false);
     setIsAddModalOpen(true);
   };
 
+  // 🔧 هندلر حذف با Optimistic Update
   const handleDeleteInspector = async (inspector: Inspector) => {
     if (!canDelete) {
       showToast(
@@ -172,27 +172,27 @@ export function Inspectors() {
 
     if (!confirmed) return;
 
-    // 🔧 ۱. بستن فوری مودال
+    // ۱. بستن فوری مودال
     setIsDetailsOpen(false);
     setSelectedInspector(null);
 
-    // 🔧 ۲. حذف فوری از لیست (Optimistic Update)
-    setInspectors((prev) => prev.filter((i) => i.id !== inspector.id));
-
-    // 🔧 ۳. نمایش فوری پیام موفقیت
+    // ۲. نمایش پیام موفقیت
     showToast("success", "Deleted", `${inspector.name_en} has been removed`);
 
-    // 🔧 ۴. فرآیند حذف واقعی در پس‌زمینه
-    inspectorService.delete(inspector.id).catch((err: any) => {
-      // اگر حذف شکست خورد، بازرس را به لیست برگردان
-      setInspectors((prev) => [inspector, ...prev]);
+    // ۳. حذف واقعی از دیتابیس و refresh لیست
+    try {
+      await inspectorAppService.delete(inspector.id);
+      await refresh();
+    } catch (err: any) {
       showToast(
         "error",
         "Delete Failed",
         err.message || "Failed to delete inspector",
       );
-    });
+      await refresh();
+    }
   };
+
   // 🔐 بررسی دسترسی مشاهده
   if (!canViewItems) {
     return (
@@ -220,9 +220,11 @@ export function Inspectors() {
 
   return (
     <>
-      {/* 🔧 اسکلت صفحه - فقط فراخوانی کامپوننت‌ها */}
+      {/* ✅ کامپوننت لیست با props کامل و صحیح */}
       <InspectorList
         inspectors={inspectors}
+        filteredInspectors={filteredInspectors}
+        stats={stats}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         filterType={filterType}
@@ -234,14 +236,10 @@ export function Inspectors() {
           setEditingInspector(null);
           setIsAddModalOpen(true);
         }}
-        canClickItem={canClickItem}
-        canSearch={true}
-        canFilter={true}
-        canAdd={canAdd}
         loading={loading}
       />
 
-      {/* مودال‌ها */}
+      {/* مودال جزئیات */}
       <InspectorDetailsModal
         isOpen={isDetailsOpen}
         onClose={() => {
@@ -251,11 +249,9 @@ export function Inspectors() {
         inspector={selectedInspector}
         onEdit={handleEditFromDetails}
         onDelete={handleDeleteInspector}
-        canEdit={canEdit}
-        canDelete={canDelete}
-        canDownloadResume={canDownloadResume}
       />
 
+      {/* مودال افزودن/ویرایش */}
       <InspectorAddForm
         isOpen={isAddModalOpen}
         onClose={() => {

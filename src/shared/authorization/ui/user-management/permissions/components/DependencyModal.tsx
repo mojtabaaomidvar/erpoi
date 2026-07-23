@@ -2,7 +2,7 @@
 
 import { Modal, Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { getAllDependenciesChain, checkDependenciesChain } from "@shared/authorization/ui/ui-elements/dependencies";
+import { getAllDependenciesChain } from "@shared/authorization/ui";
 import { getElementDepth } from "@shared/authorization/ui/ui-elements/linkedElements";
 import type { PendingElementToggle } from "../types";
 
@@ -19,7 +19,6 @@ interface DependencyModalProps {
 export function DependencyModal({
   isOpen,
   pendingToggle,
-  selectedPermission,
   currentAllowed,
   onClose,
   onResolve,
@@ -180,11 +179,12 @@ export function DependencyModal({
                             🔗 Chain:{" "}
                             {getAllDependenciesChain(depId)
                               .slice(0, 3)
-                              .map((d) =>
+                              .map((d: string) =>
                                 d.replace(/^(client|contract)_/, ""),
                               )
                               .join(" → ")}
-                            {getAllDependenciesChain(depId).length > 3 && " ..."}
+                            {getAllDependenciesChain(depId).length > 3 &&
+                              " ..."}
                           </div>
                         )}
                       </div>
@@ -221,9 +221,7 @@ export function DependencyModal({
             variant="primary"
             size="md"
             onClick={onActivate}
-            disabled={missingDeps.some(
-              (dep) => !currentAllowed.includes(dep),
-            )}
+            disabled={missingDeps.some((dep) => !currentAllowed.includes(dep))}
           >
             ✓ Activate Target Element
           </Button>

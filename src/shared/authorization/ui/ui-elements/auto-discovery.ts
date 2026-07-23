@@ -4,10 +4,10 @@ import type { UIElement, UIElementType } from "./types";
 import { uiElementRegistry, registerUIElements } from "./registry";
 
 import { dashboardElements } from "@pages/dashboard/elements";
-import { clientElements } from "@features/client-management/elements";
-import { contractElements } from "@features/contract-management/elements";
-import { inspectorElements } from "@features/inspector-managment/elements";
-import { inspectionElements } from "@features/inspection-management/elements";
+import { ClientElements } from "../elements/ClientElements";
+import { ContractElements } from "../elements/ContractElements";
+import { InspectorElements } from "../elements/InspectorElements";
+import { InspectionElements } from "../elements/InspectionElements";
 
 function extractTypeFromId(id: string): UIElementType {
   const prefix = id.split("_")[0];
@@ -67,16 +67,16 @@ export function autoDiscoverAndRegister(): void {
   // 🔧 FIX: ثبت مستقیم ماژول‌های import شده
   const modules = [
     { elements: dashboardElements, name: "dashboard" },
-    { elements: clientElements, name: "client" },
-    { elements: contractElements, name: "contract" },
-    { elements: inspectionElements, name: "project" },
-    { elements: inspectorElements, name: "inspector" },
-    { elements: inspectionElements, name: "inspection" },
+    { elements: ClientElements, name: "client" },
+    { elements: ContractElements, name: "contract" },
+    { elements: InspectionElements, name: "project" },
+    { elements: InspectorElements, name: "inspector" },
+    { elements: InspectionElements, name: "inspection" },
   ];
 
   for (const { elements, name } of modules) {
     if (elements) {
-      const uiElements = convertToUIElements(name, elements);
+      const uiElements = convertToUIElements(name, elements as any);
       registerUIElements(name, uiElements);
     }
   }

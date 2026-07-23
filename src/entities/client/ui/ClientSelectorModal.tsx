@@ -3,8 +3,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { Modal, Badge, Button } from "@design-system";
-import { clientService } from "@/features/client-management/services/ClientService";
-import type { Client } from "@/types/client";
+import { clientAppService } from "@/features/client-management/application";
+import type { Client } from "@/features/client-management/domain/models/Client";
 
 interface ClientSelectorModalProps {
   value: string;
@@ -30,7 +30,7 @@ export function ClientSelectorModal({
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await clientService.getAll();
+      const data = await clientAppService.getAll();
 
       setClients(data);
     } catch (err: any) {

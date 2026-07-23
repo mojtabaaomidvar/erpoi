@@ -18,7 +18,7 @@ import { UserManagement } from "@shared/authorization/ui/UserManagement";
 import { LoginPage } from "@features/auth/ui/LoginPage";
 import { ConfirmDialogProvider } from "@shared/ui/ConfirmDialog";
 import { ToastProvider } from "@shared/ui/ToastContainer";
-import { amendmentService } from "@features/contract-management/services/AmendmentService";
+import { amendmentAppService } from "./features/contract-management/application";
 import { autoDiscoverAndRegister } from "@shared/authorization/ui/ui-elements/auto-discovery";
 
 autoDiscoverAndRegister();
@@ -88,7 +88,7 @@ function AppContent() {
     const savedSidebar = localStorage.getItem("ics_sidebar_expanded");
     if (savedView && meta[savedView as ViewKey]) setView(savedView as ViewKey);
     if (savedSidebar) setSidebarExpanded(savedSidebar === "true");
-    amendmentService.syncPendingAmendments();
+    amendmentAppService.syncPendingAmendments();
   }, []);
 
   useEffect(() => {

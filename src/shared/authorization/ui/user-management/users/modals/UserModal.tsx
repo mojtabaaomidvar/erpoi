@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { Modal } from "@design-system"; // 🔧 NEW: استفاده از Modal با footer prop
 import { DepartmentSelect } from "@shared/authorization/ui/user-management/departments/components/DepartmentSelect";
-import { userService } from "@shared/authorization/services/UserService";
+import { userAppService } from "@shared/authorization";
 import {
   ROLE_CONFIGS,
   ROLES,
@@ -12,11 +12,12 @@ import {
   isManagerRole,
   type UserRole,
 } from "@shared/authorization/config/RoleConfig";
-import type { DBUser, DBDepartment } from "@shared/database/types";
+import type { DBUser } from "@shared/database/types";
+import type { Department } from "@shared/authorization";
 
 interface UserModalProps {
   user: DBUser | null;
-  departments: DBDepartment[]; // 🔧 NEW: برای پیدا کردن نام دپارتمان
+  departments: Department[]; // 🔧 NEW: برای پیدا کردن نام دپارتمان
   onClose: () => void;
   onSave: (formData: any) => void;
 }
@@ -84,7 +85,7 @@ export function UserModal({
         );
         const deptName = selectedDept?.name;
 
-        const validation = await userService.validateManagerConstraint(
+        const validation = await userAppService.validateManagerConstraint(
           formData.department,
           user?.id || "",
           formData.role,

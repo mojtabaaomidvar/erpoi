@@ -5,17 +5,19 @@ import { useTheme } from "@app/providers/ThemeProvider";
 import { exportToExcel } from "@shared/lib/exportToExcel";
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
+import { useClients } from "@/features/client-management/hooks/useClients";
 
 // 🔑 کامپوننت‌های استخراج‌شده
-import { useClients } from "@features/client-management/hooks/useClients";
 import { ClientList } from "@features/client-management/ui/ClientList";
 import { ClientDetails } from "@features/client-management/ui/ClientDetails";
 import { ClientForm } from "@features/client-management/ui/ClientForm";
 import { ContractDetailsModal } from "@features/client-management/ui/ContractDetailsModal";
 import { ClientEditModal } from "@features/client-management/ui/ClientEditModal";
-import type { Contract } from "@entities/contract/types";
-import type { Client } from "@/types/client";
-import { departmentService } from "@shared/authorization/services/DepartmentService";
+
+import type { Client } from "@/features/client-management/domain/models/Client";
+import type { Contract } from "@/entities/contract/types";
+
+import { departmentAppService } from "@shared/authorization";
 
 export function Clients() {
   const { isDark } = useTheme();
@@ -43,6 +45,7 @@ export function Clients() {
     sortBy,
     setSortBy,
     clientCounts,
+    sortedClients,
     filteredClients,
     clientContracts,
     filteredContracts,
@@ -53,7 +56,7 @@ export function Clients() {
   useEffect(() => {
     const loadDepartments = async () => {
       try {
-        const depts = await departmentService.getAll();
+        const depts = await departmentAppService.getAll();
         setDepartments(depts);
       } catch (error) {
         console.error("Failed to load departments:", error);
@@ -77,12 +80,14 @@ export function Clients() {
   const handleAddSave = useCallback(
     async (formData: any) => {
       try {
-        const newClient = {
+        // ✅ استفاده از as Client برای ارضای کامل تایپ‌اسکریپت در مرحله انتقال
+        const newClient: Client = {
           id: `c${Date.now()}`,
           ...formData,
           contracts: 0,
           contacts: formData.contactPersons?.length || 0,
-        };
+        } as unknown as Client;
+
         await setClients([newClient, ...clients]);
         setSelectedClient(newClient);
       } catch (err: any) {
@@ -105,7 +110,7 @@ export function Clients() {
   const handleEditSave = useCallback(
     async (updatedClient: Client) => {
       try {
-        const updatedClients = clients.map((c) =>
+        const updatedClients = clients.map((c: any) =>
           c.id === updatedClient.id ? updatedClient : c,
         );
         await setClients(updatedClients);
@@ -133,7 +138,7 @@ export function Clients() {
 
     if (!confirmed) return;
 
-    const dataToExport = filteredClients.map((c) => ({
+    const dataToExport = filteredClients.map((c: any) => ({
       "نام انگلیسی": c.name_en,
       "نام فارسی": c.name_fa,
       نوع: c.type === "LEGAL" ? "حقوقی" : "حقیقی",
@@ -207,16 +212,13 @@ export function Clients() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 p-3 lg:p-4 h-[calc(100vh-6rem)]">
         {/* LEFT PANEL - ClientList */}
         <ClientList
-          clients={clients}
-          filteredClients={filteredClients}
+          sortedClients={sortedClients}
           contracts={contracts}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           filter={filter}
           setFilter={setFilter}
           clientCounts={clientCounts}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
           selectedClient={selectedClient}
           setSelectedClient={setSelectedClient}
           onAddClick={handleAddClick}

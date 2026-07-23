@@ -35,10 +35,6 @@ export function ProjectDetailsModal({
   const [stats, setStats] = useState<ProjectStats | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { user } = useAuth();
-  const { canAccessElement } = usePermissionMapping();
-  const canManageMembers = canAccessElement("project_btn_manage_members");
-
   useEffect(() => {
     if (isOpen && project?.id) {
       setLoading(true);

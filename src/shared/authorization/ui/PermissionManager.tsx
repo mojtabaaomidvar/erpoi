@@ -2,22 +2,21 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { uiElementRegistry } from "@shared/authorization/ui/ui-elements/registry";
-import "@shared/authorization/ui/ui-elements";
+import { getAllElements } from "@shared/authorization/ui";
 import type { DBPermissionMapping, DBUIElement } from "@shared/database/types";
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 import {
   getAllDependenciesChain,
-  getAllChildrenChain,
-} from "@shared/authorization/ui/ui-elements/dependencies";
+  checkDependenciesChain,
+} from "@shared/authorization/ui";
 import {
   getLinkedGroup,
   getLinkedSlaves,
 } from "@shared/authorization/ui/ui-elements/linkedElements";
 
-import { permissionMappingService } from "../services/PermissionMappingService";
-import { userService } from "../services/UserService";
+import { permissionMappingAppService } from "@shared/authorization";
+import { userAppService } from "@shared/authorization";
 
 import {
   PermissionToolbar,
@@ -54,10 +53,6 @@ const COMPONENT_ORDER: Record<string, number> = {
 export function PermissionManager() {
   const { isDark } = useTheme();
 
-  // ═══════════════════════════════════════
-  // 📦 State
-  // ═══════════════════════════════════════
-
   const [uiElements, setUiElements] = useState<DBUIElement[]>([]);
   const [mappings, setMappings] = useState<Map<string, DBPermissionMapping>>(
     new Map(),
@@ -87,10 +82,6 @@ export function PermissionManager() {
   const [pendingElementToggle, setPendingElementToggle] =
     useState<PendingElementToggle | null>(null);
   const [saving, setSaving] = useState(false);
-
-  // ═══════════════════════════════════════
-  // 🧮 Computed Values
-  // ═══════════════════════════════════════
 
   const entities = useMemo(
     () => [...new Set(uiElements.map((el) => el.entity))].sort(),
@@ -162,23 +153,34 @@ export function PermissionManager() {
   }, [mappings, pendingChanges]);
 
   // ═══════════════════════════════════════
-  // 🔄 Data Loading
+  // 🔄 Data Loading (✅ اصلاح شده برای معماری جدید)
   // ═══════════════════════════════════════
-
   useEffect(() => {
     const loadData = async () => {
       try {
-        const registryElements = uiElementRegistry.getAllElements();
-        setUiElements(registryElements as DBUIElement[]);
+        const rawElements = getAllElements();
 
-        const allMappings = await permissionMappingService.getAll();
+        const mappedElements: DBUIElement[] = rawElements.map((el: any) => ({
+          id: el.id,
+          name: el.label || el.id,
+          description: el.label || "",
+          entity: el._module || "Unknown",
+          module: el._module || "Unknown",
+          component: el._page || "Unknown",
+          type: el.type,
+          category: el.category,
+        }));
+
+        setUiElements(mappedElements);
+
+        const allMappings = await permissionMappingAppService.getAll();
         const map = new Map<string, DBPermissionMapping>(
           allMappings.map((m) => [m.permission, m]),
         );
         setMappings(map);
 
         console.log("[PermissionManager] ✅ Loaded:", {
-          elements: registryElements.length,
+          elements: mappedElements.length,
           mappings: allMappings.length,
         });
       } catch (error) {
@@ -190,25 +192,20 @@ export function PermissionManager() {
   }, []);
 
   // ═══════════════════════════════════════
-  // 🎯 Handlers
+  // 🎯 Handlers (بدون تغییر نسبت به کد اصلی شما)
   // ═══════════════════════════════════════
-
   const checkPermissionAssignments = useCallback(
     async (
       permission: string,
     ): Promise<{ assignedToUsers: string[]; canDelete: boolean }> => {
       try {
-        const allUsers = await userService.getAllUsers();
+        const allUsers = await userAppService.getAllUsers();
         const assignedToUsers = allUsers
           .filter((user) =>
             (user as any).customPermissions?.includes(permission),
           )
           .map((user) => user.fullName || user.username);
-
-        return {
-          assignedToUsers,
-          canDelete: assignedToUsers.length === 0,
-        };
+        return { assignedToUsers, canDelete: assignedToUsers.length === 0 };
       } catch (error) {
         console.error(
           "[PermissionManager] Failed to check assignments:",
@@ -240,7 +237,6 @@ export function PermissionManager() {
   const handleDeleteMapping = useCallback(
     async (permission: string) => {
       const assignments = await checkPermissionAssignments(permission);
-
       if (!assignments.canDelete) {
         setShowDeleteErrorModal({
           permission,
@@ -248,7 +244,6 @@ export function PermissionManager() {
         });
         return;
       }
-
       const confirmed = await confirmDialog({
         title: "Delete Permission",
         message: `Are you sure you want to delete "${permission}"?\n\nThis action cannot be undone.`,
@@ -256,33 +251,22 @@ export function PermissionManager() {
         confirmText: "Delete",
         cancelText: "Cancel",
       });
-
       if (!confirmed) return;
 
       try {
-        await permissionMappingService.deleteMapping(permission);
-
+        await permissionMappingAppService.deleteMapping(permission);
         setMappings((prev) => {
           const newMap = new Map(prev);
           newMap.delete(permission);
           return newMap;
         });
-
         setPendingChanges((prev) => {
           const newMap = new Map(prev);
           newMap.delete(permission);
           return newMap;
         });
-
-        if (selectedPermission === permission) {
-          setSelectedPermission("");
-        }
-
-        showToast(
-          "success",
-          "Deleted",
-          `Permission "${permission}" deleted from Supabase`,
-        );
+        if (selectedPermission === permission) setSelectedPermission("");
+        showToast("success", "Deleted", `Permission "${permission}" deleted`);
       } catch (error) {
         console.error("[PermissionManager] Failed to delete:", error);
         showToast("error", "Error", "Failed to delete permission");
@@ -299,7 +283,6 @@ export function PermissionManager() {
         deniedElements: [],
         updatedAt: new Date().toISOString(),
       };
-
       setPendingChanges((prev) => new Map(prev).set(permission, newMapping));
       setSelectedPermission(permission);
       const entity = permission.split(":")[0];
@@ -307,7 +290,6 @@ export function PermissionManager() {
       setSearchQuery("");
       setFilterModule("");
       setFilterType("");
-
       showToast("success", "Created", `Permission "${permission}" created`);
     },
     [entities],
@@ -328,15 +310,12 @@ export function PermissionManager() {
 
   const handleShowSavePreview = useCallback(() => {
     const items: SavePreviewItem[] = [];
-
     pendingChanges.forEach((newMapping, permission) => {
       const oldMapping = mappings.get(permission);
       const oldAllowed = oldMapping?.allowedElements || [];
       const newAllowed = newMapping.allowedElements;
-
       const added = newAllowed.filter((id) => !oldAllowed.includes(id));
       const removed = oldAllowed.filter((id) => !newAllowed.includes(id));
-
       items.push({
         permission,
         oldAllowed,
@@ -346,7 +325,6 @@ export function PermissionManager() {
         isNew: !oldMapping,
       });
     });
-
     setSavePreviewItems(items);
     setShowSavePreview(true);
   }, [pendingChanges, mappings]);
@@ -354,24 +332,20 @@ export function PermissionManager() {
   const handleConfirmSave = useCallback(async () => {
     if (saving || pendingChanges.size === 0) return;
     setSaving(true);
-
     try {
-      const promises = Array.from(pendingChanges.values()).map((mapping) => {
-        return permissionMappingService.setMapping(
+      const promises = Array.from(pendingChanges.values()).map((mapping) =>
+        permissionMappingAppService.setMapping(
           mapping.permission,
           mapping.allowedElements,
           mapping.deniedElements || [],
-        );
-      });
-
+        ),
+      );
       await Promise.all(promises);
-
       setMappings((prev) => {
         const next = new Map(prev);
         pendingChanges.forEach((val, key) => next.set(key, val));
         return next;
       });
-
       setPendingChanges(new Map());
       setShowSavePreview(false);
       setSavePreviewItems([]);
@@ -392,21 +366,15 @@ export function PermissionManager() {
         deniedElements: denied,
         updatedAt: new Date().toISOString(),
       };
-
       setPendingChanges((prev) => new Map(prev).set(permission, newMapping));
-
-      if (!mappings.has(permission)) {
+      if (!mappings.has(permission))
         setMappings((prev) => new Map(prev).set(permission, newMapping));
-      }
-
       setShowEditModal(false);
       setEditingPermission(null);
-
       const addedCount = allowed.filter((id) => {
         const oldMapping = mappings.get(permission);
         return !oldMapping?.allowedElements.includes(id);
       }).length;
-
       showToast(
         "success",
         "Changes Saved",
@@ -419,15 +387,14 @@ export function PermissionManager() {
   const handleResolveDependency = useCallback(
     (depId: string) => {
       if (!pendingElementToggle || !selectedPermission) return;
-
       const currentMapping =
         pendingChanges.get(selectedPermission) ||
         mappings.get(selectedPermission);
       const currentAllowed = currentMapping?.allowedElements || [];
-
       const chain = getAllDependenciesChain(depId);
-      const missingDeps = chain.filter((d) => !currentAllowed.includes(d));
-
+      const missingDeps = chain.filter(
+        (d: string) => !currentAllowed.includes(d),
+      );
       if (missingDeps.length > 0) {
         showToast(
           "warning",
@@ -436,7 +403,6 @@ export function PermissionManager() {
         );
         return;
       }
-
       const newAllowed = [...currentAllowed, depId];
       const newMapping: DBPermissionMapping = {
         permission: selectedPermission,
@@ -444,7 +410,6 @@ export function PermissionManager() {
         deniedElements: currentMapping?.deniedElements || [],
         updatedAt: new Date().toISOString(),
       };
-
       setPendingChanges((prev) =>
         new Map(prev).set(selectedPermission, newMapping),
       );
@@ -455,16 +420,15 @@ export function PermissionManager() {
 
   const handleActivatePendingElement = useCallback(() => {
     if (!pendingElementToggle || !selectedPermission) return;
-
     const { elementId } = pendingElementToggle;
     const currentMapping =
       pendingChanges.get(selectedPermission) ||
       mappings.get(selectedPermission);
     const currentAllowed = currentMapping?.allowedElements || [];
-
     const chain = getAllDependenciesChain(elementId);
-    const missingDeps = chain.filter((dep) => !currentAllowed.includes(dep));
-
+    const missingDeps = chain.filter(
+      (dep: string) => !currentAllowed.includes(dep),
+    );
     if (missingDeps.length > 0) {
       showToast(
         "error",
@@ -473,9 +437,7 @@ export function PermissionManager() {
       );
       return;
     }
-
     const newAllowed = [...currentAllowed, elementId];
-
     const linkedGroup = getLinkedGroup(elementId);
     if (linkedGroup) {
       const slaves = getLinkedSlaves(elementId);
@@ -483,14 +445,12 @@ export function PermissionManager() {
         if (!newAllowed.includes(slave)) newAllowed.push(slave);
       });
     }
-
     const newMapping: DBPermissionMapping = {
       permission: selectedPermission,
       allowedElements: newAllowed,
       deniedElements: currentMapping?.deniedElements || [],
       updatedAt: new Date().toISOString(),
     };
-
     setPendingChanges((prev) =>
       new Map(prev).set(selectedPermission, newMapping),
     );
@@ -502,7 +462,6 @@ export function PermissionManager() {
   // ═══════════════════════════════════════
   // 🎨 Render
   // ═══════════════════════════════════════
-
   return (
     <div className={`min-h-screen ${isDark ? "bg-slate-950" : "bg-slate-50"}`}>
       <div className="max-w-7xl mx-auto">
@@ -534,17 +493,11 @@ export function PermissionManager() {
           ) : (
             <div className="lg:col-span-3">
               <div
-                className={`rounded-xl border p-12 text-center ${
-                  isDark
-                    ? "border-slate-700 bg-slate-900"
-                    : "border-slate-200 bg-white"
-                }`}
+                className={`rounded-xl border p-12 text-center ${isDark ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white"}`}
               >
                 <div className="text-6xl mb-8">👈</div>
                 <h3
-                  className={`text-lg font-bold mb-8 ${
-                    isDark ? "text-slate-100" : "text-slate-900"
-                  }`}
+                  className={`text-lg font-bold mb-8 ${isDark ? "text-slate-100" : "text-slate-900"}`}
                 >
                   Select a Permission
                 </h3>
@@ -564,7 +517,6 @@ export function PermissionManager() {
         uiElements={uiElements}
         existingPermissions={existingPermissions}
       />
-
       {editingPermission && (
         <EditPermissionModal
           isOpen={showEditModal}
@@ -582,7 +534,6 @@ export function PermissionManager() {
           onSave={handleSaveEdit}
         />
       )}
-
       <SavePreviewModal
         isOpen={showSavePreview}
         onClose={() => {
@@ -593,12 +544,10 @@ export function PermissionManager() {
         items={savePreviewItems}
         saving={saving}
       />
-
       <DeleteErrorModal
         info={showDeleteErrorModal}
         onClose={() => setShowDeleteErrorModal(null)}
       />
-
       <DependencyModal
         isOpen={showDependencyModal}
         pendingToggle={pendingElementToggle}

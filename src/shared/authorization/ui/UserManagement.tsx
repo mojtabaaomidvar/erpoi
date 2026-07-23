@@ -3,19 +3,15 @@
 import { useState, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
-import { authService } from "@features/auth/services/AuthService";
-import { userService } from "../services/UserService";
-import { departmentService } from "../services/DepartmentService";
-import { permissionMappingService } from "../services/PermissionMappingService";
-import type {
-  DBUser,
-  DBDepartment,
-  DBPermissionMapping,
-} from "@shared/database/types";
+import { authAppService } from "@/features/auth";
+import { userAppService } from "@shared/authorization";
+import { departmentAppService } from "@shared/authorization";
+import { permissionMappingAppService } from "@shared/authorization";
+import type { DBUser, DBPermissionMapping } from "@shared/database/types";
+import type { Department } from "@shared/authorization";
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 
-// Import کامپوننت‌های فاز ۱ و ۲
 import {
   UserManagementTabs,
   UsersTab,
@@ -23,7 +19,6 @@ import {
   type UserManagementTab,
 } from "./user-management";
 
-// Import مودال‌ها
 import { PermissionManager } from "./PermissionManager";
 import { UserModal } from "./user-management/users/modals/UserModal";
 import { DepartmentModal } from "./user-management/departments/modals/DepartmentModal";
@@ -40,7 +35,7 @@ export function UserManagement() {
 
   const [activeTab, setActiveTab] = useState<UserManagementTab>("users");
   const [users, setUsers] = useState<DBUser[]>([]);
-  const [departments, setDepartments] = useState<DBDepartment[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [mappings, setMappings] = useState<Map<string, DBPermissionMapping>>(
     new Map(),
   );
@@ -50,8 +45,9 @@ export function UserManagement() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<DBUser | null>(null);
   const [showDepartmentModal, setShowDepartmentModal] = useState(false);
-  const [editingDepartment, setEditingDepartment] =
-    useState<DBDepartment | null>(null);
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(
+    null,
+  );
 
   // 🔧 NEW: Element Access Modal
   const [showElementAccessModal, setShowElementAccessModal] = useState(false);
@@ -71,13 +67,13 @@ export function UserManagement() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [dbUsers, dbDepartments, dbMappings] = await Promise.all([
-        userService.getAllUsers(),
-        departmentService.getAll(),
-        permissionMappingService.getAll(),
+      const [dbUsers, Departments, dbMappings] = await Promise.all([
+        userAppService.getAllUsers(),
+        departmentAppService.getAll(),
+        permissionMappingAppService.getAll(),
       ]);
       setUsers(dbUsers as DBUser[]);
-      setDepartments(dbDepartments);
+      setDepartments(Departments);
       const mappingsMap = new Map<string, DBPermissionMapping>(
         dbMappings.map((m) => [m.permission, m]),
       );
@@ -100,7 +96,7 @@ export function UserManagement() {
 
   const syncSessionIfNeeded = (updatedUser: DBUser) => {
     if (currentUser?.id === updatedUser.id) {
-      authService.updateCurrentUser({
+      authAppService.updateCurrentUser({
         id: updatedUser.id,
         username: updatedUser.username,
         email: updatedUser.email,
@@ -137,14 +133,17 @@ export function UserManagement() {
   const handleSaveUser = async (formData: any) => {
     try {
       if (editingUser) {
-        const updated = await userService.updateUser(editingUser.id, formData);
+        const updated = await userAppService.updateUser(
+          editingUser.id,
+          formData,
+        );
         setUsers((prev) =>
           prev.map((u) => (u.id === updated.id ? (updated as DBUser) : u)),
         );
         syncSessionIfNeeded(updated as DBUser);
         showToast("success", "Updated", `User "${updated.fullName}" updated`);
       } else {
-        const created = await userService.createUser({
+        const created = await userAppService.createUser({
           username: formData.username,
           email: formData.email,
           fullName: formData.fullName,
@@ -194,7 +193,7 @@ export function UserManagement() {
     });
     if (!confirmed) return;
     try {
-      await userService.deleteUser(user.id);
+      await userAppService.deleteUser(user.id);
       setUsers((prev) => prev.filter((u) => u.id !== user.id));
       showToast("success", "Deleted", `User "${user.fullName}" deleted`);
     } catch (error: any) {
@@ -211,7 +210,7 @@ export function UserManagement() {
   const handleSaveElementAccess = async (customPermissions: string[]) => {
     if (!userForElementAccess) return;
     try {
-      const updated = await userService.updateUser(userForElementAccess.id, {
+      const updated = await userAppService.updateUser(userForElementAccess.id, {
         customPermissions,
       });
       setUsers((prev) =>
@@ -239,12 +238,12 @@ export function UserManagement() {
     setShowDepartmentModal(true);
   };
 
-  const handleEditDepartment = (department: DBDepartment) => {
+  const handleEditDepartment = (department: Department) => {
     setEditingDepartment(department);
     setShowDepartmentModal(true);
   };
 
-  const handleDeleteDepartment = async (department: DBDepartment) => {
+  const handleDeleteDepartment = async (department: Department) => {
     const relatedUsers = users.filter((u) => u.department === department.id);
     if (relatedUsers.length > 0) {
       let message = `❌ Cannot delete "${department.name}"\n\nThis department has ${relatedUsers.length} user(s):\n\n`;
@@ -265,7 +264,7 @@ export function UserManagement() {
     });
     if (!confirmed) return;
     try {
-      await departmentService.delete(department.id);
+      await departmentAppService.delete(department.id);
       setDepartments((prev) => prev.filter((d) => d.id !== department.id));
       showToast(
         "success",
@@ -280,7 +279,7 @@ export function UserManagement() {
   const handleSaveDepartment = async (formData: any) => {
     try {
       if (editingDepartment) {
-        const updated = await departmentService.update(
+        const updated = await departmentAppService.update(
           editingDepartment.id,
           formData,
         );
@@ -289,7 +288,7 @@ export function UserManagement() {
         );
         showToast("success", "Updated", `Department "${updated.name}" updated`);
       } else {
-        const created = await departmentService.create({
+        const created = await departmentAppService.create({
           name: formData.name,
           description: formData.description,
         });
@@ -303,7 +302,7 @@ export function UserManagement() {
     }
   };
 
-  const handleViewDepartmentUsers = (department: DBDepartment) => {
+  const handleViewDepartmentUsers = (department: Department) => {
     const deptUsers = users.filter((u) => u.department === department.id);
     setSelectedDeptUsers({ name: department.name, users: deptUsers });
     setShowDeptUsersModal(true);

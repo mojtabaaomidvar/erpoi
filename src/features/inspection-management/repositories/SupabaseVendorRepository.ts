@@ -7,7 +7,8 @@ import type { IVendorRepository } from "./IVendorRepository";
 export class SupabaseVendorRepository implements IVendorRepository {
   async getAll(): Promise<Vendor[]> {
     const { data, error } = await supabase
-      .from("inspection.vendors")
+      .schema("inspection")
+      .from("vendors")
       .select("*")
       .order("name", { ascending: true });
     if (error) throw new Error(error.message);
@@ -16,7 +17,8 @@ export class SupabaseVendorRepository implements IVendorRepository {
 
   async getById(id: string): Promise<Vendor | null> {
     const { data, error } = await supabase
-      .from("inspection.vendors")
+      .schema("inspection")
+      .from("vendors")
       .select("*")
       .eq("id", id)
       .single();
@@ -26,7 +28,8 @@ export class SupabaseVendorRepository implements IVendorRepository {
 
   async search(query: string): Promise<Vendor[]> {
     const { data, error } = await supabase
-      .from("inspection.vendors")
+      .schema("inspection")
+      .from("vendors")
       .select("*")
       .ilike("name", `%${query}%`)
       .order("name", { ascending: true })
@@ -40,7 +43,8 @@ export class SupabaseVendorRepository implements IVendorRepository {
   ): Promise<Vendor> {
     const id = `vendor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const { data: newRecord, error } = await supabase
-      .from("inspection.vendors")
+      .schema("inspection")
+      .from("vendors")
       .insert({
         id,
         ...data,
@@ -55,7 +59,8 @@ export class SupabaseVendorRepository implements IVendorRepository {
 
   async update(id: string, data: Partial<Vendor>): Promise<Vendor> {
     const { data: updatedRecord, error } = await supabase
-      .from("inspection.vendors")
+      .schema("inspection")
+      .from("vendors")
       .update({ ...data, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select()
@@ -66,7 +71,8 @@ export class SupabaseVendorRepository implements IVendorRepository {
 
   async delete(id: string): Promise<void> {
     const { error } = await supabase
-      .from("inspection.vendors")
+      .schema("inspection")
+      .from("vendors")
       .delete()
       .eq("id", id);
     if (error) throw new Error(error.message);

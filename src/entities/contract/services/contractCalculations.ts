@@ -3,7 +3,24 @@
 
 import * as jalaali from "jalaali-js";
 import { contractTariffs } from "@data/mockData";
-import { formatCurrency } from "@shared/lib/formatters";
+
+const formatCurrencyLocal = (
+  amount: number,
+  currency: string = "IRR",
+): string => {
+  if (currency === "IRR") {
+    return (
+      new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
+        amount,
+      ) + " IRR"
+    );
+  }
+  const sym = currency === "USD" ? "$" : "€";
+  return (
+    sym +
+    new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(amount)
+  );
+};
 
 // ═══════════════════════════════════════
 // 🔑 Helper: Parse Jalaali Date (با try-catch)
@@ -636,7 +653,7 @@ export const getNeedsReviewType = (
       return {
         type: "value_review",
         message: "Total Agreement Value Review",
-        details: `Performed work (${formatCurrency(performedWork, contract.currency || "IRR")}) exceeds total contract value (${formatCurrency(contract.total_value, contract.currency || "IRR")}) by ${formatCurrency(overAmount, contract.currency || "IRR")}`,
+        details: `Performed work (${formatCurrencyLocal(performedWork, contract.currency || "IRR")}) exceeds total contract value (${formatCurrencyLocal(contract.total_value, contract.currency || "IRR")}) by ${formatCurrencyLocal(overAmount, contract.currency || "IRR")}`,
       };
     }
 
@@ -644,7 +661,7 @@ export const getNeedsReviewType = (
       return {
         type: "invoice_review",
         message: "Invoice Review Required",
-        details: `Invoiced amount (${formatCurrency(totalInvoiced, contract.currency || "IRR")}) is ${invoicePercentage.toFixed(1)}% of performed work (${formatCurrency(performedWork, contract.currency || "IRR")}). This exceeds the 110% threshold.`,
+        details: `Invoiced amount (${formatCurrencyLocal(totalInvoiced, contract.currency || "IRR")}) is ${invoicePercentage.toFixed(1)}% of performed work (${formatCurrencyLocal(performedWork, contract.currency || "IRR")}). This exceeds the 110% threshold.`,
       };
     }
 

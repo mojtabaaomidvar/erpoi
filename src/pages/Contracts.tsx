@@ -11,12 +11,18 @@ import {
   generateContractNo,
   getInvoicedPercentage,
 } from "@entities/contract/services/contractCalculations";
-import type { Contract, ContractAmendment } from "@entities/contract/types";
+import type {
+  Contract,
+  ContractAmendment,
+} from "@/features/contract-management/domain";
 
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
-import { tariffService } from "@features/contract-management/services/TariffService";
-import { amendmentService } from "@features/contract-management/services/AmendmentService";
+import {
+  contractAppService,
+  tariffAppService,
+  amendmentAppService,
+} from "@/features/contract-management/application";
 import {
   sortContractsByPriority,
   getContractActionPriority,
@@ -28,7 +34,6 @@ import { ContractDetails } from "@features/contract-management/ui/ContractDetail
 import { ContractAddForm } from "@features/contract-management/ui/contract-add-form/ContractAddForm";
 import { ContractEditForm } from "@features/contract-management/ui/ContractEditForm";
 import { useEvent, EVENT_TYPES } from "@infra/events";
-import { contractService } from "@features/contract-management/services/ContractService";
 
 export function Contracts() {
   const { isDark } = useTheme();
@@ -54,19 +59,20 @@ export function Contracts() {
     sortBy,
     setSortBy,
     setIsDetailsOpen,
-    filteredContracts,
+    sortedContracts,
     currentDepartment,
+    isDetailsOpen,
   } = useContracts();
 
   useEffect(() => {
     console.log("🔍 Contracts Page Debug:", {
       contractsCount: contracts?.length,
-      filteredContractsCount: filteredContracts?.length,
+      filteredContractsCount: sortedContracts?.length,
       loading,
       error,
       currentDepartment,
     });
-  }, [contracts, filteredContracts, loading, error, currentDepartment]);
+  }, [contracts, sortedContracts, loading, error, currentDepartment]);
 
   useEvent(EVENT_TYPES.AMENDMENT_CREATED, () => {
     console.log("[Contracts] Amendment created, refreshing list...");
@@ -94,7 +100,7 @@ export function Contracts() {
 
       for (const contract of contracts) {
         try {
-          const amendments = await amendmentService.getByContractId(
+          const amendments = await amendmentAppService.getByContractId(
             contract.id,
           );
           newMap.set(contract.id, amendments);
@@ -118,11 +124,11 @@ export function Contracts() {
   // مرتب‌سازی قراردادها بر اساس اولویت
   const prioritizedContracts = useMemo(() => {
     return sortContractsByPriority(
-      filteredContracts,
+      sortedContracts,
       amendmentsMap,
       user?.role || "user",
     );
-  }, [filteredContracts, amendmentsMap, user?.role]);
+  }, [sortedContracts, amendmentsMap, user?.role]);
 
   // محاسبه اولویت هر قرارداد (برای نمایش Badge)
   const contractPriorities = useMemo(() => {
@@ -227,12 +233,12 @@ export function Contracts() {
         let savedContract;
 
         if (editingDraft) {
-          savedContract = await contractService.update(
+          savedContract = await contractAppService.update(
             editingDraft.id,
             contractPayload,
           );
 
-          const oldTariffs = await tariffService.getByContractId(
+          const oldTariffs = await tariffAppService.getByContractId(
             editingDraft.id,
           );
           console.log(
@@ -240,15 +246,15 @@ export function Contracts() {
           );
 
           for (const oldTariff of oldTariffs) {
-            await tariffService.delete(oldTariff.id);
+            await tariffAppService.delete(oldTariff.id);
           }
         } else {
-          savedContract = await contractService.create(contractPayload);
+          savedContract = await contractAppService.create(contractPayload);
         }
 
         if (formData.tariffs && formData.tariffs.length > 0) {
           for (const tariff of formData.tariffs) {
-            await tariffService.create({
+            await tariffAppService.create({
               contract_id: savedContract.id,
               description: tariff.description,
               unit: tariff.unit,
@@ -259,7 +265,7 @@ export function Contracts() {
               currency: tariff.currency || "IRR",
               consumed_quantity: 0,
               invoiced: 0,
-              is_lump_sum: tariff.isLumpSum || false,
+              is_lump_sum: tariff.is_lump_sum || false,
             });
           }
         }
@@ -295,14 +301,14 @@ export function Contracts() {
 
   const handleEditDraft = useCallback(async (contract: Contract) => {
     try {
-      const tariffs = await tariffService.getByContractId(contract.id);
+      const tariffs = await tariffAppService.getByContractId(contract.id);
 
       const draftWithTariffs = {
         ...contract,
-        tariffLines: tariffs.map((t) => ({
+        tariffLines: tariffs.map((t: any) => ({
           ...t,
           rate: typeof t.rate === "number" ? String(t.rate) : t.rate,
-          isLumpSum: t.is_lump_sum || false,
+          is_lump_sum: t.is_lump_sum || false,
         })),
       };
 
@@ -344,16 +350,16 @@ export function Contracts() {
     if (!confirmed) return;
 
     try {
-      const tariffs = await tariffService.getByContractId(editingDraft.id);
+      const tariffs = await tariffAppService.getByContractId(editingDraft.id);
       console.log(
         `[Contracts] Deleting ${tariffs.length} tariffs for draft ${editingDraft.id}`,
       );
 
       for (const tariff of tariffs) {
-        await tariffService.delete(tariff.id);
+        await tariffAppService.delete(tariff.id);
       }
 
-      await contractService.delete(editingDraft.id);
+      await contractAppService.delete(editingDraft.id);
 
       showToast(
         "success",
@@ -396,16 +402,16 @@ export function Contracts() {
           console.log("[Contracts] Updating tariffs:", formData.tariffs.length);
 
           // حذف تعرفه‌های قدیمی
-          const oldTariffs = await tariffService.getByContractId(
+          const oldTariffs = await tariffAppService.getByContractId(
             editingContract.id,
           );
           for (const oldTariff of oldTariffs) {
-            await tariffService.delete(oldTariff.id);
+            await tariffAppService.delete(oldTariff.id);
           }
 
           // ذخیره تعرفه‌های جدید
           for (const tariff of formData.tariffs) {
-            await tariffService.create({
+            await tariffAppService.create({
               contract_id: editingContract.id,
               description: tariff.description,
               unit: tariff.unit,
@@ -416,7 +422,7 @@ export function Contracts() {
               currency: tariff.currency || "IRR",
               consumed_quantity: tariff.consumed_quantity || 0,
               invoiced: tariff.invoiced || 0,
-              is_lump_sum: tariff.isLumpSum || false,
+              is_lump_sum: tariff.is_lump_sum || false,
             });
           }
         }
@@ -442,14 +448,14 @@ export function Contracts() {
   const handleExportToExcel = useCallback(async () => {
     const confirmed = await confirmDialog({
       title: "Export Contracts",
-      message: `Are you sure you want to export ${filteredContracts.length} contracts to Excel?`,
+      message: `Are you sure you want to export ${sortedContracts.length} contracts to Excel?`,
       confirmText: "Export",
       variant: "info",
     });
 
     if (!confirmed) return;
 
-    const dataToExport = filteredContracts.map((c) => ({
+    const dataToExport = sortedContracts.map((c: Contract) => ({
       "شماره داخلی": c.contract_no,
       نوع: c.type === "CONTRACT" ? "قرارداد" : "سفارش کار",
       مشتری: c.client_name,
@@ -474,9 +480,9 @@ export function Contracts() {
     showToast(
       "success",
       "Export Successful",
-      `${filteredContracts.length} contracts exported`,
+      `${sortedContracts.length} contracts exported`,
     );
-  }, [filteredContracts, typeFilter]);
+  }, [sortedContracts, typeFilter]);
 
   const handleRequestComplete = useCallback((contract: Contract) => {
     setContractToComplete(contract);
@@ -614,7 +620,7 @@ export function Contracts() {
         {/* LEFT PANEL - ContractList */}
         <ContractList
           contracts={contracts}
-          filteredContracts={prioritizedContracts}
+          sortedContracts={prioritizedContracts}
           contractPriorities={contractPriorities}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}

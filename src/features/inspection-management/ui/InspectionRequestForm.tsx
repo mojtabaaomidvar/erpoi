@@ -1,4 +1,4 @@
-// src/features/inspection-management/ui/InspectionRequestForm.tsx
+﻿// src/features/inspection-management/ui/InspectionRequestForm.tsx
 
 import { useState, useEffect } from "react";
 import { Modal, Button, Badge } from "@design-system";
@@ -6,21 +6,21 @@ import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { showToast } from "@shared/ui/ToastContainer";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
-import { clientService } from "@features/client-management/services/ClientService";
+import { clientAppService } from "@/features/client-management/application";
 import { inspectionRequestAppService } from "@features/inspection-management/application/InspectionRequestApplicationService";
 import type { CreateInspectionRequestCommand } from "@features/inspection-management/application/dto/CreateInspectionRequestCommand";
 import { projectAppService } from "@features/project-management/application/ProjectApplicationService";
 import { VendorAutocomplete } from "./VendorAutocomplete";
 import { ProjectSelector } from "./ProjectSelector";
-import type { Client } from "@/types/client";
-import type { Contract } from "@/types/contract";
+import type { Client } from "@/features/client-management/domain/models/Client";
+import type { Contract } from "@/features/contract-management/domain";
 import type {
   InspectionRequest,
   Priority,
   InspectionCategory,
   InspectionMode,
   EngineeringDocument,
-} from "@/types/inspection";
+} from "@/features/inspection-management/domain/types";
 import type { Project } from "@features/project-management/domain/types";
 import {
   PRIORITY_CONFIG,
@@ -139,7 +139,7 @@ export function InspectionRequestForm({
 
   const loadClients = async () => {
     try {
-      const data = await clientService.getAll();
+      const data = await clientAppService.getAll();
       setClients(data);
     } catch (err: any) {
       showToast("error", "Load Failed", err.message);
@@ -158,6 +158,7 @@ export function InspectionRequestForm({
   const loadUsers = async () => {
     try {
       const { data, error } = await supabase
+        .schema("core")
         .from("users")
         .select("id, full_name, username, email, role")
         .order("full_name", { ascending: true });

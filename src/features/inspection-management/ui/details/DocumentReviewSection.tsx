@@ -12,7 +12,7 @@ import type {
   DocumentReview,
   DocumentType,
   ReviewStatus,
-} from "@/types/inspection";
+} from "@/features/inspection-management/domain/types";
 import { DOCUMENT_TYPE_CONFIG, REVIEW_STATUS_CONFIG } from "../../constants";
 
 interface DocumentReviewSectionProps {

@@ -6,9 +6,8 @@ import { useTheme } from "@app/providers/ThemeProvider";
 import type { StepProps, ContractFormData, WorkOrderFormData } from "../types";
 import { SERVICE_TYPES, GUARANTEE_TYPES } from "../constants";
 import { formatCurrency } from "@shared/lib/formatters";
-import { formatNumberInput } from "@entities/contract/services/contractCalculations";
 
-// 🔧 NEW: مودال پیش‌نمایش فایل
+// مودال پیش‌نمایش فایل
 function FilePreviewModal({
   file,
   isOpen,
@@ -140,7 +139,7 @@ function FilePreviewModal({
   );
 }
 
-// 🔧 NEW: دکمه پیش‌نمایش که مودال را باز می‌کند
+// دکمه پیش‌نمایش که مودال را باز می‌کند
 function FilePreviewButton({
   file,
   onPreview,
@@ -218,8 +217,8 @@ export function Step5Preview({
   formData,
   onFillDummyData,
   isAdmin,
-  clients = [],
-}: StepProps & { clients?: any[] }) {
+  clientName = "Unknown Client", // ✅ دریافت مستقیم نام به جای آرایه clients
+}: StepProps & { clientName?: string }) {
   const { isDark } = useTheme();
   const data = formData[docType];
   const isEmpty =
@@ -227,7 +226,6 @@ export function Step5Preview({
     data.tariffs.length <= 1 &&
     !data.tariffs[0].description;
 
-  // 🔧 NEW: State برای مودال پیش‌نمایش
   const [previewFile, setPreviewFile] = useState<any>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -240,10 +238,6 @@ export function Step5Preview({
     setIsPreviewOpen(false);
     setTimeout(() => setPreviewFile(null), 300);
   };
-
-  const client = clients.find((c: any) => c.id === data.client_id);
-  const clientDisplayName =
-    client?.name_fa || client?.name_en || client?.name || data.client_id || "—";
 
   return (
     <>
@@ -302,7 +296,8 @@ export function Step5Preview({
             </InfoField>
 
             <InfoField label="Client" isDark={isDark}>
-              <span className="text-sm font-semibold">{clientDisplayName}</span>
+              <span className="text-sm font-semibold">{clientName}</span>{" "}
+              {/* ✅ استفاده مستقیم */}
             </InfoField>
 
             <InfoField label="Title" className="col-span-2" isDark={isDark}>
@@ -549,7 +544,7 @@ export function Step5Preview({
                   className="text-[10px]"
                 >
                   {(data as ContractFormData).adjustment.enabled
-                    ? `✅ ${formatNumberInput(String((data as ContractFormData).adjustment.percentage))}% (${(data as ContractFormData).adjustment.mode})`
+                    ? `✅ ${(data as ContractFormData).adjustment.percentage}% (${(data as ContractFormData).adjustment.mode})`
                     : "❌ Disabled"}
                 </Badge>
               </InfoField>
@@ -565,7 +560,7 @@ export function Step5Preview({
                 >
                   {(data as ContractFormData).contract_modification.percentage >
                   0
-                    ? `${formatNumberInput(String((data as ContractFormData).contract_modification.percentage))}%`
+                    ? `${(data as ContractFormData).contract_modification.percentage}%`
                     : "0%"}
                 </Badge>
               </InfoField>
@@ -579,24 +574,13 @@ export function Step5Preview({
                   className="text-[10px]"
                 >
                   {(data as ContractFormData).guarantee.has_guarantee
-                    ? `✅ ${formatNumberInput(String((data as ContractFormData).guarantee.percentage))}% (${
-                        GUARANTEE_TYPES.find(
-                          (g: any) =>
-                            g.value ===
-                            (data as ContractFormData).guarantee.type,
-                        )?.label || (data as ContractFormData).guarantee.type
-                      })`
+                    ? `✅ ${(data as ContractFormData).guarantee.percentage}% (${GUARANTEE_TYPES.find((g: any) => g.value === (data as ContractFormData).guarantee.type)?.label || (data as ContractFormData).guarantee.type})`
                     : "❌ None"}
                 </Badge>
               </InfoField>
               <InfoField label="Good Performance" isDark={isDark}>
                 <Badge tone="indigo" className="text-[10px]">
-                  {formatNumberInput(
-                    String(
-                      (data as ContractFormData).good_performance_percentage,
-                    ),
-                  )}
-                  %
+                  {(data as ContractFormData).good_performance_percentage}%
                 </Badge>
               </InfoField>
               <InfoField
@@ -605,12 +589,7 @@ export function Step5Preview({
                 isDark={isDark}
               >
                 <Badge tone="indigo" className="text-[10px]">
-                  {formatNumberInput(
-                    String(
-                      (data as ContractFormData).insurance_deduction_percentage,
-                    ),
-                  )}
-                  %
+                  {(data as ContractFormData).insurance_deduction_percentage}%
                 </Badge>
               </InfoField>
             </div>
@@ -628,7 +607,6 @@ export function Step5Preview({
                 >
                   {data.attachments.length} file(s)
                 </Badge>
-
                 {data.attachments.length > 0 && (
                   <div className="mt-2 space-y-2">
                     {data.attachments.map((file: any, idx: number) => (
@@ -641,7 +619,6 @@ export function Step5Preview({
                   </div>
                 )}
               </InfoField>
-
               <InfoField label="Description" isDark={isDark}>
                 <div
                   className={`text-xs p-2 rounded ${isDark ? "bg-slate-900 text-slate-300" : "bg-slate-100 text-slate-700"}`}
@@ -656,7 +633,6 @@ export function Step5Preview({
         )}
       </div>
 
-      {/* 🔧 NEW: مودال پیش‌نمایش فایل */}
       <FilePreviewModal
         file={previewFile}
         isOpen={isPreviewOpen}

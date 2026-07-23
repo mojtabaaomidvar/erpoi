@@ -7,7 +7,7 @@ import { useAuth } from "@features/auth/hooks/useAuth";
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 import { checklistAppService } from "../../application/ChecklistApplicationService";
-import { inspectionAppService } from "../../application/InspectionApplicationService";
+import { inspectionAppService } from "../../application";
 import {
   CHECKLIST_TEMPLATES,
   getTemplatesByCategory,
@@ -16,7 +16,7 @@ import type {
   Checklist,
   ChecklistCategory,
   Inspection,
-} from "@/types/inspection";
+} from "@/features/inspection-management/domain/types";
 import { CHECKLIST_CATEGORY_CONFIG } from "../../constants";
 
 interface ChecklistSectionProps {

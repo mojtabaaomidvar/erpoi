@@ -1,4 +1,4 @@
-// src/features/inspection-management/ui/ProjectForm.tsx
+﻿// src/features/inspection-management/ui/ProjectForm.tsx
 
 import { useState, useEffect } from "react";
 import { Modal, Button, Badge } from "@design-system";
@@ -7,11 +7,10 @@ import { useAuth } from "@features/auth/hooks/useAuth";
 import { showToast } from "@shared/ui/ToastContainer";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
 import { supabase } from "@shared/database/supabase";
-import { clientService } from "@features/client-management/services/ClientService";
-import { contractService } from "@features/contract-management/services/ContractService";
-import { projectAppService } from "../application/ProjectApplicationService";
-import type { Client } from "@/types/client";
-import type { Contract } from "@/types/contract";
+import { clientAppService } from "@/features/client-management/application";
+import { contractAppService } from "@/features/contract-management/application";
+import type { Client } from "@/features/client-management/domain/models/Client";
+import type { Contract } from "@/features/contract-management/domain";
 import type { Project, ProjectRole } from "../domain/types";
 import { INSPECTION_CATEGORY_CONFIG } from "@features/inspection-management/constants";
 import { CreateProjectSchema } from "../application/dto/CreateProjectCommand";
@@ -58,7 +57,7 @@ export function ProjectForm({
 
   const loadClients = async () => {
     try {
-      const data = await clientService.getAll();
+      const data = await clientAppService.getAll();
       setClients(data);
     } catch (err: any) {
       showToast("error", "Load Failed", err.message);
@@ -67,7 +66,7 @@ export function ProjectForm({
 
   const loadContracts = async (clientId: string) => {
     try {
-      const data = await contractService.getByClientId(clientId);
+      const data = await contractAppService.getByClientId(clientId);
       setFilteredContracts(data);
     } catch (err: any) {
       showToast("error", "Load Failed", err.message);
@@ -77,6 +76,7 @@ export function ProjectForm({
   const loadUsers = async () => {
     try {
       const { data, error } = await supabase
+        .schema("core")
         .from("users")
         .select("id, full_name, username, email, role")
         .order("full_name", { ascending: true });

@@ -1,6 +1,9 @@
 // src/features/inspection-management/utils/checklistTemplates.ts
 
-import type { ChecklistCategory, ChecklistItem } from "@/types/inspection";
+import type {
+  ChecklistCategory,
+  ChecklistItem,
+} from "@/features/inspection-management/domain/types";
 
 export interface ChecklistTemplate {
   id: string;

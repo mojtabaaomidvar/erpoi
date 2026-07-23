@@ -1,25 +1,22 @@
 // src/features/client-management/ui/ClientList.tsx
 
-import { useMemo } from "react";
 import { Avatar, Badge, Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { showToast } from "@shared/ui/ToastContainer";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
-import type { Contract } from "@/types/contract";
-import type { Client } from "@/types/client";
+import { ClientElements } from "@shared/authorization/ui/elements/ClientElements";
+import type { Contract } from "@/features/contract-management/domain";
+import type { Client } from "@/features/client-management/domain/models/Client";
 
 interface ClientListProps {
-  clients: Client[];
-  filteredClients: Client[];
+  sortedClients: Client[];
   contracts: Contract[];
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   filter: "ALL" | "LEGAL" | "INDIVIDUAL";
   setFilter: (filter: "ALL" | "LEGAL" | "INDIVIDUAL") => void;
   clientCounts: { total: number; legal: number; individual: number };
-  sortBy: "name" | "contracts" | "value" | "recent";
-  setSortBy: (sort: "name" | "contracts" | "value" | "recent") => void;
   selectedClient: Client | null;
   setSelectedClient: (client: Client | null) => void;
   onAddClick: () => void;
@@ -27,16 +24,13 @@ interface ClientListProps {
 }
 
 export function ClientList({
-  clients,
-  filteredClients,
+  sortedClients,
   contracts,
   searchQuery,
   setSearchQuery,
   filter,
   setFilter,
   clientCounts,
-  sortBy,
-  setSortBy,
   selectedClient,
   setSelectedClient,
   onAddClick,
@@ -45,57 +39,23 @@ export function ClientList({
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
 
-  // 🔐 ۱. دسترسی مشاهده لیست (View)
-  const canViewItems = canAccessElement("client_list_item_view");
+  const permissions = {
+    viewList: canAccessElement(ClientElements.ClientList.list_item_view.id),
+    clickItem: canAccessElement(ClientElements.ClientList.list_item_click.id),
+    search: canAccessElement(ClientElements.ClientList.search_box.id),
+    filterType: canAccessElement(ClientElements.ClientList.filter_type.id),
+    badgeAgreements: canAccessElement(
+      ClientElements.ClientList.total_agreement_badge.id,
+    ),
+    badgeValue: canAccessElement(
+      ClientElements.ClientList.total_agreement_value_badge.id,
+    ),
+    add: canAccessElement(ClientElements.ClientList.btn_add.id),
+    export: canAccessElement(ClientElements.ClientList.btn_export.id),
+  };
 
-  // 🔐 ۲. دسترسی کلیک روی آیتم (Click)
-  const canClickItem = canAccessElement("client_list_item_click");
-
-  // سایر دسترسی‌ها
-  const canSearch = canAccessElement("client_search_box");
-  const canFilterType = canAccessElement("client_filter_type");
-  const canTotalBadge = canAccessElement("client_total_agreement_badge");
-  const canTotalValueBadge = canAccessElement(
-    "client_total_agreement_value_badge",
-  );
-  const canAdd = canAccessElement("client_btn_add");
-  const canExport = canAccessElement("client_btn_export");
-
-  const sortedClients = useMemo(() => {
-    const sorted = [...filteredClients];
-    switch (sortBy) {
-      case "name":
-        return sorted.sort((a, b) => a.name_en.localeCompare(b.name_en));
-      case "contracts":
-        return sorted.sort((a, b) => b.contracts - a.contracts);
-      case "value":
-        return sorted.sort((a, b) => {
-          const valueA = contracts
-            .filter((c) => c.client_id === a.id)
-            .reduce((sum, c) => sum + c.total_value, 0);
-          const valueB = contracts
-            .filter((c) => c.client_id === b.id)
-            .reduce((sum, c) => sum + c.total_value, 0);
-          return valueB - valueA;
-        });
-      case "recent":
-        return sorted.sort((a, b) => {
-          const dateA = (a as any).createdAt
-            ? new Date((a as any).createdAt).getTime()
-            : 0;
-          const dateB = (b as any).createdAt
-            ? new Date((b as any).createdAt).getTime()
-            : 0;
-          return dateB - dateA;
-        });
-      default:
-        return sorted;
-    }
-  }, [filteredClients, sortBy, contracts]);
-
-  // 🔐 هندلر کلیک: فقط در صورتی اجازه می‌دهد که canClickItem فعال باشد
   const handleClientClick = (client: Client) => {
-    if (!canClickItem) {
+    if (!permissions.clickItem) {
       showToast(
         "error",
         "Access Denied",
@@ -149,9 +109,9 @@ export function ClientList({
             </div>
           </div>
 
-          {/* 🔐 Conditional Buttons */}
+          {/* ✅ Conditional Buttons based on Registry */}
           <div className="flex gap-1.5">
-            {canSearch && (
+            {permissions.search && (
               <FloatingSearch
                 value={searchQuery}
                 onChange={setSearchQuery}
@@ -159,7 +119,7 @@ export function ClientList({
                 icon="🔍"
               />
             )}
-            {canExport && (
+            {permissions.export && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -170,7 +130,7 @@ export function ClientList({
                 📊
               </Button>
             )}
-            {canAdd && (
+            {permissions.add && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -185,8 +145,7 @@ export function ClientList({
         </div>
       </div>
 
-      {/* 🔐 Conditional Filter Tabs */}
-      {canFilterType && (
+      {permissions.filterType && (
         <div
           className={`px-4 py-2.5 border-b ${isDark ? "border-slate-700/50 bg-slate-900/30" : "border-slate-200/70 bg-slate-50/50"}`}
         >
@@ -218,8 +177,7 @@ export function ClientList({
 
       {/* Client List Content */}
       <div className="flex-1 overflow-y-auto">
-        {/* 🔐 ۳. اگر دسترسی View نداشت، پیام Access Denied نشان بده */}
-        {!canViewItems ? (
+        {!permissions.viewList ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
             <div
               className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
@@ -271,10 +229,10 @@ export function ClientList({
                 <button
                   key={client.id}
                   onClick={() => handleClientClick(client)}
-                  disabled={!canClickItem}
+                  disabled={!permissions.clickItem}
                   className={`group relative w-full text-left rounded-xl p-3 transition-all duration-200 ${
-                    !canClickItem
-                      ? "cursor-not-allowed opacity-60" // 🔐 غیرفعال کردن ظاهر در صورت نداشتن دسترسی کلیک
+                    !permissions.clickItem
+                      ? "cursor-not-allowed opacity-60"
                       : "cursor-pointer"
                   } ${
                     isSelected
@@ -325,7 +283,7 @@ export function ClientList({
 
                       {/* Stats */}
                       <div className="flex items-center gap-3">
-                        {canTotalBadge && (
+                        {permissions.badgeAgreements && (
                           <div
                             className={`flex items-center gap-1 text-[10px] ${isDark ? "text-slate-400" : "text-slate-600"}`}
                           >
@@ -337,7 +295,7 @@ export function ClientList({
                           </div>
                         )}
 
-                        {canTotalValueBadge && totalValue > 0 && (
+                        {permissions.badgeValue && totalValue > 0 && (
                           <div
                             className={`flex items-center gap-1 text-[10px] ${isDark ? "text-emerald-400" : "text-emerald-600"}`}
                           >

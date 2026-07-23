@@ -1,4 +1,4 @@
-// src/scripts/migrateToSupabase.ts
+﻿// src/scripts/migrateToSupabase.ts
 
 import { supabase } from "@shared/database/supabase";
 import {
@@ -65,7 +65,7 @@ async function seedDepartments(): Promise<void> {
     { id: "finance", name: "Finance", description: "Finance Department" },
   ];
 
-  const { error } = await supabase.from("departments").insert(departments);
+  const { error } = await supabase.from('core.departments').insert(departments);
   if (error) {
     console.error("❌ Failed to seed departments:", error);
   } else {
@@ -123,7 +123,7 @@ async function seedRoles(): Promise<void> {
     },
   ];
 
-  const { error } = await supabase.from("roles").insert(roles);
+  const { error } = await supabase.from('core.roles').insert(roles);
   if (error) {
     console.error("❌ Failed to seed roles:", error);
   } else {
@@ -175,7 +175,7 @@ async function seedUsers(): Promise<void> {
     custom_permissions: u.customPermissions || u.custom_permissions || [],
   }));
 
-  const { error } = await supabase.from("users").insert(formattedUsers);
+  const { error } = await supabase.from('core.users').insert(formattedUsers);
   if (error) {
     console.error("❌ Failed to seed users:", error);
   } else {
@@ -234,7 +234,7 @@ async function seedClients(): Promise<void> {
     return;
   }
 
-  const { error } = await supabase.from("clients").insert(formattedClients);
+  const { error } = await supabase.from('crm.clients').insert(formattedClients);
   if (error) {
     console.error("❌ Failed to seed clients:", error);
   } else {
@@ -290,7 +290,7 @@ async function seedContracts(): Promise<void> {
     return;
   }
 
-  const { error } = await supabase.from("contracts").insert(formattedContracts);
+  const { error } = await supabase.from('contracts.contracts').insert(formattedContracts);
   if (error) {
     console.error("❌ Failed to seed contracts:", error);
   } else {
@@ -343,7 +343,7 @@ async function seedTariffLines(): Promise<void> {
   }
 
   const { error } = await supabase
-    .from("tariff_lines")
+    .from('contracts.tariff_lines')
     .insert(formattedTariffs);
   if (error) {
     console.error("❌ Failed to seed tariff lines:", error);
@@ -474,7 +474,7 @@ async function seedPermissionMappings(): Promise<void> {
     },
   ];
 
-  const { error } = await supabase.from("permission_mappings").insert(mappings);
+  const { error } = await supabase.from('core.permission_mappings').insert(mappings);
   if (error) {
     console.error("❌ Failed to seed permission mappings:", error);
   } else {
@@ -518,7 +518,7 @@ export async function runMigration(): Promise<void> {
 export async function testSupabaseConnection(): Promise<boolean> {
   console.log("🔍 Testing Supabase connection...");
 
-  const { data, error } = await supabase.from("users").select("count").limit(1);
+  const { data, error } = await supabase.from('core.users').select("count").limit(1);
 
   if (error) {
     console.error("❌ Connection failed:", error);

@@ -1,9 +1,8 @@
-// src/features/inspector-managment/ui/InspectorDetailsModal.tsx
-
 import { Modal, Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import type { Inspector } from "@/types/inspector";
-import { inspectorElements } from "@features/inspector-managment/elements";
+import type { Inspector } from "../domain";
+import { InspectionElements } from "@shared/authorization/ui/elements/InspectionElements";
+import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 
 interface InspectorDetailsModalProps {
   isOpen: boolean;
@@ -11,8 +10,6 @@ interface InspectorDetailsModalProps {
   inspector: Inspector | null;
   onEdit: (inspector: Inspector) => void;
   onDelete: (inspector: Inspector) => void;
-  canEdit: boolean;
-  canDelete: boolean;
   canDownloadResume?: boolean;
 }
 
@@ -36,11 +33,16 @@ export function InspectorDetailsModal({
   inspector,
   onEdit,
   onDelete,
-  canEdit,
-  canDelete,
   canDownloadResume = true,
 }: InspectorDetailsModalProps) {
   const { isDark } = useTheme();
+  const { canAccessElement } = usePermissionMapping();
+  const canEdit = canAccessElement(
+    InspectionElements.InspectionDetails.btn_edit.id,
+  );
+  const canDelete = canAccessElement(
+    InspectionElements.InspectionDetails.btn_delete.id,
+  );
 
   if (!inspector) return null;
 
@@ -56,10 +58,7 @@ export function InspectorDetailsModal({
     document.body.removeChild(link);
   };
 
-  // 🔧 استایل مشترک برای تایتل بخش‌ها
-  const sectionTitleClass = `text-[11px] font-bold uppercase tracking-wider flex items-center gap-2 mb-3 ${
-    isDark ? "text-slate-400" : "text-slate-500"
-  }`;
+  const sectionTitleClass = `text-[11px] font-bold uppercase tracking-wider flex items-center gap-2 mb-3 ${isDark ? "text-slate-400" : "text-slate-500"}`;
 
   return (
     <Modal
@@ -95,7 +94,6 @@ export function InspectorDetailsModal({
       }
     >
       <div className="space-y-6">
-        {/* 1. Header */}
         <div className="flex items-center gap-3 pb-2 border-b border-slate-200 dark:border-slate-700">
           <div
             className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold shrink-0 ${isDark ? "bg-indigo-900/50 text-indigo-300" : "bg-indigo-100 text-indigo-700"}`}
@@ -142,7 +140,6 @@ export function InspectorDetailsModal({
           </div>
         </div>
 
-        {/* 2. Information */}
         <div>
           <h3 className={sectionTitleClass}>
             <span>👤</span> Information
@@ -193,7 +190,6 @@ export function InspectorDetailsModal({
           </div>
         </div>
 
-        {/* 3. Resume */}
         <div>
           <h3 className={sectionTitleClass}>
             <span>📄</span> Resume
@@ -253,7 +249,6 @@ export function InspectorDetailsModal({
           )}
         </div>
 
-        {/* 4. Specialties */}
         <div>
           <h3 className={sectionTitleClass}>
             <span>🛠️</span> Specialties & Skills
@@ -279,7 +274,6 @@ export function InspectorDetailsModal({
           </div>
         </div>
 
-        {/* 5. Performance Metrics */}
         <div>
           <h3 className={sectionTitleClass}>
             <span>📊</span> Performance Metrics

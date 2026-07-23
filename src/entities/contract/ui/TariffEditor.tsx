@@ -17,7 +17,7 @@ export interface TariffLine {
   rate: string | number;
   currency?: string;
   total?: number;
-  isLumpSum?: boolean;
+  is_lump_sum?: boolean;
   total_quantity?: number;
   consumed_quantity?: number;
   invoiced?: number;
@@ -46,7 +46,7 @@ export function TariffEditor({
       rate: "",
       currency: "IRR",
       total: 0,
-      isLumpSum: false,
+      is_lump_sum: false,
     };
     onChange([...tariffs, newTariff]);
   };
@@ -66,7 +66,7 @@ export function TariffEditor({
         newTariff.total = parseNumberInput(value);
       }
 
-      if (field === "isLumpSum" && value === true) {
+      if (field === "is_lump_sum" && value === true) {
         newTariff.unit = "LUMP_SUM";
       }
       return newTariff;
@@ -113,7 +113,7 @@ export function TariffEditor({
           <div
             key={tariff.id}
             className={`rounded-lg border p-3 ${
-              tariff.isLumpSum
+              tariff.is_lump_sum
                 ? isDark
                   ? "border-indigo-700 bg-indigo-900/20"
                   : "border-indigo-200 bg-indigo-50/30"
@@ -126,7 +126,7 @@ export function TariffEditor({
               <span className="text-xs font-semibold text-secondary">
                 #{index + 1}
               </span>
-              {tariff.isLumpSum && <Badge tone="indigo">Lump Sum</Badge>}
+              {tariff.is_lump_sum && <Badge tone="indigo">Lump Sum</Badge>}
               <div className="flex-1" />
               {tariffs.length > 1 && (
                 <button

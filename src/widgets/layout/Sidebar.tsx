@@ -1,4 +1,4 @@
-// src/widgets/layout/Sidebar.tsx
+﻿// src/widgets/layout/Sidebar.tsx
 
 import { useEffect, useState } from "react";
 import {
@@ -125,7 +125,7 @@ export function Sidebar({
   const loadPendingAmendmentsCount = async () => {
     try {
       const { count, error } = await supabase
-        .from("contract_amendments")
+        .from('contracts.contract_amendments')
         .select("*", { count: "exact", head: true })
         .eq("approval_status", "PENDING");
 

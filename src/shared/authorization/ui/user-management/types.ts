@@ -1,7 +1,8 @@
 // src/shared/authorization/ui/user-management/types.ts
 
-import type { DBUser, DBDepartment, DBPermissionMapping } from "@shared/database/types";
+import type { DBUser, DBPermissionMapping } from "@shared/database/types";
 
+import type { Department } from "@shared/authorization";
 // ═══════════════════════════════════════
 // 🎯 Tab Types
 // ═══════════════════════════════════════
@@ -42,11 +43,11 @@ export const USER_MANAGEMENT_TABS: TabConfig[] = [
 
 export interface UserManagementData {
   users: DBUser[];
-  departments: DBDepartment[];
+  departments: Department[];
   mappings: Map<string, DBPermissionMapping>;
 }
 
-export interface DepartmentWithUsers extends DBDepartment {
+export interface DepartmentWithUsers extends Department {
   users: DBUser[];
   manager: DBUser | null;
 }
@@ -62,5 +63,5 @@ export interface UserAction {
 
 export interface DepartmentAction {
   type: "edit" | "delete" | "view-users";
-  department: DBDepartment;
+  department: Department;
 }

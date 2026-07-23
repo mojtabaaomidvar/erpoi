@@ -1,7 +1,7 @@
 // src/features/contract-management/ui/contract-add-form/types.ts
 
-import type { TariffLine } from "@entities/contract/types";
-import type { Contract } from "@entities/contract/types";
+import type { TariffLine } from "@/features/contract-management/domain";
+import type { Contract } from "@/features/contract-management/domain";
 
 // ═══════════════════════════════════════
 // 🏷️ Document Type
@@ -94,7 +94,7 @@ export type FormDataState = {
 export interface ContractAddFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (formData: any, isDraft: boolean) => void;
+  onSave: (formData: any, isDraft: boolean) => Promise<void>;
   typeFilter: "ALL" | "CONTRACT" | "WORK_ORDER";
   contracts: any[];
   generateContractNo: (type: DocType, contracts: any[]) => string;
@@ -118,4 +118,6 @@ export interface StepProps {
   onFillDummyData?: () => void;
   isAdmin?: boolean;
   isEditMode?: boolean;
+  clientName?: string;
+  clients?: any[];
 }

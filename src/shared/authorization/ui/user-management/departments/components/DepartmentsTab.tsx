@@ -2,18 +2,19 @@
 
 import { Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import type { DBUser, DBDepartment } from "@shared/database/types";
+import type { DBUser } from "@shared/database/types";
+import type { Department } from "@shared/authorization";
 import { DepartmentCard } from "./DepartmentCard";
 import { DepartmentCardSkeleton } from "../skeletons/DepartmentCardSkeleton";
 
 interface DepartmentsTabProps {
-  departments: DBDepartment[];
+  departments: Department[];
   users: DBUser[];
   loading?: boolean;
   onAddDepartment: () => void;
-  onEditDepartment: (department: DBDepartment) => void;
-  onDeleteDepartment: (department: DBDepartment) => void;
-  onViewUsers?: (department: DBDepartment) => void;
+  onEditDepartment: (department: Department) => void;
+  onDeleteDepartment: (department: Department) => void;
+  onViewUsers?: (department: Department) => void;
   getDepartmentManager: (departmentId: string) => DBUser | null;
 }
 

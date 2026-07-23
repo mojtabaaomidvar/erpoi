@@ -4,7 +4,7 @@ import { useTheme } from "@app/providers/ThemeProvider";
 import type { DBUser } from "@shared/database/types";
 import { UserRow } from "./UserRow";
 import { TableSkeleton } from "../skeletons/TableSkeleton";
-import type { DBDepartment } from "@shared/database/types";
+import type { Department } from "@shared/authorization";
 
 interface UserTableProps {
   users: DBUser[];
@@ -13,7 +13,7 @@ interface UserTableProps {
   onEdit?: (user: DBUser) => void;
   onDelete?: (user: DBUser) => void;
   onElementAccess?: (user: DBUser) => void;
-  departments?: DBDepartment[];
+  departments?: Department[];
 }
 
 export function UserTable({

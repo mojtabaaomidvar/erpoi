@@ -1,4 +1,4 @@
-// src/features/project-management/application/ProjectStatsApplicationService.ts
+﻿// src/features/project-management/application/ProjectStatsApplicationService.ts
 
 import { supabase } from "@shared/database/supabase";
 
@@ -19,7 +19,7 @@ export interface ProjectStats {
 class ProjectStatsApplicationService {
   async getProjectStats(projectId: string): Promise<ProjectStats> {
     const { data: inspections, error } = await supabase
-      .from("inspection_requests")
+      .from('inspection.inspection_requests')
       .select("*")
       .eq("project_id", projectId);
 

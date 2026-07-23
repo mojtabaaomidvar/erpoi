@@ -1,15 +1,15 @@
 // src/features/client-management/ui/DuplicateWarningModal.tsx
 
-import { useState, useEffect } from "react";
 import { Button, Badge, Modal, Avatar } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { validateMobile } from "@shared/lib/validators";
+import type { DuplicateClientInfo } from "../domain/models/Client";
+import { useDuplicateWarning } from "../hooks/useDuplicateWarning";
 
 interface DuplicateWarningModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaveContact: (contact: any) => void;
-  duplicateClient: any;
+  duplicateClient: DuplicateClientInfo | null;
   currentDepartment: string;
   isSameDepartmentDuplicate?: boolean;
 }
@@ -24,46 +24,22 @@ export function DuplicateWarningModal({
 }: DuplicateWarningModalProps) {
   const { isDark } = useTheme();
   const isLegal = duplicateClient?.type === "LEGAL";
-  const deptNames = (duplicateClient as any)._resolvedDepartmentNames || [];
+  const deptNames = duplicateClient?._resolvedDepartmentNames || [];
   const deptNamesString =
     deptNames.length > 0 ? deptNames.join(", ") : "Unknown Unit";
 
-  const [newContact, setNewContact] = useState({
-    name: "",
-    position: "",
-    mobile: "",
-    email: "",
-  });
-  const [contactErrors, setContactErrors] = useState<any>({});
-
-  useEffect(() => {
-    if (isOpen) {
-      setNewContact({ name: "", position: "", mobile: "", email: "" });
-      setContactErrors({});
-    }
-  }, [isOpen]);
+  // ✅ تمام منطق فرم در هوک مدیریت می‌شود
+  const { newContact, contactErrors, setContactField, handleConfirm } =
+    useDuplicateWarning(
+      isOpen,
+      duplicateClient,
+      isLegal,
+      currentDepartment,
+      onSaveContact,
+      onClose,
+    );
 
   if (!duplicateClient) return null;
-
-  const handleConfirm = () => {
-    if (isLegal) {
-      if (!newContact.name.trim() || !validateMobile(newContact.mobile)) {
-        setContactErrors({
-          name: !newContact.name.trim(),
-          mobile: !validateMobile(newContact.mobile),
-        });
-        return;
-      }
-      onSaveContact({
-        ...newContact,
-        id: Date.now().toString(),
-        department: currentDepartment,
-      });
-    } else {
-      onSaveContact(null);
-    }
-    onClose();
-  };
 
   return (
     <Modal
@@ -154,7 +130,6 @@ export function DuplicateWarningModal({
                 {duplicateClient.name_fa}
               </p>
 
-              {/* 🔧 NEW: Badge های جداگانه برای هر واحد */}
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <Badge
                   tone={isLegal ? "indigo" : "violet"}
@@ -166,7 +141,6 @@ export function DuplicateWarningModal({
                   ID: {duplicateClient.national_id}
                 </Badge>
 
-                {/* 🔧 NEW: هر واحد در یک Badge جداگانه */}
                 {deptNames.length > 0 ? (
                   deptNames.map((deptName: string, index: number) => (
                     <Badge
@@ -208,10 +182,7 @@ export function DuplicateWarningModal({
                   </label>
                   <input
                     value={newContact.name}
-                    onChange={(e) => {
-                      setNewContact({ ...newContact, name: e.target.value });
-                      setContactErrors({ ...contactErrors, name: false });
-                    }}
+                    onChange={(e) => setContactField("name", e.target.value)}
                     className={`w-full rounded-lg border px-2.5 py-1.5 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 ${contactErrors.name ? "border-rose-300" : isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`}
                   />
                   {contactErrors.name && (
@@ -229,7 +200,7 @@ export function DuplicateWarningModal({
                   <input
                     value={newContact.position}
                     onChange={(e) =>
-                      setNewContact({ ...newContact, position: e.target.value })
+                      setContactField("position", e.target.value)
                     }
                     className={`w-full rounded-lg border px-2.5 py-1.5 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 ${isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`}
                   />
@@ -244,13 +215,12 @@ export function DuplicateWarningModal({
                   </label>
                   <input
                     value={newContact.mobile}
-                    onChange={(e) => {
-                      setNewContact({
-                        ...newContact,
-                        mobile: e.target.value.replace(/\D/g, ""),
-                      });
-                      setContactErrors({ ...contactErrors, mobile: false });
-                    }}
+                    onChange={(e) =>
+                      setContactField(
+                        "mobile",
+                        e.target.value.replace(/\D/g, ""),
+                      )
+                    }
                     maxLength={11}
                     className={`w-full rounded-lg border px-2.5 py-1.5 text-sm font-mono focus:border-indigo-400 focus:outline-none focus:ring-1 ${contactErrors.mobile ? "border-rose-300" : isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`}
                   />
@@ -269,9 +239,7 @@ export function DuplicateWarningModal({
                   <input
                     type="email"
                     value={newContact.email}
-                    onChange={(e) =>
-                      setNewContact({ ...newContact, email: e.target.value })
-                    }
+                    onChange={(e) => setContactField("email", e.target.value)}
                     className={`w-full rounded-lg border px-2.5 py-1.5 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 ${isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`}
                   />
                 </div>

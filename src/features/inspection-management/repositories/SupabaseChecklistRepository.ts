@@ -7,7 +7,8 @@ import type { IChecklistRepository } from "./IChecklistRepository";
 export class SupabaseChecklistRepository implements IChecklistRepository {
   async getAll(): Promise<Checklist[]> {
     const { data, error } = await supabase
-      .from("inspection.checklists")
+      .schema("inspection")
+      .from("checklists")
       .select("*")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -16,7 +17,8 @@ export class SupabaseChecklistRepository implements IChecklistRepository {
 
   async getById(id: string): Promise<Checklist | null> {
     const { data, error } = await supabase
-      .from("inspection.checklists")
+      .schema("inspection")
+      .from("checklists")
       .select("*")
       .eq("id", id)
       .single();
@@ -26,7 +28,8 @@ export class SupabaseChecklistRepository implements IChecklistRepository {
 
   async getByInspection(inspectionId: string): Promise<Checklist[]> {
     const { data, error } = await supabase
-      .from("inspection.checklists")
+      .schema("inspection")
+      .from("checklists")
       .select("*")
       .eq("inspection_id", inspectionId)
       .order("created_at", { ascending: false });
@@ -39,7 +42,8 @@ export class SupabaseChecklistRepository implements IChecklistRepository {
   ): Promise<Checklist> {
     const id = `chk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const { data: newRecord, error } = await supabase
-      .from("inspection.checklists")
+      .schema("inspection")
+      .from("checklists")
       .insert({
         id,
         ...data,
@@ -54,7 +58,8 @@ export class SupabaseChecklistRepository implements IChecklistRepository {
 
   async update(id: string, data: Partial<Checklist>): Promise<Checklist> {
     const { data: updatedRecord, error } = await supabase
-      .from("inspection.checklists")
+      .schema("inspection")
+      .from("checklists")
       .update({ ...data, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select()
@@ -65,7 +70,8 @@ export class SupabaseChecklistRepository implements IChecklistRepository {
 
   async delete(id: string): Promise<void> {
     const { error } = await supabase
-      .from("inspection.checklists")
+      .schema("inspection")
+      .from("checklists")
       .delete()
       .eq("id", id);
     if (error) throw new Error(error.message);

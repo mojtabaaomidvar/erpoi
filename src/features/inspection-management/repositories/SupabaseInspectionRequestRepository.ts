@@ -8,7 +8,8 @@ import type { IInspectionRequestRepository } from "./IInspectionRequestRepositor
 export class SupabaseInspectionRequestRepository implements IInspectionRequestRepository {
   async getAll(): Promise<InspectionRequest[]> {
     const { data, error } = await supabase
-      .from("inspection.inspection_requests")
+      .schema("inspection")
+      .from("inspection_requests")
       .select("*")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -17,7 +18,8 @@ export class SupabaseInspectionRequestRepository implements IInspectionRequestRe
 
   async getById(id: string): Promise<InspectionRequest | null> {
     const { data, error } = await supabase
-      .from("inspection.inspection_requests")
+      .schema("inspection")
+      .from("inspection_requests")
       .select("*")
       .eq("id", id)
       .single();
@@ -27,7 +29,8 @@ export class SupabaseInspectionRequestRepository implements IInspectionRequestRe
 
   async getByProject(projectId: string): Promise<InspectionRequest[]> {
     const { data, error } = await supabase
-      .from("inspection.inspection_requests")
+      .schema("inspection")
+      .from("inspection_requests")
       .select("*")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false });
@@ -40,7 +43,8 @@ export class SupabaseInspectionRequestRepository implements IInspectionRequestRe
   ): Promise<InspectionRequest> {
     const id = `insp_req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const { data: newRecord, error } = await supabase
-      .from("inspection.inspection_requests")
+      .schema("inspection")
+      .from("inspection_requests")
       .insert({
         id,
         ...data,
@@ -60,7 +64,8 @@ export class SupabaseInspectionRequestRepository implements IInspectionRequestRe
     data: Partial<InspectionRequest>,
   ): Promise<InspectionRequest> {
     const { data: updatedRecord, error } = await supabase
-      .from("inspection.inspection_requests")
+      .schema("inspection")
+      .from("inspection_requests")
       .update({ ...data, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select()
@@ -71,7 +76,8 @@ export class SupabaseInspectionRequestRepository implements IInspectionRequestRe
 
   async delete(id: string): Promise<void> {
     const { error } = await supabase
-      .from("inspection.inspection_requests")
+      .schema("inspection")
+      .from("inspection_requests")
       .delete()
       .eq("id", id);
     if (error) throw new Error(error.message);

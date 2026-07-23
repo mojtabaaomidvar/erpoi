@@ -5,7 +5,16 @@ import { createPortal } from "react-dom";
 import { cn } from "../lib/cn";
 import { useTheme } from "@app/providers/ThemeProvider";
 
-export type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl" | "full";
+export type ModalSize =
+  | "sm"
+  | "md"
+  | "lg"
+  | "xl"
+  | "2xl"
+  | "3xl"
+  | "4xl"
+  | "5xl"
+  | "full";
 
 export interface ModalProps {
   isOpen: boolean;
@@ -134,7 +143,10 @@ export function Modal({
     lg: "w-full sm:max-w-4xl",
     xl: "w-full sm:max-w-6xl",
     "2xl": "w-full sm:max-w-7xl",
-    full: "w-full mx-4",
+    "3xl": "max-w-3xl",
+    "4xl": "max-w-4xl",
+    "5xl": "max-w-5xl",
+    full: "max-w-h",
   };
 
   const modalContent = (

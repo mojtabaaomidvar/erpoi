@@ -1,6 +1,9 @@
 // src/features/contract-management/utils/contractPriority.ts
 
-import type { Contract, ContractAmendment } from "@/types/contract";
+import type {
+  Contract,
+  ContractAmendment,
+} from "@/features/contract-management/domain";
 import { jalaaliToGregorianDate } from "@entities/contract/services/contractCalculations";
 
 export type ActionPriority = {

@@ -1,14 +1,13 @@
 ﻿// src/shared/authorization/roles.ts
 
-import { Role, RoleInfo, Permission } from "../types";
+import { RoleInfo, Permission } from "@/shared/authorization";
 
-// 🔧 FIX: فقط admin role ثابت - بقیه از DB میان
 export const ROLES: Record<string, RoleInfo> = {
   admin: {
     id: "admin",
     name: "Administrator",
     description: "Full system access with all permissions",
-    permissions: ["*:*" as Permission], // 🔧 FIX: فقط *:*
+    permissions: ["*:*" as Permission],
   },
 };
 

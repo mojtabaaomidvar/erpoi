@@ -1,22 +1,14 @@
 // src/features/contract-management/ui/contract-add-form/steps/Step3LegalTerms.tsx
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
 import { useTheme } from "@app/providers/ThemeProvider";
-import type { StepProps } from "../types";
-import {
-  formatNumberInput,
-  parseNumberInput,
-  getNextJalaaliYearStart,
-} from "@entities/contract/services/contractCalculations";
+import type { StepProps, ContractFormData } from "../types";
+import { getNextJalaaliYearStart } from "@entities/contract/services/contractCalculations";
 import { formatCurrency } from "@shared/lib/formatters";
 import { GUARANTEE_TYPES, ADJUSTMENT_MODES } from "../constants";
 
-// 🔧 NEW: کامپوننت اختصاصی برای ورودی درصد که مشکل تایپ نقطه را حل می‌کند
-// src/features/contract-management/ui/contract-add-form/steps/Step3LegalTerms.tsx
-
-// ... (بخش ایمپورت‌ها بدون تغییر)
-
+// ✅ اصلاح شده: حذف useEffect و مدیریت تمیزتر Input
 function PercentageInput({
   label,
   value,
@@ -35,21 +27,18 @@ function PercentageInput({
   currency?: string;
 }) {
   const { isDark } = useTheme();
-  const [rawValue, setRawValue] = useState(String(value ?? ""));
-
-  useEffect(() => {
-    setRawValue(String(value ?? ""));
-  }, [value]);
+  const [localValue, setLocalValue] = useState(String(value ?? ""));
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
+    // اجازه دادن به اعداد و یک اعشار
     if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) {
-      setRawValue(val);
+      setLocalValue(val);
       onChange(val === "" ? 0 : parseFloat(val));
     }
   };
 
-  // 🔧 FIX: تبدیل value به Number برای محاسبات
+  // همگام‌سازی در صورتی که مقدار از بیرون (مثلاً توسط هوک) ریست شود
   const numValue = Number(value || 0);
 
   return (
@@ -63,8 +52,9 @@ function PercentageInput({
         <input
           type="text"
           inputMode="decimal"
-          value={rawValue}
+          value={localValue}
           onChange={handleChange}
+          onBlur={() => setLocalValue(String(value ?? ""))} // بازگشت به فرمت صحیح هنگام خروج از فوکوس
           className="w-full rounded-lg border px-3 py-2 pr-8 text-sm font-mono text-right input-themed"
           placeholder={placeholder}
         />
@@ -85,13 +75,10 @@ function PercentageInput({
   );
 }
 
-// ... (بقیه کد Step3LegalTerms بدون تغییر)
-
 export function Step3LegalTerms({
   docType,
   formData,
   updateCurrentFormData,
-  errors,
 }: StepProps) {
   const { isDark } = useTheme();
 
@@ -115,7 +102,7 @@ export function Step3LegalTerms({
     );
   }
 
-  const data = formData.CONTRACT;
+  const data = formData.CONTRACT as ContractFormData;
 
   return (
     <div className="space-y-4">
@@ -128,7 +115,6 @@ export function Step3LegalTerms({
           💼 Financial & Legal Terms
         </h3>
 
-        {/* Price Adjustment & Contract Modification */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           {/* Price Adjustment */}
           <div
@@ -196,19 +182,16 @@ export function Step3LegalTerms({
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    {/* 🔧 استفاده از کامپوننت جدید PercentageInput */}
-                    <PercentageInput
-                      label="Percentage (%)"
-                      value={data.adjustment.percentage}
-                      onChange={(val) =>
-                        updateCurrentFormData({
-                          adjustment: { ...data.adjustment, percentage: val },
-                        })
-                      }
-                      placeholder="0.00"
-                    />
-                  </div>
+                  <PercentageInput
+                    label="Percentage (%)"
+                    value={data.adjustment.percentage}
+                    onChange={(val) =>
+                      updateCurrentFormData({
+                        adjustment: { ...data.adjustment, percentage: val },
+                      })
+                    }
+                    placeholder="0.00"
+                  />
                   <div>
                     <label
                       className={`mb-1 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
@@ -245,7 +228,6 @@ export function Step3LegalTerms({
                 Contract Modification
               </h4>
             </div>
-            {/* 🔧 استفاده از کامپوننت جدید PercentageInput */}
             <PercentageInput
               label="Percentage (%)"
               value={data.contract_modification.percentage}
@@ -301,22 +283,19 @@ export function Step3LegalTerms({
 
           {data.guarantee.has_guarantee && (
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                {/* 🔧 استفاده از کامپوننت جدید PercentageInput با نمایش محاسبه ارزی */}
-                <PercentageInput
-                  label="Percentage (%)"
-                  value={data.guarantee.percentage}
-                  onChange={(val) =>
-                    updateCurrentFormData({
-                      guarantee: { ...data.guarantee, percentage: val },
-                    })
-                  }
-                  placeholder="0.00"
-                  showCurrencyCalc={true}
-                  totalValue={data.total_value}
-                  currency={data.currency}
-                />
-              </div>
+              <PercentageInput
+                label="Percentage (%)"
+                value={data.guarantee.percentage}
+                onChange={(val) =>
+                  updateCurrentFormData({
+                    guarantee: { ...data.guarantee, percentage: val },
+                  })
+                }
+                placeholder="0.00"
+                showCurrencyCalc={true}
+                totalValue={data.total_value}
+                currency={data.currency}
+              />
               <div>
                 <label
                   className={`mb-1 block text-[11px] font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
@@ -351,7 +330,6 @@ export function Step3LegalTerms({
           <div
             className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/20" : "border-slate-200 bg-slate-50/20"}`}
           >
-            {/* 🔧 استفاده از کامپوننت جدید PercentageInput */}
             <PercentageInput
               label="Good Performance (%)"
               value={data.good_performance_percentage}
@@ -361,11 +339,9 @@ export function Step3LegalTerms({
               placeholder="10.00"
             />
           </div>
-
           <div
             className={`rounded-lg border p-4 ${isDark ? "border-slate-700 bg-slate-800/20" : "border-slate-200 bg-slate-50/20"}`}
           >
-            {/* 🔧 استفاده از کامپوننت جدید PercentageInput */}
             <PercentageInput
               label="Insurance Deduction (%)"
               value={data.insurance_deduction_percentage}

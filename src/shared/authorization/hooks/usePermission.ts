@@ -1,7 +1,7 @@
 // src/shared/authorization/hooks/usePermission.ts
 
 import { useCallback, useMemo } from "react";
-import { Permission } from "../types";
+import { Permission } from "@/shared/authorization";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import {
   getBasePermissions,

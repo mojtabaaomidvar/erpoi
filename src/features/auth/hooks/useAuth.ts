@@ -1,13 +1,13 @@
 // src/features/auth/hooks/useAuth.ts
 
-import { useState, useEffect, useCallback } from 'react';
-import { authService } from '../services/AuthService';
-import { LoginCredentials, User } from '../types';
+import { useState, useEffect, useCallback } from "react";
+import { authAppService } from "../";
+import { LoginCredentials, User } from "../types";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(() => {
-    // ✅ مقدار اولیه رو مستقیم از authService بگیر
-    const session = authService.getSession();
+    // ✅ مقدار اولیه رو مستقیم از authAppService بگیر
+    const session = authAppService.getSession();
     return session?.user || null;
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -15,10 +15,10 @@ export function useAuth() {
 
   // ✅ useEffect باید همیشه اجرا بشه، نه شرطی
   useEffect(() => {
-    const unsubscribe = authService.subscribe((session) => {
+    const unsubscribe = authAppService.subscribe((session) => {
       setUser(session?.user || null);
     });
-    
+
     // Cleanup
     return () => {
       unsubscribe();
@@ -29,11 +29,11 @@ export function useAuth() {
     setIsLoading(true);
     setError(null);
     try {
-      const user = await authService.login(credentials);
+      const user = await authAppService.login(credentials);
       setUser(user);
       return user;
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      setError(err.message || "Login failed");
       throw err;
     } finally {
       setIsLoading(false);
@@ -41,7 +41,7 @@ export function useAuth() {
   }, []);
 
   const logout = useCallback(async () => {
-    await authService.logout();
+    await authAppService.logout();
     setUser(null);
   }, []);
 
@@ -49,27 +49,30 @@ export function useAuth() {
     setIsLoading(true);
     setError(null);
     try {
-      await authService.requestPasswordReset(email);
+      await authAppService.requestPasswordReset(email);
     } catch (err: any) {
-      setError(err.message || 'Password reset failed');
+      setError(err.message || "Password reset failed");
       throw err;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const confirmPasswordReset = useCallback(async (token: string, newPassword: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      await authService.confirmPasswordReset(token, newPassword);
-    } catch (err: any) {
-      setError(err.message || 'Password reset failed');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const confirmPasswordReset = useCallback(
+    async (token: string, newPassword: string) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        await authAppService.confirmPasswordReset(token, newPassword);
+      } catch (err: any) {
+        setError(err.message || "Password reset failed");
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
 
   return {
     user,

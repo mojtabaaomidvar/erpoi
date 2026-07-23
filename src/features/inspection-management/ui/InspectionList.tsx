@@ -4,13 +4,14 @@ import { useState, useMemo } from "react";
 import { Badge, Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
+import { InspectionElements } from "@shared/authorization/ui/elements/InspectionElements"; // ✅ ایمپورت رجیستری
 import { showToast } from "@shared/ui/ToastContainer";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
 import type {
   InspectionRequest,
   InspectionStatus,
   Priority,
-} from "@/types/inspection";
+} from "@/features/inspection-management/domain/types";
 import { INSPECTION_STATUS_CONFIG, PRIORITY_CONFIG } from "../constants";
 
 type ViewMode = "kanban" | "calendar" | "list";
@@ -25,9 +26,6 @@ interface InspectionListProps {
   setFilterPriority: (priority: Priority | "ALL") => void;
   onRequestClick: (request: InspectionRequest) => void;
   onAddClick: () => void;
-  canClickItem: boolean;
-  canAdd: boolean;
-  canExport: boolean;
   loading?: boolean;
 }
 
@@ -41,9 +39,6 @@ export function InspectionList({
   setFilterPriority,
   onRequestClick,
   onAddClick,
-  canClickItem,
-  canAdd,
-  canExport,
   loading = false,
 }: InspectionListProps) {
   const { isDark } = useTheme();
@@ -51,10 +46,20 @@ export function InspectionList({
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
-  const canViewItems = canAccessElement("inspection_list_item_view");
-  const canSearch = canAccessElement("inspection_search_box");
-  const canFilterStatus = canAccessElement("inspection_filter_status");
-  const canFilterPriority = canAccessElement("inspection_filter_priority");
+  // ✅ استفاده از Registry به جای رشته‌های سخت‌کد شده
+  const canViewItems = canAccessElement(
+    InspectionElements.InspectionList.list_item_view.id,
+  );
+  const canClickItem = canAccessElement(
+    InspectionElements.InspectionList.list_item_click.id,
+  );
+  const canSearch = canAccessElement(
+    InspectionElements.InspectionList.search_box.id,
+  );
+  const canFilterPriority = canAccessElement(
+    InspectionElements.InspectionList.filter_priority.id,
+  );
+  const canAdd = canAccessElement(InspectionElements.InspectionList.btn_add.id);
 
   // فیلتر و جستجو
   const filteredRequests = useMemo(() => {
@@ -179,15 +184,6 @@ export function InspectionList({
                 placeholder="Search inspections..."
                 icon="🔍"
               />
-            )}
-            {canExport && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => showToast("info", "Export", "Coming soon")}
-              >
-                📊
-              </Button>
             )}
             {canAdd && (
               <Button

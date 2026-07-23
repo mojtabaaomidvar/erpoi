@@ -1,9 +1,9 @@
 // src/entities/client/ui/ClientSelector.tsx
 
 import { useState, useMemo, useEffect } from "react";
-import { clientService } from "@/features/client-management/services/ClientService";
+import { clientAppService } from "@/features/client-management/application";
 import { Badge, Button } from "@shared/ui";
-import type { Client } from "@/types/client";
+import type { Client } from "@/features/client-management/domain/models/Client";
 
 interface ClientSelectorProps {
   value: string;
@@ -28,7 +28,7 @@ export function ClientSelector({
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await clientService.getAll();
+      const data = await clientAppService.getAll();
 
       setClients(data);
     } catch (err: any) {

@@ -1,6 +1,10 @@
 // src/features/inspection-management/utils/reportGenerator.ts
 
-import type { Inspection, NonConformity, Checklist } from "@/types/inspection";
+import type {
+  Inspection,
+  NonConformity,
+  Checklist,
+} from "@/features/inspection-management/domain/types";
 
 export interface ReportData {
   inspection: Inspection;

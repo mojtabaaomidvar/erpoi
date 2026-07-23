@@ -1,26 +1,20 @@
 // src/features/client-management/ui/ContractDetailsModal.tsx
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button, Badge, Card, Modal } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
-import type { Contract, TariffLine } from "@/types/contract";
+import type {
+  Contract,
+  TariffLine,
+} from "@/features/contract-management/domain";
 import { formatCurrency } from "@shared/lib/formatters";
 import { AnimatedCollapse } from "@shared/ui/AnimatedCollapse";
 import {
-  calculateProgressFromTariffs,
-  calculateInvoiceProgress,
-  calculateDaysLeft,
-  calculateDaysProgress,
-  getDaysUntilStart,
-  getContractFinancialStatus,
-  getAdjustmentReminder,
-  isExpiringSoon,
   getProgressColor,
   getProgressTextClass,
-  getProgressTextColor,
-  jalaaliToGregorianDate,
+  calculateProgressFromTariffs,
 } from "@entities/contract/services/contractCalculations";
+import { useContractDetails } from "../hooks/useContractDetails";
 
 interface ContractDetailsModalProps {
   isOpen: boolean;
@@ -36,125 +30,28 @@ export function ContractDetailsModal({
   contractTariffs = [],
 }: ContractDetailsModalProps) {
   const { isDark } = useTheme();
-  const { canAccessElement } = usePermissionMapping();
 
-  // ═══════════════════════════════════════
-  // 🔐 Element-Level Access (بخش‌های اصلی)
-  // ═══════════════════════════════════════
-  const canInfoSection = canAccessElement("client_info_section");
-  const canInfoStartDate = canAccessElement("client_info_start_date");
-  const canInfoEndDate = canAccessElement("client_info_end_date");
-  const canInfoTotalValue = canAccessElement("client_info_total_value");
-  const canInfoPerformedWork = canAccessElement("client_info_performed_work");
-  const canInfoInvoiced = canAccessElement("client_info_invoiced");
-  const canInfoNotInvoiced = canAccessElement("client_info_not_invoiced");
-  const canProgressWork = canAccessElement("client_progress_work");
-  const canProgressInvoice = canAccessElement("client_progress_invoice");
-  const canProgressTime = canAccessElement("client_progress_time");
-  const canReminderSection = canAccessElement("client_reminder_section");
-  const canTariffSection = canAccessElement("client_tariffs_section");
+  // ✅ تمام منطق و محاسبات در هوک مدیریت می‌شود
+  const details = useContractDetails(contract, contractTariffs);
 
-  // 🔐 NEW: دسترسی در سطح ستون‌های جدول تعرفه
-
-  const canColPerformed = canAccessElement("client_tariff_col_performed");
-  const canColTotalValue = canAccessElement("client_tariff_col_total_value");
-  const canColInvoiced = canAccessElement("client_tariff_col_invoiced");
-
-  // ═══════════════════════════════════════
-  // 🧮 State & Computed Values
-  // ═══════════════════════════════════════
+  // Stateهای Pure UI (فقط مربوط به ظاهر)
   const [isArchivedCollapsed, setIsArchivedCollapsed] = useState(true);
   const [isFutureCollapsed, setIsFutureCollapsed] = useState(true);
 
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
+  if (!contract || !details) return null;
 
-  const selectedTariffs = useMemo(() => {
-    if (!contract) return [];
-    if (contract.tariffLines && contract.tariffLines.length > 0)
-      return contract.tariffLines;
-    return contractTariffs.filter((t) => t.contract_id === contract.id);
-  }, [contract, contractTariffs]);
+  const {
+    activeTariffs,
+    futureTariffsByVersion,
+    archivedTariffsByVersion,
+    totalPerformedWork,
+    totalInvoiced,
+    permissions,
+    financialStatus,
+    expiringInfo,
+    reminder,
+  } = details;
 
-  const activeTariffs = useMemo(() => {
-    return selectedTariffs.filter((t) => {
-      const validFrom = jalaaliToGregorianDate(t.valid_from);
-      const validTo = jalaaliToGregorianDate(t.valid_to);
-      if (validFrom && validFrom > today) return false;
-      if (validTo && validTo < today) return false;
-      return true;
-    });
-  }, [selectedTariffs, today]);
-
-  const futureTariffs = useMemo(() => {
-    return selectedTariffs.filter((t) => {
-      const validFrom = jalaaliToGregorianDate(t.valid_from);
-      return !!(validFrom && validFrom > today);
-    });
-  }, [selectedTariffs, today]);
-
-  const archivedTariffs = useMemo(() => {
-    return selectedTariffs.filter((t) => {
-      const validTo = jalaaliToGregorianDate(t.valid_to);
-      return !!(validTo && validTo < today);
-    });
-  }, [selectedTariffs, today]);
-
-  const archivedTariffsByVersion = useMemo(() => {
-    const grouped = new Map<number, TariffLine[]>();
-    archivedTariffs.forEach((tariff) => {
-      const version = tariff.version || 1;
-      if (!grouped.has(version)) grouped.set(version, []);
-      grouped.get(version)!.push(tariff);
-    });
-    return Array.from(grouped.entries())
-      .sort((a, b) => b[0] - a[0])
-      .map(([version, tariffs]) => ({ version, tariffs }));
-  }, [archivedTariffs]);
-
-  const futureTariffsByVersion = useMemo(() => {
-    const grouped = new Map<number, TariffLine[]>();
-    futureTariffs.forEach((tariff) => {
-      const version = tariff.version || 1;
-      if (!grouped.has(version)) grouped.set(version, []);
-      grouped.get(version)!.push(tariff);
-    });
-    return Array.from(grouped.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([version, tariffs]) => ({ version, tariffs }));
-  }, [futureTariffs]);
-
-  const totalPerformedWork = useMemo(() => {
-    if (!contract) return 0;
-    return selectedTariffs.reduce((sum, t) => {
-      const rate =
-        typeof t.rate === "string"
-          ? Number(t.rate.replace(/,/g, "")) || 0
-          : t.rate || 0;
-      const consumed = t.consumed_quantity || 0;
-      return sum + rate * consumed;
-    }, 0);
-  }, [contract, selectedTariffs]);
-
-  if (!contract) return null;
-
-  const financialStatus = getContractFinancialStatus(contract);
-  const expiringInfo = isExpiringSoon(contract);
-  const reminder = getAdjustmentReminder(contract);
-  const daysUntilStart = getDaysUntilStart(contract.start_date);
-  const daysLeft = calculateDaysLeft(contract.end_date);
-  const isExpired = daysLeft < 0;
-  const isFullyInvoiced = contract.invoiced >= contract.total_value;
-  const needsFinancialReview = isExpired && !isFullyInvoiced;
-  const notStarted = daysUntilStart > 0;
-  const daysProgress = calculateDaysProgress(contract);
-
-  // ═══════════════════════════════════════
-  // 🎨 Render
-  // ═══════════════════════════════════════
   return (
     <Modal
       isOpen={isOpen}
@@ -163,9 +60,7 @@ export function ContractDetailsModal({
       size="xl"
     >
       <div className="space-y-6">
-        {/* ═══════════════════════════════════════ */}
-        {/* 🔹 HEADER (اطلاعات پایه همیشه نمایش داده می‌شوند) */}
-        {/* ═══════════════════════════════════════ */}
+        {/* 🔹 HEADER */}
         <div
           className={`rounded-2xl border p-4 animate-scaleIn ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/50"}`}
         >
@@ -209,10 +104,8 @@ export function ContractDetailsModal({
           </div>
         </div>
 
-        {/* ═══════════════════════════════════════ */}
         {/* 🔹 REMINDER SECTION */}
-        {/* ═══════════════════════════════════════ */}
-        {canReminderSection && reminder.show && (
+        {permissions.canReminderSection && reminder.show && (
           <div
             className={`rounded-xl border-2 p-4 animate-fadeIn ${reminder.mode === "TBD" ? (isDark ? "border-amber-600 bg-amber-950/40" : "border-amber-400 bg-amber-50") : isDark ? "border-indigo-600 bg-indigo-950/40" : "border-indigo-400 bg-indigo-50"}`}
           >
@@ -264,10 +157,8 @@ export function ContractDetailsModal({
           </div>
         )}
 
-        {/* ═══════════════════════════════════════ */}
         {/* 🔹 CONTRACT INFORMATION */}
-        {/* ═══════════════════════════════════════ */}
-        {canInfoSection && (
+        {permissions.canInfoSection && (
           <div
             className={`rounded-xl border p-4 animate-fadeIn ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-slate-50/50"}`}
           >
@@ -314,7 +205,7 @@ export function ContractDetailsModal({
                 </div>
               </div>
 
-              {canInfoStartDate && (
+              {permissions.canInfoStartDate && (
                 <div>
                   <div
                     className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
@@ -328,7 +219,7 @@ export function ContractDetailsModal({
                   </div>
                 </div>
               )}
-              {canInfoEndDate && (
+              {permissions.canInfoEndDate && (
                 <div>
                   <div
                     className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
@@ -342,7 +233,7 @@ export function ContractDetailsModal({
                   </div>
                 </div>
               )}
-              {canInfoTotalValue && (
+              {permissions.canInfoTotalValue && (
                 <div>
                   <div
                     className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-emerald-400" : "text-emerald-700"}`}
@@ -356,7 +247,7 @@ export function ContractDetailsModal({
                   </div>
                 </div>
               )}
-              {canInfoPerformedWork && (
+              {permissions.canInfoPerformedWork && (
                 <div>
                   <div
                     className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-indigo-400" : "text-indigo-700"}`}
@@ -370,7 +261,7 @@ export function ContractDetailsModal({
                   </div>
                 </div>
               )}
-              {canInfoInvoiced && (
+              {permissions.canInfoInvoiced && (
                 <div>
                   <div
                     className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-violet-400" : "text-violet-700"}`}
@@ -380,16 +271,11 @@ export function ContractDetailsModal({
                   <div
                     className={`text-xs font-bold ${isDark ? "text-violet-300" : "text-violet-700"}`}
                   >
-                    {formatCurrency(
-                      selectedTariffs.reduce(
-                        (sum, t) => sum + ((t as any).invoiced || 0),
-                        0,
-                      ),
-                    )}
+                    {formatCurrency(totalInvoiced)}
                   </div>
                 </div>
               )}
-              {canInfoNotInvoiced && (
+              {permissions.canInfoNotInvoiced && (
                 <div>
                   <div
                     className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-rose-400" : "text-rose-700"}`}
@@ -399,16 +285,10 @@ export function ContractDetailsModal({
                   <div
                     className={`text-xs font-bold ${isDark ? "text-rose-300" : "text-rose-700"}`}
                   >
-                    {(() => {
-                      const totalInvoiced = selectedTariffs.reduce(
-                        (sum, t) => sum + ((t as any).invoiced || 0),
-                        0,
-                      );
-                      return formatCurrency(
-                        Math.max(0, totalPerformedWork - totalInvoiced),
-                        contract.currency,
-                      );
-                    })()}
+                    {formatCurrency(
+                      Math.max(0, totalPerformedWork - totalInvoiced),
+                      contract.currency,
+                    )}
                   </div>
                 </div>
               )}
@@ -416,11 +296,9 @@ export function ContractDetailsModal({
           </div>
         )}
 
-        {/* ═══════════════════════════════════════ */}
-        {/* 🔹 PROGRESS CARDS (Granular Control) */}
-        {/* ═══════════════════════════════════════ */}
+        {/* 🔹 PROGRESS CARDS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {canProgressWork && (
+          {permissions.canProgressWork && (
             <Card
               className={`rounded-xl border p-4 animate-fadeIn ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
             >
@@ -452,10 +330,9 @@ export function ContractDetailsModal({
             </Card>
           )}
         </div>
-        {/* ═══════════════════════════════════════ */}
-        {/* 🔹 TARIFFS TABLE (با کنترل ستون به ستون) */}
-        {/* ═══════════════════════════════════════ */}
-        {canTariffSection ? (
+
+        {/* 🔹 TARIFFS TABLE */}
+        {permissions.canTariffSection ? (
           <div className="animate-fadeIn">
             <h3
               className={`text-sm font-bold mb-3 ${isDark ? "text-slate-100" : "text-slate-900"}`}
@@ -489,17 +366,17 @@ export function ContractDetailsModal({
                         <th className="px-3 py-2 font-semibold text-left">
                           Rate
                         </th>
-                        {canColPerformed && (
+                        {permissions.canColPerformed && (
                           <th className="px-3 py-2 font-semibold text-left">
                             Performed
                           </th>
                         )}
-                        {canColTotalValue && (
+                        {permissions.canColTotalValue && (
                           <th className="px-3 py-2 font-semibold text-left">
                             Total Value
                           </th>
                         )}
-                        {canColInvoiced && (
+                        {permissions.canColInvoiced && (
                           <th className="px-3 py-2 font-semibold text-left">
                             Invoiced
                           </th>
@@ -546,8 +423,7 @@ export function ContractDetailsModal({
                                 )}
                               </div>
                             </td>
-
-                            <td className="px-3 py-2 ">
+                            <td className="px-3 py-2">
                               <Badge
                                 tone="indigo"
                                 className="text-[9px] text-left"
@@ -555,35 +431,32 @@ export function ContractDetailsModal({
                                 {tariff.unit.replace("_", " ")}
                               </Badge>
                             </td>
-
                             <td
                               className={`px-3 py-2 text-left font-mono ${isDark ? "text-slate-300" : "text-slate-700"}`}
                             >
                               {formatCurrency(tariff.rate, contract.currency)}
                             </td>
-
-                            {canColPerformed && (
+                            {permissions.canColPerformed && (
                               <td
                                 className={`px-3 py-2 text-left font-mono ${isDark ? "text-slate-300" : "text-slate-700"}`}
                               >
                                 {tariff.consumed_quantity || 0}
                               </td>
                             )}
-                            {canColTotalValue && (
+                            {permissions.canColTotalValue && (
                               <td
                                 className={`px-3 py-2 text-left font-mono font-bold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
                               >
                                 {formatCurrency(value, contract.currency)}
                               </td>
                             )}
-                            {canColInvoiced && (
+                            {permissions.canColInvoiced && (
                               <td
                                 className={`px-3 py-2 text-left font-mono font-bold ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
                               >
                                 {formatCurrency(invoiced)}
                               </td>
                             )}
-
                             <td
                               className={`px-3 py-2 text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}
                             >
@@ -626,7 +499,10 @@ export function ContractDetailsModal({
                     <span
                       className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? "bg-amber-900/50 text-amber-400" : "bg-amber-200 text-amber-800"}`}
                     >
-                      {futureTariffs.length}
+                      {futureTariffsByVersion.reduce(
+                        (acc, curr) => acc + curr.tariffs.length,
+                        0,
+                      )}
                     </span>
                   </div>
                   <div className="flex items-left gap-2">
@@ -666,15 +542,12 @@ export function ContractDetailsModal({
                               <th className="px-3 py-2 font-semibold text-left">
                                 Description
                               </th>
-
                               <th className="px-3 py-2 font-semibold text-left">
                                 Unit
                               </th>
-
                               <th className="px-3 py-2 font-semibold text-left">
                                 Rate
                               </th>
-
                               <th className="px-3 py-2 font-semibold text-left">
                                 Valid From
                               </th>
@@ -701,13 +574,11 @@ export function ContractDetailsModal({
                                 >
                                   {tariff.description}
                                 </td>
-
                                 <td className="px-3 py-2">
                                   <Badge tone="amber" className="text-[9px]">
                                     {tariff.unit.replace("_", " ")}
                                   </Badge>
                                 </td>
-
                                 <td
                                   className={`px-3 py-2 text-left font-mono ${isDark ? "text-amber-300" : "text-amber-700"}`}
                                 >
@@ -716,7 +587,6 @@ export function ContractDetailsModal({
                                     contract.currency,
                                   )}
                                 </td>
-
                                 <td
                                   className={`px-3 py-2 text-xs ${isDark ? "text-amber-400" : "text-amber-600"}`}
                                 >
@@ -751,7 +621,10 @@ export function ContractDetailsModal({
                     <span
                       className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? "bg-slate-700 text-slate-400" : "bg-slate-200 text-slate-600"}`}
                     >
-                      {archivedTariffs.length}
+                      {archivedTariffsByVersion.reduce(
+                        (acc, curr) => acc + curr.tariffs.length,
+                        0,
+                      )}
                     </span>
                   </div>
                   <div className="flex items-left gap-2">
@@ -792,30 +665,27 @@ export function ContractDetailsModal({
                                 <th className="px-3 py-2 font-semibold text-left">
                                   Description
                                 </th>
-
                                 <th className="px-3 py-2 font-semibold text-left">
                                   Unit
                                 </th>
-
                                 <th className="px-3 py-2 font-semibold text-left">
                                   Rate
                                 </th>
-                                {canColPerformed && (
+                                {permissions.canColPerformed && (
                                   <th className="px-3 py-2 font-semibold text-left">
                                     Performed
                                   </th>
                                 )}
-                                {canColTotalValue && (
+                                {permissions.canColTotalValue && (
                                   <th className="px-3 py-2 font-semibold text-left">
                                     Total Value
                                   </th>
                                 )}
-                                {canColInvoiced && (
+                                {permissions.canColInvoiced && (
                                   <th className="px-3 py-2 font-semibold text-left">
                                     Invoiced
                                   </th>
                                 )}
-
                                 <th className="px-3 py-2 font-semibold text-left">
                                   Valid Period
                                 </th>
@@ -857,7 +727,6 @@ export function ContractDetailsModal({
                                         </span>
                                       </div>
                                     </td>
-
                                     <td className="px-3 py-2">
                                       <Badge
                                         tone="slate"
@@ -874,14 +743,14 @@ export function ContractDetailsModal({
                                         contract.currency,
                                       )}
                                     </td>
-                                    {canColPerformed && (
+                                    {permissions.canColPerformed && (
                                       <td
                                         className={`px-3 py-2 text-left font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
                                       >
                                         {tariff.consumed_quantity || 0}
                                       </td>
                                     )}
-                                    {canColTotalValue && (
+                                    {permissions.canColTotalValue && (
                                       <td
                                         className={`px-3 py-2 text-left font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
                                       >
@@ -891,14 +760,13 @@ export function ContractDetailsModal({
                                         )}
                                       </td>
                                     )}
-                                    {canColInvoiced && (
+                                    {permissions.canColInvoiced && (
                                       <td
                                         className={`px-3 py-2 text-left font-mono ${isDark ? "text-slate-400" : "text-slate-600"}`}
                                       >
                                         {formatCurrency(invoiced)}
                                       </td>
                                     )}
-
                                     <td
                                       className={`px-3 py-2 text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
                                     >
@@ -923,14 +791,16 @@ export function ContractDetailsModal({
               </div>
             )}
 
-            {selectedTariffs.length === 0 && (
-              <div
-                className={`text-center py-8 text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}
-              >
-                <div className="text-4xl mb-2">📭</div>
-                <p>No tariff lines found for this contract</p>
-              </div>
-            )}
+            {activeTariffs.length === 0 &&
+              futureTariffsByVersion.length === 0 &&
+              archivedTariffsByVersion.length === 0 && (
+                <div
+                  className={`text-center py-8 text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                >
+                  <div className="text-4xl mb-2">📭</div>
+                  <p>No tariff lines found for this contract</p>
+                </div>
+              )}
           </div>
         ) : (
           <div

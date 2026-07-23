@@ -7,7 +7,8 @@ import type { INCRRepository } from "./INCRRepository";
 export class SupabaseNCRRepository implements INCRRepository {
   async getAll(): Promise<NonConformity[]> {
     const { data, error } = await supabase
-      .from("inspection.non_conformities")
+      .schema("inspection")
+      .from("non_conformities")
       .select("*")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -16,7 +17,8 @@ export class SupabaseNCRRepository implements INCRRepository {
 
   async getById(id: string): Promise<NonConformity | null> {
     const { data, error } = await supabase
-      .from("inspection.non_conformities")
+      .schema("inspection")
+      .from("non_conformities")
       .select("*")
       .eq("id", id)
       .single();
@@ -26,7 +28,8 @@ export class SupabaseNCRRepository implements INCRRepository {
 
   async getByInspection(inspectionId: string): Promise<NonConformity[]> {
     const { data, error } = await supabase
-      .from("inspection.non_conformities")
+      .schema("inspection")
+      .from("non_conformities")
       .select("*")
       .eq("inspection_id", inspectionId)
       .order("created_at", { ascending: false });
@@ -45,7 +48,8 @@ export class SupabaseNCRRepository implements INCRRepository {
       .padStart(4, "0")}`;
 
     const { data: newRecord, error } = await supabase
-      .from("inspection.non_conformities")
+      .schema("inspection")
+      .from("non_conformities")
       .insert({
         id,
         ncr_number,
@@ -64,7 +68,8 @@ export class SupabaseNCRRepository implements INCRRepository {
     data: Partial<NonConformity>,
   ): Promise<NonConformity> {
     const { data: updatedRecord, error } = await supabase
-      .from("inspection.non_conformities")
+      .schema("inspection")
+      .from("non_conformities")
       .update({ ...data, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select()
@@ -75,7 +80,8 @@ export class SupabaseNCRRepository implements INCRRepository {
 
   async delete(id: string): Promise<void> {
     const { error } = await supabase
-      .from("inspection.non_conformities")
+      .schema("inspection")
+      .from("non_conformities")
       .delete()
       .eq("id", id);
     if (error) throw new Error(error.message);

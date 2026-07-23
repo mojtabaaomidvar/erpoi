@@ -1,4 +1,4 @@
-// src/features/audit-log/services/AuditLogService.ts
+﻿// src/features/audit-log/services/AuditLogService.ts
 
 import { supabase } from "@shared/database/supabase";
 import type { AuditLog, AuditLogEntry, AuditLogFilter } from "../domain/types";
@@ -16,7 +16,7 @@ class AuditLogService {
   async getAll(): Promise<AuditLogEntry[]> {
     const { data, error } = await supabase
       .from("audit_logs")
-      .select("*, user:users(full_name, username)")
+      .select("*, user:core.users(full_name, username)")
       .order("created_at", { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -30,7 +30,7 @@ class AuditLogService {
   async getFiltered(filter: AuditLogFilter): Promise<AuditLogEntry[]> {
     let query = supabase
       .from("audit_logs")
-      .select("*, user:users(full_name, username)")
+      .select("*, user:core.users(full_name, username)")
       .order("created_at", { ascending: false });
 
     if (filter.user_id) {

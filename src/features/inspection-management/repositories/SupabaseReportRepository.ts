@@ -7,7 +7,8 @@ import type { IReportRepository } from "./IReportRepository";
 export class SupabaseReportRepository implements IReportRepository {
   async getAll(): Promise<InspectionReport[]> {
     const { data, error } = await supabase
-      .from("inspection.inspection_reports")
+      .schema("inspection")
+      .from("inspection_reports")
       .select("*")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -16,7 +17,8 @@ export class SupabaseReportRepository implements IReportRepository {
 
   async getById(id: string): Promise<InspectionReport | null> {
     const { data, error } = await supabase
-      .from("inspection.inspection_reports")
+      .schema("inspection")
+      .from("inspection_reports")
       .select("*")
       .eq("id", id)
       .single();
@@ -26,7 +28,8 @@ export class SupabaseReportRepository implements IReportRepository {
 
   async getByInspection(inspectionId: string): Promise<InspectionReport[]> {
     const { data, error } = await supabase
-      .from("inspection.inspection_reports")
+      .schema("inspection")
+      .from("inspection_reports")
       .select("*")
       .eq("inspection_id", inspectionId)
       .order("created_at", { ascending: false });
@@ -45,7 +48,8 @@ export class SupabaseReportRepository implements IReportRepository {
       .padStart(4, "0")}`;
 
     const { data: newRecord, error } = await supabase
-      .from("inspection.inspection_reports")
+      .schema("inspection")
+      .from("inspection_reports")
       .insert({
         id,
         report_number,
@@ -63,7 +67,8 @@ export class SupabaseReportRepository implements IReportRepository {
     data: Partial<InspectionReport>,
   ): Promise<InspectionReport> {
     const { data: updatedRecord, error } = await supabase
-      .from("inspection.inspection_reports")
+      .schema("inspection")
+      .from("inspection_reports")
       .update(data)
       .eq("id", id)
       .select()
@@ -74,7 +79,8 @@ export class SupabaseReportRepository implements IReportRepository {
 
   async delete(id: string): Promise<void> {
     const { error } = await supabase
-      .from("inspection.inspection_reports")
+      .schema("inspection")
+      .from("inspection_reports")
       .delete()
       .eq("id", id);
     if (error) throw new Error(error.message);

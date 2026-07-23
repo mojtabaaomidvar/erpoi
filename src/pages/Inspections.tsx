@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
+import { InspectionElements } from "@shared/authorization/ui/elements/InspectionElements";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { inspectionRequestAppService } from "@features/inspection-management/application/InspectionRequestApplicationService";
 import { InspectionList } from "@features/inspection-management/ui/InspectionList";
@@ -13,7 +14,7 @@ import type {
   InspectionRequest,
   InspectionStatus,
   Priority,
-} from "@/types/inspection";
+} from "@/features/inspection-management/domain/types";
 import { showToast } from "@shared/ui/ToastContainer";
 
 export function Inspections() {
@@ -42,13 +43,19 @@ export function Inspections() {
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
-  // دسترسی‌ها
-  const canViewItems = canAccessElement("inspection_list_item_view");
-  const canClickItem = canAccessElement("inspection_list_item_click");
-  const canAdd = canAccessElement("inspection_btn_add");
-  const canEdit = canAccessElement("inspection_btn_edit");
-  const canDelete = canAccessElement("inspection_btn_delete");
-  const canExport = canAccessElement("inspection_btn_export");
+  // ✅ دسترسی‌ها با استفاده از Registry (بدون رشته‌های سخت‌کد شده)
+  const canViewItems = canAccessElement(
+    InspectionElements.InspectionList.list_item_view.id,
+  );
+  const canClickItem = canAccessElement(
+    InspectionElements.InspectionList.list_item_click.id,
+  );
+  const canEdit = canAccessElement(
+    InspectionElements.InspectionDetails.btn_edit.id,
+  );
+  const canDelete = canAccessElement(
+    InspectionElements.InspectionDetails.btn_delete.id,
+  );
 
   // بارگذاری داده‌ها
   const loadInspectionRequests = async () => {
@@ -138,12 +145,13 @@ export function Inspections() {
 
     if (!confirmed) return;
 
+    // ✅ Optimistic UI: حذف فوری از لیست
     setIsDetailsOpen(false);
     setSelectedRequest(null);
-
     setInspectionRequests((prev) => prev.filter((r) => r.id !== request.id));
     showToast("success", "Deleted", "Inspection request has been removed");
 
+    // ✅ Rollback در صورت خطای سرور
     await inspectionRequestAppService
       .delete(request.id, user?.id || "unknown")
       .catch((err: any) => {
@@ -192,9 +200,6 @@ export function Inspections() {
           setEditingRequest(null);
           setIsAddModalOpen(true);
         }}
-        canClickItem={canClickItem}
-        canAdd={canAdd}
-        canExport={canExport}
         loading={loading}
       />
 
@@ -207,8 +212,7 @@ export function Inspections() {
         inspectionRequest={selectedRequest}
         onEdit={handleEditFromDetails}
         onDelete={handleDeleteRequest}
-        canEdit={canEdit}
-        canDelete={canDelete}
+        // ✅ حذف Propsهای دسترسی: کامپوننت Modal نیز خودش آن‌ها را مدیریت می‌کند
       />
 
       <InspectionRequestForm

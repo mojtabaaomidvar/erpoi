@@ -1,13 +1,13 @@
 // src/features/contract-management/ui/ApprovalModal.tsx
 
-import { useState, useMemo, useEffect } from "react";
 import { Button, Badge, Modal } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { showToast } from "@shared/ui/ToastContainer";
-import { amendmentService } from "../services/AmendmentService";
-import type { Contract, ContractAmendment } from "@/types/contract";
+import type {
+  Contract,
+  ContractAmendment,
+} from "@/features/contract-management/domain";
 import { formatCurrency } from "@shared/lib/formatters";
-import { useAuth } from "@features/auth/hooks/useAuth";
+import { useApprovalModal } from "../hooks/useApprovalModal";
 
 interface ApprovalModalProps {
   isOpen: boolean;
@@ -27,140 +27,25 @@ export function ApprovalModal({
   onSuccess,
 }: ApprovalModalProps) {
   const { isDark } = useTheme();
-  const { user } = useAuth();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState("");
-  const [showRejectInput, setShowRejectInput] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
 
-  const [currentAmendment, setCurrentAmendment] =
-    useState<ContractAmendment>(amendment);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const loadLatestAmendment = async () => {
-    setIsLoading(true);
-    try {
-      const latest = await amendmentService.getById(amendment.id);
-      if (latest) {
-        setCurrentAmendment(latest);
-        console.log(
-          "[ApprovalModal] ✅ Loaded latest amendment status:",
-          latest.approval_status,
-        );
-      }
-    } catch (error) {
-      console.error(
-        "[ApprovalModal] ❌ Failed to load latest amendment:",
-        error,
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen && amendment.id) {
-      loadLatestAmendment();
-    }
-  }, [isOpen, amendment.id]);
-
-  const canTakeAction = currentAmendment.approval_status === "PENDING";
-  const isApproved = currentAmendment.approval_status === "APPROVED";
-  const isRejected = currentAmendment.approval_status === "REJECTED";
-
-  const handleApprove = async () => {
-    if (!canTakeAction) {
-      showToast(
-        "warning",
-        "Already Processed",
-        "This amendment has already been processed",
-      );
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      await amendmentService.approve(
-        currentAmendment.id,
-        user?.id || "unknown",
-      );
-      showToast("success", "Approved", "Amendment approved successfully");
-
-      await loadLatestAmendment();
-      onSuccess();
-
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-    } catch (err: any) {
-      showToast("error", "Failed", err.message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleReject = async () => {
-    if (!canTakeAction) {
-      showToast(
-        "warning",
-        "Already Processed",
-        "This amendment has already been processed",
-      );
-      return;
-    }
-
-    if (!rejectionReason.trim()) {
-      showToast(
-        "error",
-        "Validation Error",
-        "Please provide a rejection reason",
-      );
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      await amendmentService.reject(
-        currentAmendment.id,
-        user?.id || "unknown",
-        rejectionReason,
-      );
-      showToast("success", "Rejected", "Amendment rejected");
-
-      await loadLatestAmendment();
-      onSuccess();
-
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-    } catch (err: any) {
-      showToast("error", "Failed", err.message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const documents = useMemo(() => {
-    const docs: Array<{ id: string; name: string; url: string; type: string }> =
-      [];
-
-    if (
-      currentAmendment.attachment_urls &&
-      currentAmendment.attachment_urls.length > 0
-    ) {
-      currentAmendment.attachment_urls.forEach((url, index) => {
-        docs.push({
-          id: `doc_${index}`,
-          name:
-            currentAmendment.attachment_names?.[index] || `File ${index + 1}`,
-          url: url,
-          type: url.split(".").pop()?.toLowerCase() || "file",
-        });
-      });
-    }
-
-    return docs;
-  }, [currentAmendment]);
+  // ✅ تمام منطق و State در هوک مدیریت می‌شود
+  const {
+    isLoading,
+    isProcessing,
+    currentAmendment,
+    activeTab,
+    rejectionReason,
+    showRejectInput,
+    canTakeAction,
+    isApproved,
+    isRejected,
+    documents,
+    setActiveTab,
+    setRejectionReason,
+    setShowRejectInput,
+    handleApprove,
+    handleReject,
+  } = useApprovalModal(isOpen, amendment, contract, onSuccess, onClose);
 
   const tabs: Array<{
     key: TabKey;
@@ -282,42 +167,18 @@ export function ApprovalModal({
           {/* Status Banner */}
           {!canTakeAction && (
             <div
-              className={`rounded-xl border-2 p-4 ${
-                isApproved
-                  ? isDark
-                    ? "border-emerald-700 bg-emerald-950/30"
-                    : "border-emerald-200 bg-emerald-50"
-                  : isDark
-                    ? "border-rose-700 bg-rose-950/30"
-                    : "border-rose-200 bg-rose-50"
-              }`}
+              className={`rounded-xl border-2 p-4 ${isApproved ? (isDark ? "border-emerald-700 bg-emerald-950/30" : "border-emerald-200 bg-emerald-50") : isDark ? "border-rose-700 bg-rose-950/30" : "border-rose-200 bg-rose-50"}`}
             >
               <div className="flex items-start gap-3">
                 <div className="text-2xl">{isApproved ? "✓" : "✕"}</div>
                 <div className="flex-1">
                   <h4
-                    className={`text-sm font-bold mb-1 ${
-                      isApproved
-                        ? isDark
-                          ? "text-emerald-200"
-                          : "text-emerald-900"
-                        : isDark
-                          ? "text-rose-200"
-                          : "text-rose-900"
-                    }`}
+                    className={`text-sm font-bold mb-1 ${isApproved ? (isDark ? "text-emerald-200" : "text-emerald-900") : isDark ? "text-rose-200" : "text-rose-900"}`}
                   >
                     {isApproved ? "Already Approved" : "Already Rejected"}
                   </h4>
                   <p
-                    className={`text-xs ${
-                      isApproved
-                        ? isDark
-                          ? "text-emerald-300"
-                          : "text-emerald-800"
-                        : isDark
-                          ? "text-rose-300"
-                          : "text-rose-800"
-                    }`}
+                    className={`text-xs ${isApproved ? (isDark ? "text-emerald-300" : "text-emerald-800") : isDark ? "text-rose-300" : "text-rose-800"}`}
                   >
                     {isApproved
                       ? `This amendment was approved on ${currentAmendment.approved_at ? new Date(currentAmendment.approved_at).toLocaleString("fa-IR") : "N/A"}`
@@ -393,11 +254,7 @@ export function ApprovalModal({
                 {tab.label}
                 {tab.count !== undefined && tab.count > 0 && (
                   <span
-                    className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded ${
-                      isDark
-                        ? "bg-slate-700 text-slate-300"
-                        : "bg-slate-200 text-slate-700"
-                    }`}
+                    className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded ${isDark ? "bg-slate-700 text-slate-300" : "bg-slate-200 text-slate-700"}`}
                   >
                     {tab.count}
                   </span>
@@ -421,7 +278,6 @@ export function ApprovalModal({
                 >
                   Summary
                 </h4>
-
                 {currentAmendment.description && (
                   <div
                     className={`p-3 rounded-lg ${isDark ? "bg-slate-800/50" : "bg-slate-50"}`}
@@ -438,7 +294,6 @@ export function ApprovalModal({
                     </div>
                   </div>
                 )}
-
                 <div
                   className={`p-3 rounded-lg ${isDark ? "bg-slate-800/50" : "bg-slate-50"}`}
                 >
@@ -752,22 +607,9 @@ export function ApprovalModal({
                             />
                           </div>
                         )}
-
                         <div className="p-3 flex items-center gap-3">
                           <div
-                            className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0 ${
-                              isPdf
-                                ? isDark
-                                  ? "bg-rose-900/50 text-rose-300"
-                                  : "bg-rose-50 text-rose-600"
-                                : isImage
-                                  ? isDark
-                                    ? "bg-emerald-900/50 text-emerald-300"
-                                    : "bg-emerald-50 text-emerald-600"
-                                  : isDark
-                                    ? "bg-indigo-900/50 text-indigo-300"
-                                    : "bg-indigo-50 text-indigo-600"
-                            }`}
+                            className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0 ${isPdf ? (isDark ? "bg-rose-900/50 text-rose-300" : "bg-rose-50 text-rose-600") : isImage ? (isDark ? "bg-emerald-900/50 text-emerald-300" : "bg-emerald-50 text-emerald-600") : isDark ? "bg-indigo-900/50 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}
                           >
                             {isPdf ? "📄" : isImage ? "🖼️" : "📎"}
                           </div>
@@ -787,11 +629,7 @@ export function ApprovalModal({
                             href={doc.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                              isDark
-                                ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                                : "bg-indigo-500 hover:bg-indigo-600 text-white"
-                            }`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isDark ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-indigo-500 hover:bg-indigo-600 text-white"}`}
                           >
                             {isPdf || isImage ? "👁️ View" : "⬇️ Download"}
                           </a>
@@ -811,7 +649,6 @@ export function ApprovalModal({
                 >
                   Contract Information
                 </h4>
-
                 <div
                   className={`p-3 rounded-lg ${isDark ? "bg-slate-800/50" : "bg-slate-50"}`}
                 >
@@ -869,7 +706,6 @@ export function ApprovalModal({
                     </div>
                   </div>
                 </div>
-
                 {currentAmendment.created_at && (
                   <div
                     className={`p-3 rounded-lg ${isDark ? "bg-slate-800/50" : "bg-slate-50"}`}
@@ -892,7 +728,7 @@ export function ApprovalModal({
             )}
           </div>
 
-          {/* 🔧 Reject Input - در content (scrollable) */}
+          {/* Reject Input */}
           {canTakeAction && showRejectInput && (
             <div
               className={`rounded-xl border-2 p-4 ${isDark ? "border-rose-700 bg-rose-950/30" : "border-rose-200 bg-rose-50"}`}
@@ -906,11 +742,7 @@ export function ApprovalModal({
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
                 rows={3}
-                className={`w-full rounded-lg border px-3 py-2 text-sm ${
-                  isDark
-                    ? "border-slate-700 bg-slate-800 text-slate-100"
-                    : "border-slate-200 bg-white"
-                }`}
+                className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white"}`}
                 placeholder="Please provide a reason for rejection..."
               />
             </div>

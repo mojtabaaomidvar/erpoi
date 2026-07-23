@@ -1,42 +1,20 @@
 // src/features/contract-management/ui/ContractDetails.tsx
 
-import { useState, useMemo, useEffect } from "react";
+import { useState } from "react";
 import { Button, Badge, Card } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
-import type { Contract, TariffLine, ContractAmendment } from "@/types/contract";
-import type { Client } from "@/types/client";
+import type { Contract, TariffLine, ContractAmendment } from "../domain";
+import type { Client } from "@/features/client-management/domain/models/Client";
 import { formatCurrency } from "@shared/lib/formatters";
 import {
-  calculateProgressFromTariffs,
-  calculateInvoiceProgress,
-  calculateDaysLeft,
-  calculateDaysProgress,
-  getDaysUntilStart,
-  getContractFinancialStatus,
-  getAdjustmentReminder,
-  isExpiringSoon,
   getProgressColor,
   getProgressTextClass,
-  jalaaliToGregorianDate,
 } from "@entities/contract/services/contractCalculations";
-import { amendmentService } from "../services/AmendmentService";
 import { ContractAmendmentForm } from "./ContractAmendmentForm";
-import { useAuth } from "@features/auth/hooks/useAuth";
-import { AnimatedCollapse } from "@shared/ui/AnimatedCollapse";
 import { ContractDocumentsModal } from "./ContractDocumentsModal";
 import { ApprovalModal } from "./ApprovalModal";
-import { useEvent, EVENT_TYPES } from "@infra/events";
-
-interface ContractDocument {
-  id: string;
-  name: string;
-  url: string;
-  type: "contract" | "letter" | "amendment";
-  amendment_no?: string;
-  uploaded_at?: string;
-  size?: string;
-}
+import { useContractDetails } from "../hooks/useContractDetails";
+import { AnimatedCollapse } from "@shared/ui/AnimatedCollapse";
 
 interface ContractDetailsProps {
   contract: Contract | null;
@@ -54,45 +32,17 @@ export function ContractDetails({
   onClose,
   onEdit,
   onRequestComplete,
-  onViewClientContracts,
   loading = false,
   contractTariffs = [],
   clients = [],
 }: ContractDetailsProps) {
   const { isDark } = useTheme();
-  const { user } = useAuth();
-  const { canAccessElement } = usePermissionMapping();
 
-  const isUnitManager = user?.role === "unit_manager" || user?.role === "admin";
+  // ✅ تمام منطق و محاسبات در هوک مدیریت می‌شود
+  const details = useContractDetails(contract, contractTariffs, clients);
 
-  // 🔐 تعریف دسترسی‌ها دقیقاً بر اساس contractElements
-  const canBtnEdit = canAccessElement("contract_btn_edit");
-  const canBtnAmend = canAccessElement("contract_btn_amend");
-  const canBtnApprove = canAccessElement("contract_btn_approve");
-  const canBtnDoc = canAccessElement("contract_btn_doc");
-
-  const canInfoSection = canAccessElement("contract_list_item_click");
-  const canInfoStartDate = canAccessElement("contract_info_start_date");
-  const canInfoEndDate = canAccessElement("contract_info_end_date");
-
-  const canStatTotalValue = canAccessElement("contract_stat_total_value");
-  const canStatPerformedWork = canAccessElement("contract_stat_performed_work");
-  const canStatInvoiced = canAccessElement("contract_stat_invoiced");
-  const canStatNotInvoiced = canAccessElement("contract_stat_not_invoiced");
-
-  const canProgressWork = canAccessElement("contract_progress_work");
-  const canProgressInvoice = canAccessElement("contract_progress_invoice");
-  const canProgressTime = canAccessElement("contract_progress_time");
-
-  const canReminderSection = canAccessElement("contract_reminder_section");
-  const canTableTariffs = canAccessElement("contract_table_tariffs");
-
-  // 🔧 دسترسی مالی کلی (اگر کاربر به یکی از آمارهای مالی دسترسی داشته باشد)
-  const canViewFinancial = canStatTotalValue;
-
+  // Stateهای Pure UI (فقط مربوط به باز/بسته بودن مودال‌ها)
   const [isAmendmentModalOpen, setIsAmendmentModalOpen] = useState(false);
-  const [amendments, setAmendments] = useState<ContractAmendment[]>([]);
-  const [isLoadingAmendments, setIsLoadingAmendments] = useState(false);
   const [isArchivedCollapsed, setIsArchivedCollapsed] = useState(true);
   const [isFutureCollapsed, setIsFutureCollapsed] = useState(true);
   const [isDocumentsModalOpen, setIsDocumentsModalOpen] = useState(false);
@@ -100,211 +50,6 @@ export function ContractDetails({
   const [pendingAmendment, setPendingAmendment] =
     useState<ContractAmendment | null>(null);
 
-  const pendingAmendments = useMemo(() => {
-    return amendments.filter((a) => a.approval_status === "PENDING");
-  }, [amendments]);
-
-  // 🔧 Derived Data
-  const getClientName = useMemo(() => {
-    if (!contract) return "";
-    if (contract.client_name) return contract.client_name;
-    const client = clients.find((c) => c.id === contract.client_id);
-    return client?.name_en || client?.name_fa || "—";
-  }, [contract, clients]);
-
-  const selectedTariffs = useMemo(() => {
-    if (!contract) return [];
-    const allTariffs =
-      contract.tariffLines && contract.tariffLines.length > 0
-        ? contract.tariffLines
-        : contractTariffs.filter((t) => t.contract_id === contract.id);
-    return allTariffs;
-  }, [contract, contractTariffs]);
-
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-
-  const activeTariffs = useMemo(() => {
-    return selectedTariffs.filter((t) => {
-      const validFrom = jalaaliToGregorianDate(t.valid_from);
-      const validTo = jalaaliToGregorianDate(t.valid_to);
-      if (validFrom && validFrom > today) return false;
-      if (validTo && validTo < today) return false;
-      return true;
-    });
-  }, [selectedTariffs, today]);
-
-  const futureTariffs = useMemo(() => {
-    return selectedTariffs.filter((t) => {
-      const validFrom = jalaaliToGregorianDate(t.valid_from);
-      if (validFrom && validFrom > today) return true;
-      return false;
-    });
-  }, [selectedTariffs, today]);
-
-  const archivedTariffs = useMemo(() => {
-    return selectedTariffs.filter((t) => {
-      const validTo = jalaaliToGregorianDate(t.valid_to);
-      if (validTo && validTo < today) return true;
-      return false;
-    });
-  }, [selectedTariffs, today]);
-
-  const archivedTariffsByVersion = useMemo(() => {
-    const grouped = new Map<number, TariffLine[]>();
-    archivedTariffs.forEach((tariff) => {
-      const version = tariff.version || 1;
-      if (!grouped.has(version)) grouped.set(version, []);
-      grouped.get(version)!.push(tariff);
-    });
-    return Array.from(grouped.entries())
-      .sort((a, b) => b[0] - a[0])
-      .map(([version, tariffs]) => ({ version, tariffs }));
-  }, [archivedTariffs]);
-
-  const futureTariffsByVersion = useMemo(() => {
-    const grouped = new Map<number, TariffLine[]>();
-    futureTariffs.forEach((tariff) => {
-      const version = tariff.version || 1;
-      if (!grouped.has(version)) grouped.set(version, []);
-      grouped.get(version)!.push(tariff);
-    });
-    return Array.from(grouped.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([version, tariffs]) => ({ version, tariffs }));
-  }, [futureTariffs]);
-
-  const totalPerformedWork = useMemo(() => {
-    if (!contract) return 0;
-    return selectedTariffs.reduce((sum, t) => {
-      const rate =
-        typeof t.rate === "string"
-          ? Number(t.rate.replace(/,/g, "")) || 0
-          : t.rate || 0;
-      const consumed = t.consumed_quantity || 0;
-      return sum + rate * consumed;
-    }, 0);
-  }, [contract, selectedTariffs]);
-
-  const totalInvoiced = useMemo(() => {
-    return selectedTariffs.reduce(
-      (sum, t) => sum + ((t as any).invoiced || 0),
-      0,
-    );
-  }, [selectedTariffs]);
-
-  const totalNotInvoiced = useMemo(() => {
-    return Math.max(0, totalPerformedWork - totalInvoiced);
-  }, [totalPerformedWork, totalInvoiced]);
-
-  // Load amendments
-  const loadAmendments = async () => {
-    if (!contract) return;
-    setIsLoadingAmendments(true);
-    try {
-      const data = await amendmentService.getByContractId(contract.id);
-      setAmendments(data);
-    } catch (error) {
-      console.error("[ContractDetails] Failed to load amendments:", error);
-      setAmendments([]);
-    } finally {
-      setIsLoadingAmendments(false);
-    }
-  };
-
-  useEvent<{ contractId: string; amendmentId: string }>(
-    EVENT_TYPES.AMENDMENT_CREATED,
-    (event) => {
-      if (event.payload.contractId === contract?.id) loadAmendments();
-    },
-  );
-  useEvent<{ contractId: string; amendmentId: string }>(
-    EVENT_TYPES.AMENDMENT_APPROVED,
-    (event) => {
-      if (event.payload.contractId === contract?.id) loadAmendments();
-    },
-  );
-  useEvent<{ contractId: string; amendmentId: string }>(
-    EVENT_TYPES.AMENDMENT_REJECTED,
-    (event) => {
-      if (event.payload.contractId === contract?.id) loadAmendments();
-    },
-  );
-
-  useEffect(() => {
-    if (contract) loadAmendments();
-    else setAmendments([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contract?.id]);
-
-  const handleAmendmentSuccess = () => {
-    loadAmendments();
-  };
-
-  // استخراج مدارک
-  const documents = useMemo((): ContractDocument[] => {
-    if (!contract) return [];
-    const docs: ContractDocument[] = [];
-    if (contract.source_file) {
-      const files = Array.isArray(contract.source_file)
-        ? contract.source_file
-        : [contract.source_file];
-      files.forEach((file, index) => {
-        docs.push({
-          id: `doc_contract_${contract.id}_${index}`,
-          name:
-            typeof file === "string"
-              ? file.split("/").pop() || `Contract Document ${index + 1}`
-              : `Contract Document ${index + 1}`,
-          url: typeof file === "string" ? file : "",
-          type: "contract",
-          uploaded_at: contract.created_at,
-        });
-      });
-    }
-    if (contract.source_letter_image) {
-      const files = Array.isArray(contract.source_letter_image)
-        ? contract.source_letter_image
-        : [contract.source_letter_image];
-      files.forEach((file, index) => {
-        docs.push({
-          id: `doc_letter_${contract.id}_${index}`,
-          name:
-            typeof file === "string"
-              ? file.split("/").pop() || `Reference Letter ${index + 1}`
-              : `Reference Letter ${index + 1}`,
-          url: typeof file === "string" ? file : "",
-          type: "letter",
-          uploaded_at: contract.source_letter_date || contract.created_at,
-        });
-      });
-    }
-    const approvedAmendments = amendments.filter(
-      (a) => a.approval_status === "APPROVED",
-    );
-    approvedAmendments.forEach((amendment) => {
-      if (amendment.attachment_urls && amendment.attachment_urls.length > 0) {
-        amendment.attachment_urls.forEach((url, index) => {
-          docs.push({
-            id: `doc_amendment_${amendment.id}_${index}`,
-            name:
-              amendment.attachment_names?.[index] ||
-              `Amendment ${amendment.amendment_no || amendment.id} - File ${index + 1}`,
-            url: url,
-            type: "amendment",
-            amendment_no: amendment.amendment_no,
-            uploaded_at: amendment.created_at,
-          });
-        });
-      }
-    });
-    return docs;
-  }, [contract, amendments]);
-
-  // Empty State
   if (!contract) {
     if (loading)
       return (
@@ -316,12 +61,6 @@ export function ContractDetails({
       <div
         className={`flex-1 flex items-center justify-center relative overflow-hidden min-h-[600px] ${isDark ? "bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950/30" : "bg-gradient-to-br from-slate-50 via-white to-indigo-50/30"}`}
       >
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='${isDark ? "%23ffffff" : "%23000000"}' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          }}
-        />
         <div className="text-center z-10 relative">
           <div className="relative inline-block mb-8">
             <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 blur-2xl opacity-40 animate-pulse" />
@@ -351,27 +90,42 @@ export function ContractDetails({
     );
   }
 
-  // Computed Values
-  const financialStatus = getContractFinancialStatus(contract);
-  const expiringInfo = isExpiringSoon(contract);
-  const reminder = getAdjustmentReminder(contract);
-  const daysUntilStart = getDaysUntilStart(contract.start_date);
-  const daysLeft = calculateDaysLeft(contract.end_date);
-  const isExpired = daysLeft < 0;
-  const isFullyInvoiced = contract.invoiced >= contract.total_value;
-  const needsFinancialReview =
-    (isExpired || totalPerformedWork >= contract.total_value) &&
-    !isFullyInvoiced;
-  const notStarted = daysUntilStart > 0;
-  const daysProgress = calculateDaysProgress(contract);
-  const workProgress = calculateProgressFromTariffs(contract);
-  const invoiceProgress = calculateInvoiceProgress(contract);
+  const {
+    clientName,
+    activeTariffs,
+    futureTariffsByVersion,
+    archivedTariffsByVersion,
+    totalPerformedWork,
+    totalInvoiced,
+    totalNotInvoiced,
+    amendments,
+    isLoadingAmendments,
+    pendingAmendments,
+    documents,
+    financialStatus,
+    expiringInfo,
+    reminder,
+    daysUntilStart,
+    daysLeft,
+    isExpired,
+    isFullyInvoiced,
+    needsFinancialReview,
+    notStarted,
+    daysProgress,
+    workProgress,
+    invoiceProgress,
+    permissions,
+    isUnitManager,
+    loadAmendments,
+  } = details;
+
+  const handleAmendmentSuccess = () => {
+    loadAmendments();
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
-      {/* ═══════════════════════════════════════ */}
       {/* 🔹 HEADER */}
-      {/* ═══════════════════════════════════════ */}
       <div
         className={`relative px-6 py-4 border-b ${isDark ? "border-slate-700/50 bg-gradient-to-r from-indigo-900/30 via-slate-900 to-violet-900/30" : "border-slate-200/70 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50"}`}
       >
@@ -475,7 +229,7 @@ export function ContractDetails({
 
           {/* 🔧 ستون راست: دکمه‌ها با دسترسی شرطی */}
           <div className="flex gap-2 flex-shrink-0">
-            {canBtnAmend && contract.status !== "COMPLETED" && (
+            {permissions.canBtnAmend && contract.status !== "COMPLETED" && (
               <Button
                 variant="outline"
                 size="md"
@@ -488,8 +242,7 @@ export function ContractDetails({
                 <span>🔄</span> Amend
               </Button>
             )}
-
-            {canBtnDoc && (
+            {permissions.canBtnDoc && (
               <Button
                 variant="outline"
                 size="md"
@@ -512,8 +265,7 @@ export function ContractDetails({
                 })()}
               </Button>
             )}
-
-            {canBtnEdit && (
+            {permissions.canBtnEdit && (
               <Button
                 variant="outline"
                 size="md"
@@ -531,13 +283,11 @@ export function ContractDetails({
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════ */}
       {/* 🔹 SCROLLABLE CONTENT */}
-      {/* ═══════════════════════════════════════ */}
       <div className="flex-1 overflow-y-auto p-6 min-h-0">
         <div className="space-y-6">
           {/* Reminder Section */}
-          {canReminderSection && reminder.show && (
+          {permissions.canReminderSection && reminder.show && (
             <div
               className={`rounded-xl border-2 p-4 ${reminder.mode === "TBD" ? (isDark ? "border-amber-600 bg-amber-950/40" : "border-amber-400 bg-amber-50") : isDark ? "border-indigo-600 bg-indigo-950/40" : "border-indigo-400 bg-indigo-50"}`}
             >
@@ -564,7 +314,7 @@ export function ContractDetails({
           )}
 
           {/* Contract Information */}
-          {canInfoSection && (
+          {permissions.canInfoSection && (
             <div
               className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-slate-50/50"}`}
             >
@@ -583,7 +333,7 @@ export function ContractDetails({
                   <div
                     className={`font-mono text-xs ${isDark ? "text-slate-100" : "text-slate-900"}`}
                   >
-                    {getClientName}
+                    {clientName}
                   </div>
                 </div>
                 <div>
@@ -622,7 +372,7 @@ export function ContractDetails({
                     {contract.currency}
                   </div>
                 </div>
-                {canInfoStartDate && (
+                {permissions.canInfoStartDate && (
                   <div>
                     <div
                       className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
@@ -636,7 +386,7 @@ export function ContractDetails({
                     </div>
                   </div>
                 )}
-                {canInfoEndDate && (
+                {permissions.canInfoEndDate && (
                   <div>
                     <div
                       className={`text-[10px] uppercase font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
@@ -655,9 +405,9 @@ export function ContractDetails({
           )}
 
           {/* Stats Cards */}
-          {canViewFinancial && (
+          {permissions.canViewFinancial && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {canStatTotalValue && (
+              {permissions.canStatTotalValue && (
                 <div
                   className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-emerald-700/50 bg-gradient-to-br from-emerald-900/20 to-emerald-900/10 hover:border-emerald-600" : "border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-emerald-50/50 hover:border-emerald-300"}`}
                 >
@@ -673,7 +423,7 @@ export function ContractDetails({
                   </div>
                 </div>
               )}
-              {canStatPerformedWork && (
+              {permissions.canStatPerformedWork && (
                 <div
                   className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-indigo-700/50 bg-gradient-to-br from-indigo-900/20 to-indigo-900/10 hover:border-indigo-600" : "border-indigo-200/70 bg-gradient-to-br from-indigo-50 to-indigo-50/50 hover:border-indigo-300"}`}
                 >
@@ -689,7 +439,7 @@ export function ContractDetails({
                   </div>
                 </div>
               )}
-              {canStatInvoiced && (
+              {permissions.canStatInvoiced && (
                 <div
                   className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-violet-700/50 bg-gradient-to-br from-violet-900/20 to-violet-900/10 hover:border-violet-600" : "border-violet-200/70 bg-gradient-to-br from-violet-50 to-violet-50/50 hover:border-violet-300"}`}
                 >
@@ -705,7 +455,7 @@ export function ContractDetails({
                   </div>
                 </div>
               )}
-              {canStatNotInvoiced && (
+              {permissions.canStatNotInvoiced && (
                 <div
                   className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-rose-700/50 bg-gradient-to-br from-rose-900/20 to-rose-900/10 hover:border-rose-600" : "border-rose-200/70 bg-gradient-to-br from-rose-50 to-rose-50/50 hover:border-rose-300"}`}
                 >
@@ -726,7 +476,7 @@ export function ContractDetails({
 
           {/* Progress Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {canProgressWork && canViewFinancial && (
+            {permissions.canProgressWork && permissions.canViewFinancial && (
               <Card
                 className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
               >
@@ -750,7 +500,7 @@ export function ContractDetails({
                 </div>
               </Card>
             )}
-            {canProgressInvoice && canViewFinancial && (
+            {permissions.canProgressInvoice && permissions.canViewFinancial && (
               <Card
                 className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
               >
@@ -777,7 +527,7 @@ export function ContractDetails({
                 </div>
               </Card>
             )}
-            {canProgressTime && (
+            {permissions.canProgressTime && (
               <Card
                 className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
               >
@@ -816,7 +566,7 @@ export function ContractDetails({
                     <div className="text-lg font-bold text-amber-600 mb-2">
                       ⚠️ Needs Review
                     </div>
-                    {canBtnApprove && isUnitManager ? (
+                    {permissions.canBtnApprove && isUnitManager ? (
                       <button
                         onClick={() => onRequestComplete(contract)}
                         className="w-full rounded-lg px-3 py-2 text-xs font-semibold transition-all bg-amber-500 text-white hover:bg-amber-600 shadow-sm cursor-pointer"
@@ -876,13 +626,14 @@ export function ContractDetails({
           </div>
 
           {/* Tariffs Table */}
-          {canTableTariffs && canViewFinancial && (
+          {permissions.canTableTariffs && permissions.canViewFinancial && (
             <div>
               <h3
                 className={`text-sm font-bold mb-3 ${isDark ? "text-slate-100" : "text-slate-900"}`}
               >
                 Tariff Lines & Consumption
               </h3>
+
               {activeTariffs.length > 0 && (
                 <div className="mb-6">
                   <h4
@@ -927,7 +678,7 @@ export function ContractDetails({
                             : "divide-y divide-slate-200/70"
                         }
                       >
-                        {activeTariffs.map((tariff) => {
+                        {activeTariffs.map((tariff: TariffLine) => {
                           const rate =
                             typeof tariff.rate === "string"
                               ? Number(tariff.rate.replace(/,/g, "")) || 0
@@ -1011,7 +762,7 @@ export function ContractDetails({
                 </div>
               )}
 
-              {/* Future & Archived Tariffs (با همان منطق قبلی و دسترسی شرطی) */}
+              {/* Future Tariffs */}
               {futureTariffsByVersion.length > 0 && (
                 <div className="mb-6">
                   <button
@@ -1026,7 +777,10 @@ export function ContractDetails({
                       <span
                         className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? "bg-amber-900/50 text-amber-400" : "bg-amber-200 text-amber-800"}`}
                       >
-                        {futureTariffs.length}
+                        {futureTariffsByVersion.reduce(
+                          (acc, curr) => acc + curr.tariffs.length,
+                          0,
+                        )}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1125,6 +879,7 @@ export function ContractDetails({
                 </div>
               )}
 
+              {/* Archived Tariffs */}
               {archivedTariffsByVersion.length > 0 && (
                 <div>
                   <button
@@ -1139,7 +894,10 @@ export function ContractDetails({
                       <span
                         className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? "bg-slate-700 text-slate-400" : "bg-slate-200 text-slate-600"}`}
                       >
-                        {archivedTariffs.length}
+                        {archivedTariffsByVersion.reduce(
+                          (acc, curr) => acc + curr.tariffs.length,
+                          0,
+                        )}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1283,14 +1041,17 @@ export function ContractDetails({
                   </AnimatedCollapse>
                 </div>
               )}
-              {selectedTariffs.length === 0 && (
-                <div
-                  className={`text-center py-8 text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}
-                >
-                  <div className="text-4xl mb-2">📭</div>
-                  <p>No tariff lines found for this contract</p>
-                </div>
-              )}
+
+              {activeTariffs.length === 0 &&
+                futureTariffsByVersion.length === 0 &&
+                archivedTariffsByVersion.length === 0 && (
+                  <div
+                    className={`text-center py-8 text-sm ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                  >
+                    <div className="text-4xl mb-2">📭</div>
+                    <p>No tariff lines found for this contract</p>
+                  </div>
+                )}
             </div>
           )}
         </div>
@@ -1323,9 +1084,7 @@ export function ContractDetails({
           }}
           contract={contract}
           amendment={pendingAmendment}
-          onSuccess={() => {
-            loadAmendments();
-          }}
+          onSuccess={() => loadAmendments()}
         />
       )}
     </div>

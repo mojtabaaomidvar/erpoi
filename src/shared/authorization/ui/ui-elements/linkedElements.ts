@@ -1,6 +1,6 @@
 // src/shared/authorization/uiElements/linkedElements.ts
 
-import { getAllDependenciesChain, elementDependencies } from "./dependencies";
+import { getAllDependenciesChain } from "../helpers";
 
 /**
  * 🔗 گروه‌هایی از element ها که معادل هم هستن

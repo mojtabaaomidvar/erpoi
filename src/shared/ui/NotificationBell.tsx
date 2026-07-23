@@ -1,12 +1,15 @@
-// src/shared/ui/NotificationBell.tsx
+﻿// src/shared/ui/NotificationBell.tsx
 
 import { useState, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { notificationService } from "@features/notifications/services/NotificationService";
-import { amendmentService } from "@features/contract-management/services/AmendmentService";
+import { amendmentAppService } from "@/features/contract-management/application";
 import { ApprovalModal } from "@features/contract-management/ui/ApprovalModal";
 import type { Notification } from "@features/notifications/types";
-import type { Contract, ContractAmendment } from "@/types/contract";
+import type {
+  Contract,
+  ContractAmendment,
+} from "@/features/contract-management/domain";
 import { AnimatedCollapse } from "@shared/ui/AnimatedCollapse";
 import { supabase } from "@shared/database/supabase";
 import { useEvent, EVENT_TYPES } from "@infra/events";
@@ -71,7 +74,7 @@ export function NotificationBell() {
 
       try {
         // 🔧 FIX: دریافت آخرین وضعیت amendment
-        const amendment = await amendmentService.getById(amendmentId);
+        const amendment = await amendmentAppService.getById(amendmentId);
         if (!amendment) {
           console.error("[NotificationBell] Amendment not found:", amendmentId);
           showToast("error", "Not Found", "Amendment not found");
@@ -86,7 +89,7 @@ export function NotificationBell() {
 
         // دریافت contract
         const { data: contract, error } = await supabase
-          .from("contracts")
+          .from("contracts.contracts")
           .select("*")
           .eq("id", contractId)
           .single();

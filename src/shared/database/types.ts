@@ -12,7 +12,7 @@ export interface DBUser {
   password: string;
   role: string;
   department: string;
-  status: 'active' | 'inactive' | 'suspended';
+  status: "active" | "inactive" | "suspended";
   avatar?: string;
   phone?: string;
   createdAt: string;
@@ -71,7 +71,7 @@ export interface DBDepartment {
 
 export interface DBClient {
   id: string;
-  type: 'LEGAL' | 'INDIVIDUAL';
+  type: "LEGAL" | "INDIVIDUAL";
   name_en: string;
   name_fa: string;
   national_id: string;
@@ -114,8 +114,8 @@ export interface DBContract {
   total_value: number;
   invoiced: number;
   currency: string;
-  status: 'ACTIVE' | 'COMPLETED' | 'NOT_STARTED' | 'NEEDS_REVIEW';
-  type: 'CONTRACT' | 'WORK_ORDER';
+  status: "ACTIVE" | "COMPLETED" | "NOT_STARTED" | "NEEDS_REVIEW";
+  type: "CONTRACT" | "WORK_ORDER";
   tariffs: number;
   department: string;
   description?: string;
@@ -128,6 +128,7 @@ export interface DBContract {
   source_file?: string;
   source_letter_date?: string;
   source_letter_image?: string;
+  source_letter_image_preview?: string;
   source_email_from?: string;
   source_email_date?: string;
   createdAt: string;
@@ -155,7 +156,7 @@ export interface DBInspector {
   email: string;
   location: string;
   rating: number;
-  status: 'AVAILABLE' | 'BUSY' | 'ON_LEAVE';
+  status: "AVAILABLE" | "BUSY" | "ON_LEAVE";
   specialties: string[];
   certifications: number;
   activeJobs: number;
@@ -172,13 +173,19 @@ export interface DBInspection {
   client_name: string;
   inspector_id?: string;
   inspector_name?: string;
-  source: 'EMAIL' | 'LETTER' | 'PHONE';
+  source: "EMAIL" | "LETTER" | "PHONE";
   reference_no: string;
   date_requested: string;
   date_assigned?: string;
   date_executed?: string;
   date_completed?: string;
-  status: 'REQUESTED' | 'INSPECTOR_ASSIGNED' | 'DOC_REVIEW' | 'EXECUTING' | 'NCR_ISSUED' | 'COMPLETED';
+  status:
+    | "REQUESTED"
+    | "INSPECTOR_ASSIGNED"
+    | "DOC_REVIEW"
+    | "EXECUTING"
+    | "NCR_ISSUED"
+    | "COMPLETED";
   has_ncr: boolean;
   location: string;
   discipline: string;
@@ -193,8 +200,8 @@ export interface DBNCR {
   inspection_no: string;
   client_name: string;
   description: string;
-  severity: 'MINOR' | 'MAJOR' | 'CRITICAL';
-  status: 'OPEN' | 'IN_PROGRESS' | 'CLOSED';
+  severity: "MINOR" | "MAJOR" | "CRITICAL";
+  status: "OPEN" | "IN_PROGRESS" | "CLOSED";
   date_raised: string;
   date_closed?: string;
   createdAt: string;
@@ -212,7 +219,7 @@ export interface DBInvoice {
   tax_amount: number;
   total_amount: number;
   currency: string;
-  status: 'DRAFT' | 'ISSUED' | 'PAID' | 'OVERDUE';
+  status: "DRAFT" | "ISSUED" | "PAID" | "OVERDUE";
   issued_date: string;
   due_date: string;
   paid_date?: string;
@@ -231,7 +238,7 @@ export interface DatabaseSchema {
   permissionMappings: DBPermissionMapping;
   uiElements: DBUIElement;
   settings: DBSettings;
-  
+
   // Business
   clients: DBClient;
   contracts: DBContract;
