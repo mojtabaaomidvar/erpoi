@@ -1,6 +1,6 @@
 ﻿// src/shared/authorization/roles.ts
 
-import { RoleInfo, Permission } from "@/shared/authorization";
+import { RoleInfo, Permission } from "../domain/models";
 
 export const ROLES: Record<string, RoleInfo> = {
   admin: {

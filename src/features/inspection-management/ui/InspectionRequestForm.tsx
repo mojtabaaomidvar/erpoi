@@ -9,7 +9,7 @@ import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
 import { clientAppService } from "@/features/client-management/application";
 import { inspectionRequestAppService } from "@features/inspection-management/application/InspectionRequestApplicationService";
 import type { CreateInspectionRequestCommand } from "@features/inspection-management/application/dto/CreateInspectionRequestCommand";
-import { projectAppService } from "@features/project-management/application/ProjectApplicationService";
+import { projectAppService } from "@/features/project-management";
 import { VendorAutocomplete } from "./VendorAutocomplete";
 import { ProjectSelector } from "./ProjectSelector";
 import type { Client } from "@/features/client-management/domain/models/Client";

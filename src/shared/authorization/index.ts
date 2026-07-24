@@ -1,19 +1,24 @@
 ﻿// src/shared/authorization/index.ts
+// ═══════════════════════════════════════
+// 🏛️ AUTHORIZATION MODULE - BARREL FILE
+// ═══════════════════════════════════════
 
 // ═══════════════════════════════════════
-// 1. IMPORTS FOR INSTANTIATION (Infrastructure -> Application)
+// 1. INFRASTRUCTURE IMPORTS (Repository Implementations)
 // ═══════════════════════════════════════
 import { SupabaseDepartmentRepository } from "./repositories/SupabaseDepartmentRepository";
-import { DepartmentApplicationService } from "./application/services/DepartmentApplicationService";
-
 import { SupabaseUserRepository } from "./repositories/SupabaseUserRepository";
-import { UserApplicationService } from "./application/services/UserApplicationService";
-
 import { SupabasePermissionMappingRepository } from "./repositories/SupabasePermissionMappingRepository";
+
+// ═══════════════════════════════════════
+// 2. APPLICATION SERVICE IMPORTS
+// ═══════════════════════════════════════
+import { DepartmentApplicationService } from "./application/services/DepartmentApplicationService";
+import { UserApplicationService } from "./application/services/UserApplicationService";
 import { PermissionMappingApplicationService } from "./application/services/PermissionMappingApplicationService";
 
 // ═══════════════════════════════════════
-// 2. APPLICATION SERVICE INSTANCES (Ready to use)
+// 3. APPLICATION SERVICE INSTANCES (Singleton-like)
 // ═══════════════════════════════════════
 export const departmentAppService = new DepartmentApplicationService(
   new SupabaseDepartmentRepository(),
@@ -29,49 +34,86 @@ export const permissionMappingAppService =
   );
 
 // ═══════════════════════════════════════
-// 3. DOMAIN LAYER (Models & Repository Interfaces)
+// 4. DOMAIN MODELS (Explicit Exports)
 // ═══════════════════════════════════════
-// Models
-export * from "./domain/models/Department";
-export * from "./domain/models/User";
-export * from "./domain/models/Role";
-export * from "./domain/models/Permission";
-export * from "./domain/models/PermissionMapping";
-
-// Repository Interfaces
-export * from "./domain/repositories/IDepartmentRepository";
-export * from "./domain/repositories/IUserRepository";
-export * from "./domain/repositories/IPermissionMappingRepository";
+export type { User, UserStatus, UserFormData } from "./domain/models/User";
+export type { Role, UserRole, RoleInfo } from "./domain/models/Role";
+export type {
+  Permission,
+  ActionType,
+  EntityType,
+} from "./domain/models/Permission";
+export type { Department } from "./domain/models/Department";
+export type { PermissionMapping } from "./domain/models/PermissionMapping";
 
 // ═══════════════════════════════════════
-// 4. APPLICATION LAYER (Service Classes)
+// 5. REPOSITORY INTERFACES (Explicit Exports)
 // ═══════════════════════════════════════
-export * from "./application/services/DepartmentApplicationService";
-export * from "./application/services/UserApplicationService";
-export * from "./application/services/PermissionMappingApplicationService";
+export type {
+  IUserRepository,
+  CreateUserPayload,
+  UpdateUserPayload,
+} from "./domain/repositories/IUserRepository";
+export type { IDepartmentRepository } from "./domain/repositories/IDepartmentRepository";
+export type { IPermissionMappingRepository } from "./domain/repositories/IPermissionMappingRepository";
 
 // ═══════════════════════════════════════
-// 5. CONSTANTS & CONFIGURATION
+// 6. APPLICATION SERVICE CLASSES (Explicit Exports)
 // ═══════════════════════════════════════
+export { DepartmentApplicationService } from "./application/services/DepartmentApplicationService";
+export { UserApplicationService } from "./application/services/UserApplicationService";
+export { PermissionMappingApplicationService } from "./application/services/PermissionMappingApplicationService";
+
+// ═══════════════════════════════════════
+// 7. CONFIGURATION & CONSTANTS (Explicit Exports)
+// ═══════════════════════════════════════
+export {
+  ROLE_BASE_PERMISSIONS,
+  getBasePermissions,
+  isBasePermission,
+  getBasePermissionsInfo,
+  getAllEntities,
+} from "./config/RoleBasePermissions";
+
 export {
   ROLES,
   getRolePermissions,
   hasPermission,
   hasAnyPermission,
   hasAllPermissions,
+  CURRENT_USER,
+  setUserRole,
+  getUserRole,
 } from "./constants/roles";
 
 export { ENTITIES, ENTITY_GROUPS } from "./constants/permissions";
 export type { EntityType as PermissionEntityType } from "./constants/permissions";
 
+export {
+  DEPARTMENTS,
+  getDepartmentById,
+  getDepartmentName,
+} from "./constants/departments";
+
 // ═══════════════════════════════════════
-// 6. HOOKS
+// 8. UTILITIES (Explicit Exports)
 // ═══════════════════════════════════════
-export { usePermission } from "./hooks/usePermission";
+export {
+  calculateEffectivePermissions,
+  filterCustomPermissionsOnly,
+  getCustomPermissions,
+  isPermissionRemovable,
+  groupPermissionsByEntity,
+  countPermissionsByEntity,
+} from "./utils/PermissionCalculator";
+
+// ═══════════════════════════════════════
+// 9. HOOKS (Explicit Exports)
+// ═══════════════════════════════════════
 export { usePermissionMapping } from "./hooks/usePermissionMapping";
 
 // ═══════════════════════════════════════
-// 7. SHARED UI (Lightweight Guards)
+// 10. UI GUARDS (Explicit Exports)
 // ═══════════════════════════════════════
 export {
   RoleGuard,
@@ -79,5 +121,4 @@ export {
   ManagerOrAbove,
   InspectorOnly,
 } from "./ui/guards/RoleGuard";
-
 export { PermissionGuard } from "./ui/guards/PermissionGuard";

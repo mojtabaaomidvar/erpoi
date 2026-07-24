@@ -6,7 +6,7 @@ import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionM
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 import { showToast } from "@shared/ui/ToastContainer";
-import { projectAppService } from "@features/project-management/application/ProjectApplicationService";
+import { projectAppService } from "@/features/project-management";
 import { ProjectList } from "@features/project-management/ui/ProjectList";
 import { ProjectForm } from "@features/project-management/ui/ProjectForm";
 import { ProjectDetailsModal } from "@features/project-management/ui/ProjectDetailsModal";
@@ -31,6 +31,8 @@ export function Projects() {
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+
+  const comingSoonServices = ["TPER", "Other"];
 
   // Permissions
   const canViewItems = canAccessElement("project_list_item_view");
@@ -68,7 +70,6 @@ export function Projects() {
       return;
     }
 
-    // ۱. ساخت پروژه موقت
     const tempId = `temp_${Date.now()}`;
     const optimisticProject: any = {
       id: tempId,
@@ -158,6 +159,11 @@ export function Projects() {
         err.message || "Failed to save project",
       );
     }
+  };
+
+  const handleAddClick = () => {
+    setIsAddModalOpen(true);
+    setEditingProject(null);
   };
 
   const handleProjectClick = (project: Project) => {
@@ -251,15 +257,9 @@ export function Projects() {
         filterStatus={filterStatus}
         setFilterStatus={setFilterStatus}
         onProjectClick={handleProjectClick}
-        onAddClick={() => {
-          setEditingProject(null);
-          setIsAddModalOpen(true);
-        }}
-        canClickItem={canClickItem}
-        canAdd={canAdd}
+        onAddClick={handleAddClick}
         loading={loading}
       />
-
       <ProjectDetailsModal
         isOpen={isDetailsOpen}
         onClose={() => {
@@ -268,9 +268,6 @@ export function Projects() {
         }}
         project={selectedProject}
         onEdit={handleEditFromDetails}
-        onDelete={handleDeleteProject}
-        canEdit={canEdit}
-        canDelete={canDelete}
       />
 
       <ProjectForm

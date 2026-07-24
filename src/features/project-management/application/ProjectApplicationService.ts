@@ -1,17 +1,10 @@
-// src/features/project-management/application/ProjectApplicationService.ts
-
-import { projectRepository } from "../repositories/SupabaseProjectRepository";
+import type { IProjectRepository } from "../repositories/IProjectRepository";
 import type { Project, ProjectMember, ProjectRole } from "../domain/types";
 import {
-  CreateProjectCommand,
   CreateProjectSchema,
+  type CreateProjectCommand,
 } from "./dto/CreateProjectCommand";
-
-// ✅ قانون ۳: ایمپورت سیستم ایونت
 import { publishEvent } from "@infra/events/publishEvent";
-
-// ✅ قانون ۹: ایمپورت سرویس آدیت
-import { auditLogService } from "@features/audit-log/services/AuditLogService";
 
 const ROLE_HIERARCHY: Record<ProjectRole, number> = {
   INSPECTOR: 2,
@@ -19,8 +12,9 @@ const ROLE_HIERARCHY: Record<ProjectRole, number> = {
   PROJECT_MANAGER: 4,
 };
 
-class ProjectApplicationService {
-  private repository = projectRepository;
+export class ProjectApplicationService {
+  // ✅ تزریق وابستگی از طریق Constructor (اصل Dependency Inversion)
+  constructor(private readonly repository: IProjectRepository) {}
 
   async getAllProjects(): Promise<Project[]> {
     return await this.repository.getAll();
@@ -47,9 +41,9 @@ class ProjectApplicationService {
     const newProject = await this.repository.create({
       ...validatedData,
       status: "ACTIVE",
+      description: validatedData.description || "",
     });
 
-    // ۳. انتشار ایونت (Event-Driven)
     publishEvent(
       "project.created",
       {
@@ -60,21 +54,6 @@ class ProjectApplicationService {
       },
       userId,
     );
-
-    // ۴. ثبت در Audit Log
-    await auditLogService.log({
-      user_id: userId,
-      action: "PROJECT_CREATED",
-      entity_type: "Project",
-      entity_id: newProject.id,
-      old_value: null,
-      new_value: {
-        name: newProject.name,
-        client_id: newProject.client_id,
-        status: newProject.status,
-      },
-      reason: "New project initialization via application layer",
-    });
 
     return newProject;
   }
@@ -108,14 +87,12 @@ class ProjectApplicationService {
     userId: string,
     userGlobalRole: string,
   ): Promise<Project> {
-    // بررسی مجوز دسترسی داده‌ای (Data-Level Authorization)
     const isAuthorized = await this.authorizeProjectAction(
       id,
       userId,
       userGlobalRole,
       "PROJECT_MANAGER",
     );
-
     if (!isAuthorized) {
       throw new Error(
         "Access Denied: You are not the Project Manager of this project.",
@@ -123,33 +100,23 @@ class ProjectApplicationService {
     }
 
     const oldProject = await this.repository.getById(id);
+    if (!oldProject) throw new Error("Project not found");
+
     const updatedProject = await this.repository.update(id, data);
 
-    // انتشار ایونت
     publishEvent(
       "project.updated",
       {
         projectId: updatedProject.id,
-        changes: data,
+        oldData: oldProject,
+        newData: updatedProject,
       },
       userId,
     );
 
-    // ثبت آدیت
-    await auditLogService.log({
-      user_id: userId,
-      action: "PROJECT_UPDATED",
-      entity_type: "Project",
-      entity_id: updatedProject.id,
-      old_value: oldProject,
-      new_value: updatedProject,
-      reason: "Project details updated by manager",
-    });
-
     return updatedProject;
   }
 
-  // ✅ قانون ۳ و ۹: حذف پروژه
   async deleteProject(
     id: string,
     userId: string,
@@ -161,7 +128,6 @@ class ProjectApplicationService {
       userGlobalRole,
       "PROJECT_MANAGER",
     );
-
     if (!isAuthorized) {
       throw new Error(
         "Access Denied: You are not the Project Manager of this project.",
@@ -179,27 +145,13 @@ class ProjectApplicationService {
       },
       userId,
     );
-
-    await auditLogService.log({
-      user_id: userId,
-      action: "PROJECT_DELETED",
-      entity_type: "Project",
-      entity_id: id,
-      old_value: oldProject,
-      new_value: null,
-      reason: "Project deleted by manager",
-    });
   }
-
-  // ═══════════════════════════════════════
-  // 👥 Member Management (با ایونت و آدیت)
-  // ═══════════════════════════════════════
 
   async addProjectMember(
     projectId: string,
     userIdToAdd: string,
     role: ProjectRole,
-    actionByUserId: string, // کسی که این عملیات را انجام می‌دهد
+    actionByUserId: string,
   ): Promise<ProjectMember> {
     const newMember = await this.repository.addMember(
       projectId,
@@ -216,16 +168,6 @@ class ProjectApplicationService {
       },
       actionByUserId,
     );
-
-    await auditLogService.log({
-      user_id: actionByUserId,
-      action: "PROJECT_MEMBER_ADDED",
-      entity_type: "ProjectMember",
-      entity_id: newMember.id,
-      old_value: null,
-      new_value: { projectId, userId: userIdToAdd, role },
-      reason: `Added user as ${role}`,
-    });
 
     return newMember;
   }
@@ -247,16 +189,6 @@ class ProjectApplicationService {
       },
       actionByUserId,
     );
-
-    await auditLogService.log({
-      user_id: actionByUserId,
-      action: "PROJECT_MEMBER_REMOVED",
-      entity_type: "ProjectMember",
-      entity_id: `${projectId}_${userIdToRemove}`,
-      old_value: { projectId, userId: userIdToRemove, role },
-      new_value: null,
-      reason: `Removed user with role ${role}`,
-    });
   }
 
   async getProjectMembers(projectId: string): Promise<ProjectMember[]> {
@@ -270,11 +202,7 @@ class ProjectApplicationService {
     return await this.repository.getUserRole(projectId, userId);
   }
 
-  // ═══════════════════════════════════════
-  // 🔐 Authorization Helper
-  // ═══════════════════════════════════════
-
-  async authorizeProjectAction(
+  private async authorizeProjectAction(
     projectId: string,
     userId: string,
     userGlobalRole: string,
@@ -289,5 +217,3 @@ class ProjectApplicationService {
     return ROLE_HIERARCHY[userDataRole] >= ROLE_HIERARCHY[requiredDataRole];
   }
 }
-
-export const projectAppService = new ProjectApplicationService();

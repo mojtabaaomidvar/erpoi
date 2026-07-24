@@ -193,25 +193,28 @@ export function Inspectors() {
     }
   };
 
-  // 🔐 بررسی دسترسی مشاهده
   if (!canViewItems) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center justify-center h-full p-8 text-center">
           <div
             className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
           >
             🔒
           </div>
           <h2
-            className={`text-xl font-bold mb-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
+            className={`text-2xl font-bold mb-2 ${
+              isDark ? "text-slate-100" : "text-slate-900"
+            }`}
           >
             Access Denied
           </h2>
           <p
-            className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}
+            className={`text-sm mb-6 ${
+              isDark ? "text-slate-400" : "text-slate-600"
+            }`}
           >
-            You do not have permission to view the inspectors module.
+            You do not have permission to view the inspector module.
           </p>
         </div>
       </div>

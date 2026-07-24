@@ -1,28 +1,29 @@
-// src/features/inspection-management/ui/ProjectList.tsx
+// src/features/project-management/ui/ProjectList.tsx
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
 import { Badge, Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
+import { ProjectElements } from "@shared/authorization/ui/elements/ProjectElements";
 import { showToast } from "@shared/ui/ToastContainer";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
-import {
-  projectStatsAppService,
-  type ProjectStats,
-} from "../application/ProjectStatsApplicationService";
 import type { Project } from "../domain/types";
+import type { ProjectStats } from "../domain/models/ProjectStats";
 import { INSPECTION_CATEGORY_CONFIG } from "@features/inspection-management/constants";
+import { calculateProjectStatus } from "../utils/projectDateUtils";
+
+export interface ProjectWithStats extends Project {
+  stats?: ProjectStats | null;
+}
 
 interface ProjectListProps {
-  projects: Project[];
+  projects: ProjectWithStats[];
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   filterStatus: string;
   setFilterStatus: (status: string) => void;
-  onProjectClick: (project: Project) => void;
+  onProjectClick: (project: ProjectWithStats) => void;
   onAddClick: () => void;
-  canClickItem: boolean;
-  canAdd: boolean;
   loading?: boolean;
 }
 
@@ -34,39 +35,22 @@ export function ProjectList({
   setFilterStatus,
   onProjectClick,
   onAddClick,
-  canClickItem,
-  canAdd,
   loading = false,
 }: ProjectListProps) {
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
-  const [projectStats, setProjectStats] = useState<
-    Record<string, ProjectStats>
-  >({});
-  const [statsLoading, setStatsLoading] = useState(false);
 
-  const canViewItems = canAccessElement("project_list_item_view");
-  const canSearch = canAccessElement("project_search_box");
-
-  useEffect(() => {
-    const loadStats = async () => {
-      if (projects.length === 0) return;
-      setStatsLoading(true);
-      const stats: Record<string, ProjectStats> = {};
-      for (const project of projects) {
-        try {
-          stats[project.id] = await projectStatsAppService.getProjectStats(
-            project.id,
-          );
-        } catch (err) {
-          console.error(`Failed to load stats for project ${project.id}`, err);
-        }
-      }
-      setProjectStats(stats);
-      setStatsLoading(false);
-    };
-    loadStats();
-  }, [projects]);
+  const canViewList = canAccessElement(
+    ProjectElements.ProjectList.list_item_view.id,
+  );
+  const canClickItem = canAccessElement(
+    ProjectElements.ProjectList.list_item_click.id,
+  );
+  const canSearch = canAccessElement(ProjectElements.ProjectList.search_box.id);
+  const canFilterStatus = canAccessElement(
+    ProjectElements.ProjectList.filter_status.id,
+  );
+  const canAdd = canAccessElement(ProjectElements.ProjectList.btn_add.id);
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
@@ -88,7 +72,7 @@ export function ProjectList({
     return counts;
   }, [projects]);
 
-  const handleProjectClick = (project: Project) => {
+  const handleProjectClick = (project: ProjectWithStats) => {
     if (!canClickItem) {
       showToast(
         "error",
@@ -108,7 +92,7 @@ export function ProjectList({
       ACTIVE: {
         color: "emerald",
         bg: "from-emerald-500 to-green-600",
-        icon: "",
+        icon: "🟢",
         label: "Active",
       },
       COMPLETED: {
@@ -120,7 +104,7 @@ export function ProjectList({
       ON_HOLD: {
         color: "amber",
         bg: "from-amber-500 to-orange-600",
-        icon: "️",
+        icon: "⏸️",
         label: "On Hold",
       },
       CANCELLED: {
@@ -133,31 +117,46 @@ export function ProjectList({
     return configs[status] || configs.ACTIVE;
   };
 
-  const getProgressColor = (progress: number) => {
-    if (progress >= 75) return "from-emerald-500 to-green-600";
-    if (progress >= 50) return "from-blue-500 to-indigo-600";
-    if (progress >= 25) return "from-amber-500 to-orange-600";
-    return "from-rose-500 to-red-600";
+  const getTeamMembers = (project: ProjectWithStats) => {
+    const members = project.members || [];
+    const pm = members.find((m) => m.role === "PROJECT_MANAGER");
+    const coordinator = members.find((m) => m.role === "COORDINATOR");
+    const inspectors = members.filter((m) => m.role === "INSPECTOR");
+    return { pm, coordinator, inspectors };
   };
+
+  if (!canViewList) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+        <div
+          className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
+        >
+          🔒
+        </div>
+        <p
+          className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
+        >
+          Access Denied
+        </p>
+        <p
+          className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
+        >
+          You do not have permission to view the project list.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div
-        className={`relative px-6 py-4 border-b ${
-          isDark
-            ? "border-slate-700/50 bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900"
-            : "border-slate-200/70 bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50"
-        }`}
+        className={`relative px-6 py-4 border-b ${isDark ? "border-slate-700/50 bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900" : "border-slate-200/70 bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50"}`}
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center text-2xl shadow-lg ${
-                isDark
-                  ? "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-indigo-500/30"
-                  : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-indigo-500/20"
-              }`}
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center text-2xl shadow-lg ${isDark ? "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-indigo-500/30" : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-indigo-500/20"}`}
             >
               📁
             </div>
@@ -174,7 +173,6 @@ export function ProjectList({
               </p>
             </div>
           </div>
-
           <div className="flex items-center gap-2">
             {canSearch && (
               <FloatingSearch
@@ -197,67 +195,46 @@ export function ProjectList({
           </div>
         </div>
 
-        {/* Status Filter Tabs */}
-        <div className="flex gap-1.5 overflow-x-auto">
-          {(
-            ["ALL", "ACTIVE", "COMPLETED", "ON_HOLD", "CANCELLED"] as const
-          ).map((status) => {
-            const config = getStatusConfig(status);
-            return (
-              <button
-                key={status}
-                onClick={() => setFilterStatus(status)}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                  filterStatus === status
-                    ? isDark
-                      ? "bg-indigo-600 text-white shadow-md"
-                      : "bg-indigo-500 text-white shadow-md"
-                    : isDark
-                      ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                }`}
-              >
-                {status === "ALL" ? "📊 All" : `${config.icon} ${config.label}`}
-                <span
-                  className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+        {canFilterStatus && (
+          <div className="flex gap-1.5 overflow-x-auto">
+            {(
+              ["ALL", "ACTIVE", "COMPLETED", "ON_HOLD", "CANCELLED"] as const
+            ).map((status) => {
+              const config = getStatusConfig(status);
+              return (
+                <button
+                  key={status}
+                  onClick={() => setFilterStatus(status)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
                     filterStatus === status
-                      ? "bg-white/20"
+                      ? isDark
+                        ? "bg-indigo-600 text-white shadow-md"
+                        : "bg-indigo-500 text-white shadow-md"
                       : isDark
-                        ? "bg-slate-800"
-                        : "bg-slate-200"
+                        ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   }`}
                 >
-                  {statusCounts[status] || 0}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  {status === "ALL"
+                    ? "📊 All"
+                    : `${config.icon} ${config.label}`}
+                  <span
+                    className={`text-[9px] px-1.5 py-0.5 rounded-full ${filterStatus === status ? "bg-white/20" : isDark ? "bg-slate-800" : "bg-slate-200"}`}
+                  >
+                    {statusCounts[status] || 0}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
-        {!canViewItems ? (
+        {loading ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
-            >
-              🔒
-            </div>
-            <p
-              className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
-            >
-              Access Denied
-            </p>
-            <p
-              className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
-            >
-              You do not have permission to view projects.
-            </p>
-          </div>
-        ) : loading || statsLoading ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <div className="text-4xl mb-2 animate-pulse"></div>
+            <div className="text-4xl mb-2 animate-pulse">⏳</div>
             <p
               className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}
             >
@@ -286,21 +263,28 @@ export function ProjectList({
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredProjects.map((project) => {
               const isOptimistic = project.id.startsWith("temp_");
-              const stats = projectStats[project.id];
-              const statusConfig = getStatusConfig(project.status);
+              const stats = project.stats;
+              const dynamicStatus = calculateProjectStatus(
+                project.start_date,
+                project.end_date,
+                project.status,
+              );
+              const statusConfig = getStatusConfig(dynamicStatus);
               const progress =
                 stats && stats.total_inspections > 0
                   ? (stats.completed_inspections / stats.total_inspections) *
                     100
                   : 0;
-              const progressColor = getProgressColor(progress);
+              const { pm, coordinator, inspectors } = getTeamMembers(project);
 
               return (
                 <button
                   key={project.id}
                   onClick={() => !isOptimistic && handleProjectClick(project)}
-                  disabled={isOptimistic}
+                  disabled={isOptimistic || !canClickItem}
                   className={`group relative text-left rounded-2xl overflow-hidden transition-all duration-300 ${
+                    !canClickItem ? "cursor-not-allowed opacity-60" : ""
+                  } ${
                     isOptimistic
                       ? "opacity-70 cursor-wait bg-slate-100 dark:bg-slate-800/30 animate-pulse-slow"
                       : "hover:scale-[1.02] hover:shadow-2xl cursor-pointer"
@@ -311,24 +295,12 @@ export function ProjectList({
                       : "bg-white border border-slate-200/70 hover:border-indigo-300 hover:shadow-indigo-500/10")
                   }`}
                 >
-                  {/* 🔔 نشانگر در حال ذخیره (Ping Indicator) */}
-                  {isOptimistic && (
-                    <div className="absolute top-3 right-3 z-10">
-                      <span className="flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Top Gradient Bar */}
                   <div
                     className={`h-1 bg-gradient-to-r ${isOptimistic ? "from-slate-400 to-slate-500" : statusConfig.bg}`}
                   />
 
-                  {/* Card Content */}
                   <div className="p-4">
-                    {/* Header */}
+                    {/* ✅ Header: Title + Client Name */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
                         <h3
@@ -336,36 +308,129 @@ export function ProjectList({
                         >
                           {project.name}
                         </h3>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <Badge
-                            tone={statusConfig.color as any}
-                            className="text-[9px]"
+
+                        {project.client && (
+                          <p
+                            className={`text-[11px] truncate ${isDark ? "text-slate-400" : "text-slate-600"}`}
                           >
-                            {statusConfig.icon} {statusConfig.label}
-                          </Badge>
-                          {project.service_types?.map((type) => (
-                            <Badge
-                              key={type}
-                              tone={
-                                INSPECTION_CATEGORY_CONFIG[type]?.color as any
-                              }
-                              className="text-[9px]"
-                            >
-                              {INSPECTION_CATEGORY_CONFIG[type]?.icon} {type}
-                            </Badge>
-                          ))}
-                          {isOptimistic && (
-                            <Badge tone="indigo" className="text-[9px]">
-                              ⏳ Saving...
-                            </Badge>
-                          )}
-                        </div>
+                            👤{" "}
+                            {project.client.name_en || project.client.name_fa}
+                          </p>
+                        )}
                       </div>
+                      <Badge
+                        tone={statusConfig.color as any}
+                        className="text-[9px] shrink-0 ml-2"
+                      >
+                        {statusConfig.icon} {statusConfig.label}
+                      </Badge>
                     </div>
 
-                    {/* Stats Grid (فقط برای پروژه‌های واقعی) */}
+                    {/* ✅ Service Types */}
+                    <div className="flex items-center gap-1.5 flex-wrap mb-3">
+                      {project.service_types?.map((type) => (
+                        <Badge
+                          key={type}
+                          tone={
+                            INSPECTION_CATEGORY_CONFIG[
+                              type as keyof typeof INSPECTION_CATEGORY_CONFIG
+                            ]?.color as any
+                          }
+                          className="text-[9px]"
+                        >
+                          {
+                            INSPECTION_CATEGORY_CONFIG[
+                              type as keyof typeof INSPECTION_CATEGORY_CONFIG
+                            ]?.icon
+                          }{" "}
+                          {type}
+                        </Badge>
+                      ))}
+                      {isOptimistic && (
+                        <Badge tone="indigo" className="text-[9px]">
+                          ⏳ Saving...
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* ✅ Team Members Section */}
+                    {(pm || coordinator || inspectors.length > 0) && (
+                      <div
+                        className={`space-y-1.5 mb-3 pt-3 border-t ${isDark ? "border-slate-700" : "border-slate-200"}`}
+                      >
+                        <div
+                          className={`text-[9px] uppercase font-semibold ${isDark ? "text-slate-500" : "text-slate-500"}`}
+                        >
+                          Team
+                        </div>
+
+                        {pm && (
+                          <div
+                            className={`flex items-center gap-2 text-[11px] ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                          >
+                            <span className="text-[10px]">👔</span>
+                            <span className="truncate">
+                              <span
+                                className={`font-semibold ${isDark ? "text-indigo-400" : "text-indigo-600"}`}
+                              >
+                                Project Manager:
+                              </span>{" "}
+                              {pm.user?.full_name ||
+                                pm.user?.username ||
+                                "Unknown"}
+                            </span>
+                          </div>
+                        )}
+
+                        {coordinator && (
+                          <div
+                            className={`flex items-center gap-2 text-[11px] ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                          >
+                            <span className="text-[10px]">🤝</span>
+                            <span className="truncate">
+                              <span
+                                className={`font-semibold ${isDark ? "text-violet-400" : "text-violet-600"}`}
+                              >
+                                Co-Ordinator:
+                              </span>{" "}
+                              {coordinator.user?.full_name ||
+                                coordinator.user?.username ||
+                                "Unknown"}
+                            </span>
+                          </div>
+                        )}
+
+                        {inspectors.length > 0 && (
+                          <div
+                            className={`flex items-center gap-2 text-[11px] ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                          >
+                            <span className="text-[10px]">🔍</span>
+                            <span className="truncate">
+                              <span
+                                className={`font-semibold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}
+                              >
+                                {inspectors.length} Inspector
+                                {inspectors.length > 1 ? "s" : ""}:
+                              </span>{" "}
+                              {inspectors
+                                .slice(0, 2)
+                                .map(
+                                  (i) => i.user?.full_name || i.user?.username,
+                                )
+                                .join(", ")}
+                              {inspectors.length > 2 &&
+                                ` +${inspectors.length - 2}`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Stats Grid */}
                     {stats && !isOptimistic && (
-                      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                      <div
+                        className={`grid grid-cols-3 gap-2 mt-3 pt-3 border-t ${isDark ? "border-slate-700" : "border-slate-200"}`}
+                      >
                         <div className="text-center">
                           <div
                             className={`text-lg font-bold ${isDark ? "text-indigo-400" : "text-indigo-600"}`}
@@ -405,25 +470,11 @@ export function ProjectList({
                       </div>
                     )}
 
-                    {/* Skeleton Stats برای آیتم موقت */}
-                    {isOptimistic && (
-                      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                        {[1, 2, 3].map((i) => (
-                          <div key={i} className="text-center">
-                            <div
-                              className={`h-6 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"} animate-pulse mb-1`}
-                            ></div>
-                            <div
-                              className={`h-3 w-12 mx-auto rounded ${isDark ? "bg-slate-700" : "bg-slate-200"} animate-pulse`}
-                            ></div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Progress Section (فقط برای پروژه‌های واقعی) */}
-                    {stats && !isOptimistic && (
-                      <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                    {/* Progress */}
+                    {stats && !isOptimistic && stats.total_inspections > 0 && (
+                      <div
+                        className={`mt-2 pt-2 border-t ${isDark ? "border-slate-700" : "border-slate-200"}`}
+                      >
                         <div className="flex items-center justify-between text-[10px] mb-1">
                           <span
                             className={
@@ -443,53 +494,20 @@ export function ProjectList({
                           className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
                         >
                           <div
-                            className={`h-full bg-gradient-to-r ${progressColor} transition-all duration-500`}
+                            className={`h-full bg-gradient-to-r ${progress >= 75 ? "from-emerald-500 to-green-600" : progress >= 50 ? "from-blue-500 to-indigo-600" : progress >= 25 ? "from-amber-500 to-orange-600" : "from-rose-500 to-red-600"} transition-all duration-500`}
                             style={{ width: `${progress}%` }}
                           />
                         </div>
                       </div>
                     )}
 
-                    {/* Skeleton Progress برای آیتم موقت */}
-                    {isOptimistic && (
-                      <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                        <div className="flex items-center justify-between text-[10px] mb-1">
-                          <div
-                            className={`h-3 w-20 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"} animate-pulse`}
-                          ></div>
-                          <div
-                            className={`h-3 w-12 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"} animate-pulse`}
-                          ></div>
-                        </div>
-                        <div
-                          className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
-                        >
-                          <div className="h-full w-1/3 bg-gradient-to-r from-slate-400 to-slate-500 animate-pulse"></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Footer Info */}
+                    {/* Footer: Dates */}
                     <div
-                      className={`flex items-center justify-between text-[10px] pt-3 border-t ${
-                        isDark
-                          ? "border-slate-700 text-slate-400"
-                          : "border-slate-200 text-slate-500"
-                      }`}
+                      className={`flex items-center justify-between text-[10px] pt-3 mt-3 border-t ${isDark ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}
                     >
                       <span>
                         📅 {project.start_date} → {project.end_date}
                       </span>
-                      {stats && !isOptimistic && (
-                        <span className="font-semibold">
-                          ⏱️ {stats.total_man_days} man-days
-                        </span>
-                      )}
-                      {isOptimistic && (
-                        <span className="text-indigo-500 font-semibold">
-                          ⏳ Syncing...
-                        </span>
-                      )}
                     </div>
                   </div>
                 </button>

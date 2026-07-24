@@ -1,55 +1,79 @@
-//src/features/contract-management/repositories/SupabaseContractRepository.ts
+// src/features/contract-management/repositories/SupabaseContractRepository.ts
 
 import { supabase } from "@shared/database/supabase";
+import {
+  applyDepartmentFilter,
+  getDepartmentFilter,
+} from "@/shared/data-access/withDepartmentFilter";
 import type { Contract, IContractRepository } from "../domain";
 
 export class SupabaseContractRepository implements IContractRepository {
   async getAll(): Promise<Contract[]> {
-    const { data, error } = await supabase
+    let query = supabase
       .schema("contracts")
       .from("contracts")
       .select("*")
       .order("created_at", { ascending: false });
 
+    query = applyDepartmentFilter(query, "department");
+
+    const { data, error } = await query;
+
     if (error) {
-      console.error("[SupabaseContractRepository] Failed to get contracts:", error);
+      console.error(
+        "[SupabaseContractRepository] Failed to get contracts:",
+        error,
+      );
       return [];
     }
     return (data || []).map(this.mapToDomain);
   }
 
   async getById(id: string): Promise<Contract | null> {
-    const { data, error } = await supabase
+    let query = supabase
       .schema("contracts")
       .from("contracts")
       .select("*")
-      .eq("id", id)
-      .single();
+      .eq("id", id);
 
+    query = applyDepartmentFilter(query, "department");
+
+    const { data, error } = await query.single();
     if (error || !data) return null;
+
     return this.mapToDomain(data);
   }
 
   async getByClientId(clientId: string): Promise<Contract[]> {
-    const { data, error } = await supabase
+    let query = supabase
       .schema("contracts")
       .from("contracts")
       .select("*")
       .eq("client_id", clientId)
       .order("created_at", { ascending: false });
 
+    query = applyDepartmentFilter(query, "department");
+
+    const { data, error } = await query;
     if (error) return [];
+
     return (data || []).map(this.mapToDomain);
   }
 
   async create(contract: Partial<Contract>): Promise<Contract> {
     const dbContract = this.mapToDb(contract);
+
+    const currentDept = getDepartmentFilter();
+
     const { data, error } = await supabase
       .schema("contracts")
       .from("contracts")
       .insert({
         ...dbContract,
-        id: dbContract.id || `ct_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id:
+          dbContract.id ||
+          `ct_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        department: currentDept !== null ? currentDept : dbContract.department,
       })
       .select()
       .single();
@@ -60,20 +84,31 @@ export class SupabaseContractRepository implements IContractRepository {
 
   async update(id: string, contract: Partial<Contract>): Promise<Contract> {
     const dbContract = this.mapToDb(contract);
-    const { data, error } = await supabase
+
+    let query = supabase
       .schema("contracts")
       .from("contracts")
       .update({ ...dbContract, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .select()
-      .single();
+      .eq("id", id);
 
+    query = applyDepartmentFilter(query, "department");
+
+    const { data, error } = await query.select().single();
     if (error) throw new Error(error.message);
+
     return this.mapToDomain(data);
   }
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase.schema("contracts").from("contracts").delete().eq("id", id);
+    let query = supabase
+      .schema("contracts")
+      .from("contracts")
+      .delete()
+      .eq("id", id);
+
+    query = applyDepartmentFilter(query, "department");
+
+    const { error } = await query;
     if (error) throw new Error(error.message);
   }
 

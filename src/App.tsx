@@ -14,14 +14,11 @@ import { Billing } from "@pages/Billing";
 import { Reports } from "@pages/Reports";
 import { Settings } from "@pages/Settings";
 import { useAuth } from "@features/auth/hooks/useAuth";
-import { UserManagement } from "@shared/authorization/ui/UserManagement";
+import { UserManagement } from "@/features/user-management/UserManagement";
 import { LoginPage } from "@features/auth/ui/LoginPage";
 import { ConfirmDialogProvider } from "@shared/ui/ConfirmDialog";
 import { ToastProvider } from "@shared/ui/ToastContainer";
 import { amendmentAppService } from "./features/contract-management/application";
-import { autoDiscoverAndRegister } from "@shared/authorization/ui/ui-elements/auto-discovery";
-
-autoDiscoverAndRegister();
 
 const meta: Record<ViewKey, { title: string; subtitle: string }> = {
   dashboard: {
@@ -36,7 +33,7 @@ const meta: Record<ViewKey, { title: string; subtitle: string }> = {
     title: "Agreement(s) Management",
     subtitle: "Master service agreements and work orders",
   },
-  projects: {
+  project: {
     title: "Projects",
     subtitle: "Project Managment",
   },
@@ -135,7 +132,7 @@ function AppContent() {
           {view === "dashboard" && <Dashboard />}
           {view === "clients" && <Clients />}
           {view === "contracts" && <Contracts />}
-          {view === "projects" && <Projects />}
+          {view === "project" && <Projects />}
           {view === "inspectors" && <Inspectors />}
           {view === "inspections" && <Inspections />}
           {view === "billing" && <Billing />}

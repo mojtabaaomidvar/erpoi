@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { Badge, Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
-import { InspectionElements } from "@shared/authorization/ui/elements/InspectionElements"; // ✅ ایمپورت رجیستری
+import { InspectionElements } from "@shared/authorization/ui/elements/InspectionElements";
 import { showToast } from "@shared/ui/ToastContainer";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
 import type {

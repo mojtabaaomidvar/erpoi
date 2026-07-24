@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { projectAppService } from "@features/project-management/application/ProjectApplicationService";
+import { projectAppService } from "@/features/project-management";
 import type { Project } from "@features/project-management/domain/types";
 
 interface ProjectSelectorProps {

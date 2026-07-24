@@ -6,7 +6,6 @@ import type { IAuthRepository } from "../domain/repositories/IAuthRepository";
 
 export class SupabaseAuthRepository implements IAuthRepository {
   async authenticate(credentials: LoginCredentials): Promise<AuthUser> {
-    // ۱. بررسی کاربر در دیتابیس سفارشی
     const { data: dbUser, error } = await supabase
       .schema("core")
       .from("users")
@@ -26,12 +25,10 @@ export class SupabaseAuthRepository implements IAuthRepository {
       throw new Error("INVALID_CREDENTIALS: Password is required");
     }
 
-    // ⚠️ TODO: در محیط Production، پسوردها باید Hash شده (مثلاً با bcrypt) مقایسه شوند.
     if (dbUser.password !== credentials.password) {
       throw new Error("INVALID_CREDENTIALS: Invalid username or password");
     }
 
-    // ۲. Sync با Supabase Auth (اگر Triggerها تنظیم شده باشند)
     try {
       const { error: authError } = await supabase.auth.signInWithPassword({
         email: dbUser.email,
@@ -48,7 +45,6 @@ export class SupabaseAuthRepository implements IAuthRepository {
       console.error("[SupabaseAuthRepository] Auth sync failed:", syncError);
     }
 
-    // ۳. بازگرداندن داده‌های تمیز Domain
     return {
       id: dbUser.id,
       username: dbUser.username,
@@ -57,7 +53,7 @@ export class SupabaseAuthRepository implements IAuthRepository {
       role: dbUser.role,
       department: dbUser.department,
       customPermissions: dbUser.custom_permissions || [],
-      basePermissions: [], // این مقدار در Application Layer پر می‌شود
+      basePermissions: [],
     };
   }
 
@@ -68,7 +64,6 @@ export class SupabaseAuthRepository implements IAuthRepository {
         "[SupabaseAuthRepository] Failed to sign out from Supabase Auth:",
         error,
       );
-      // خطا را پرتاب نمی‌کنیم تا فرآیند Logout محلی کاربر مختل نشود
     }
   }
 }

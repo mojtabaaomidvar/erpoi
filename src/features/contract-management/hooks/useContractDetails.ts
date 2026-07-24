@@ -89,9 +89,6 @@ export function useContractDetails(
       canTableTariffs: canAccessElement(
         ContractElements.ContractDetails.table_tariffs.id,
       ),
-      canViewFinancial: canAccessElement(
-        ContractElements.ContractDetails.stat_total_value.id,
-      ),
     }),
     [canAccessElement],
   );

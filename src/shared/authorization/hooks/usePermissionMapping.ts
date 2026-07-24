@@ -2,12 +2,11 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@shared/database/supabase";
-import type { EntityType } from "@/shared/authorization";
+import type { EntityType } from "../domain/models";
 import type { DBPermissionMapping, DBUIElement } from "@shared/database/types";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { getBasePermissions } from "../config/RoleBasePermissions";
 
-// ✅ ایمپورت از رجیستری مرکزی جدید (جایگزین فایل‌های قدیمی ui-elements)
 import {
   checkDependenciesChain,
   getAllElements,
@@ -115,6 +114,29 @@ export function usePermissionMapping() {
   // ═══════════════════════════════════════
   // 🔐 CORE LOGIC: محاسبه نهایی المان‌های مجاز
   // ═══════════════════════════════════════
+  function normalizeElementId(id: string): string[] {
+    const variants = new Set<string>();
+    const lowerId = id.toLowerCase();
+    variants.add(lowerId);
+
+    // تبدیل فرمت "Component.key" به "entity_key"
+    if (lowerId.includes(".")) {
+      const [component, key] = lowerId.split(".");
+      const entity = component.replace(
+        /(list|details|form|editmodal|modal|createmodal)$/i,
+        "",
+      );
+      variants.add(`${entity}_${key}`);
+    }
+
+    // تبدیل فرمت "entity:key" به "entity_key"
+    if (lowerId.includes(":")) {
+      variants.add(lowerId.replace(":", "_"));
+    }
+
+    return Array.from(variants);
+  }
+
   const allowedElements = useMemo((): Set<string> => {
     if (isAdmin) {
       return new Set(uiElements.map((el) => el.id));
@@ -149,10 +171,21 @@ export function usePermissionMapping() {
     });
 
     // مرحله ج: فیلتر نهایی بر اساس زنجیره وابستگی‌ها (Dependencies)
-    // اگر المانی مجاز باشد اما پیش‌نیازش مجاز نباشد، حذف می‌شود
     const allowedArray = Array.from(allowed);
     const finalAllowed = allowedArray.filter((elementId: string) => {
-      const { satisfied } = checkDependenciesChain(elementId, allowedArray);
+      const { satisfied, missing } = checkDependenciesChain(
+        elementId,
+        allowedArray,
+      );
+
+      // 🔍 دیباگ: اگر المان پروژه رد شد، دلیلش را چاپ کن
+      if (!satisfied && elementId.startsWith("project_")) {
+        console.warn(
+          `❌ [Permission] Project element REJECTED: ${elementId} | Missing dependencies:`,
+          missing,
+        );
+      }
+
       return satisfied;
     });
 
@@ -164,15 +197,32 @@ export function usePermissionMapping() {
   // ═══════════════════════════════════════
 
   const canAccess = useCallback(
-    (entity: string): boolean => {
+    (entityOrAction: string): boolean => {
       if (isAdmin) return true;
+
+      // حذف 's' انتهای کلمات برای سازگاری (مثلاً "projects" -> "project")
+      const requested = entityOrAction.toLowerCase().replace(/s$/, "");
+
       return allPermissions.some((perm: string) => {
         const variants = normalizePermission(perm);
         return variants.some((v: string) => {
           const permEntity = v.includes(":")
             ? v.split(":")[0]
             : v.split("_")[0];
-          return permEntity === entity;
+
+          if (requested.includes(":") || requested.includes("_")) {
+            // درخواست یک اکشن خاص است (مثلاً "client:create")
+            // بررسی می‌کنیم آیا این اکشن دقیقاً وجود دارد یا خیر
+            return (
+              v === requested ||
+              v === requested.replace(":", "_") ||
+              v === "*:*"
+            );
+          } else {
+            // درخواست یک ماژول کلی است (مثلاً "project")
+            // بررسی می‌کنیم آیا کاربر هیچ دسترسی‌ای به این ماژول دارد یا خیر
+            return permEntity === requested;
+          }
         });
       });
     },
@@ -189,11 +239,22 @@ export function usePermissionMapping() {
   const canAccessElement = useCallback(
     (elementId: string): boolean => {
       if (isAdmin) return true;
-      if (allowedElements.has(elementId)) return true;
 
-      // چک کردن فرمت‌های مختلف (مثلاً اگر با : پاس داده شد ولی در registry با _ ثبت شده)
-      const variants = normalizePermission(elementId);
-      return variants.some((v: string) => allowedElements.has(v));
+      const variants = normalizeElementId(elementId);
+      const hasAccess = variants.some((v) => allowedElements.has(v));
+
+      // لاگ دقیق برای عیب‌یابی نهایی
+      if (!hasAccess) {
+        console.warn(
+          `⚠️ [canAccessElement] DENIED: UI requested "${elementId}"`,
+        );
+        console.warn(`   Checked variants:`, variants);
+        console.warn(
+          `   Tip: Make sure you are using the exact ID from ProjectElements.ts (e.g., "project_list_item_view")`,
+        );
+      }
+
+      return hasAccess;
     },
     [isAdmin, allowedElements],
   );
@@ -238,6 +299,71 @@ export function usePermissionMapping() {
     },
     [uiElements, canAccessElement],
   );
+
+  // ═══════════════════════════════════════
+  // 🔍 DEBUG: لاگ برای عیب‌یابی دسترسی‌ها
+  // ═══════════════════════════════════════
+  useEffect(() => {
+    if (user) {
+      console.group("🔐 [usePermissionMapping] Debug Info");
+      console.log("👤 User:", {
+        id: user.id,
+        role: (user as any).role,
+        hasCustomPermissions: !!(user as any).customPermissions,
+        customPermissionsCount: ((user as any).customPermissions || []).length,
+      });
+      console.log(
+        "📋 Base Permissions (from role):",
+        basePermissions.length,
+        "items",
+      );
+      console.log(
+        "🎯 All Permissions (combined):",
+        allPermissions.length,
+        "items",
+      );
+      console.log("🎨 UI Elements (registered):", uiElements.length, "items");
+      console.log(
+        "✅ Allowed Elements (final):",
+        allowedElements.size,
+        "items",
+      );
+      console.log("🗺️ DB Mappings:", mappings.size, "items");
+
+      // نمونه‌ای از المان‌های مجاز
+      const sampleAllowed = Array.from(allowedElements).slice(0, 10);
+      console.log("📦 Sample Allowed Elements:", sampleAllowed);
+
+      // بررسی خاص برای project
+      const projectElements = uiElements.filter(
+        (el: any) => el._module === "project",
+      );
+      console.log("📁 Project Elements in Registry:", projectElements.length);
+      console.log(
+        "📁 Project Elements IDs:",
+        projectElements.map((el: any) => el.id).slice(0, 5),
+      );
+
+      // بررسی اینکه آیا project_list_item_view در allowedElements هست یا نه
+      console.log(
+        "🔎 'project_list_item_view' in allowedElements?",
+        allowedElements.has("project_list_item_view"),
+      );
+      console.log(
+        "🔎 'client_list_item_view' in allowedElements?",
+        allowedElements.has("client_list_item_view"),
+      );
+
+      console.groupEnd();
+    }
+  }, [
+    user,
+    basePermissions,
+    allPermissions,
+    uiElements,
+    allowedElements,
+    mappings,
+  ]);
 
   return {
     canAccess,

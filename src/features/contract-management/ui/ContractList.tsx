@@ -15,11 +15,11 @@ import {
   getDaysProgressColor,
 } from "@entities/contract/services/contractCalculations";
 import type { ActionPriority } from "../utils/contractPriority";
-import type { Contract } from "../domain"; // ✅ استفاده از تایپ جدید دامنه
+import type { Contract } from "../domain";
 
 interface ContractListProps {
-  contracts: Contract[]; // برای نمایش تعداد کل در فیلترها (بدون اعمال جستجو)
-  sortedContracts: Contract[]; // ✅ جایگزین filteredContracts (شامل جستجو، فیلتر و مرتب‌سازی)
+  contracts: Contract[];
+  sortedContracts: Contract[];
   contractPriorities?: Map<string, ActionPriority>;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -39,7 +39,7 @@ interface ContractListProps {
 
 export function ContractList({
   contracts,
-  sortedContracts, // ✅ دریافت مستقیم داده‌های پردازش‌شده از هوک
+  sortedContracts,
   contractPriorities,
   searchQuery,
   setSearchQuery,
@@ -79,7 +79,7 @@ export function ContractList({
   const canViewFinancial = canAccessElement(
     ContractElements.ContractList.list_value.id,
   );
-  const canDate = canAccessElement(ContractElements.ContractList.dates.id);
+  const canDate = canAccessElement(ContractElements.ContractList.list_dates.id);
   const canProgressBar = canAccessElement(
     ContractElements.ContractList.progress_bar.id,
   );
@@ -154,11 +154,13 @@ export function ContractList({
               >
                 Agreements
               </h2>
-              <p
-                className={`text-[10px] ${isDark ? "text-slate-400" : "text-slate-500"}`}
-              >
-                {contracts.length} total
-              </p>
+              {canViewItems && (
+                <p
+                  className={`text-[10px] ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                >
+                  {contracts.length} total
+                </p>
+              )}
             </div>
           </div>
 
@@ -463,40 +465,42 @@ export function ContractList({
                     </div>
 
                     {/* Status Badge */}
-                    <div className="shrink-0 ml-2">
-                      {isDraft ? (
-                        <div
-                          className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold ${isDark ? "bg-slate-700 text-slate-300 border border-slate-600" : "bg-slate-200 text-slate-700 border border-slate-300"}`}
-                        >
-                          <span>📝</span>
-                          <span>Draft</span>
-                        </div>
-                      ) : contract.status === "COMPLETED" ? (
-                        <Badge tone="slate" className="text-[10px]">
-                          ✓ Completed
-                        </Badge>
-                      ) : expiringInfo.expiring ? (
-                        <Badge
-                          tone="danger"
-                          className="text-[9px] gap-1 animate-pulse"
-                        >
-                          <span>⚠️</span>
-                          <span>Expiring</span>
-                        </Badge>
-                      ) : financialStatus === "not_started" ? (
-                        <Badge tone="amber" className="text-[10px]">
-                          ⏳ Not Started
-                        </Badge>
-                      ) : financialStatus === "needs_review" ? (
-                        <Badge tone="amber" className="text-[10px]">
-                          ⚠️ Review
-                        </Badge>
-                      ) : (
-                        <Badge tone="emerald" className="text-[10px]">
-                          🟢 Active
-                        </Badge>
-                      )}
-                    </div>
+                    {canStatusBadge && (
+                      <div className="shrink-0 ml-2">
+                        {isDraft ? (
+                          <div
+                            className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold ${isDark ? "bg-slate-700 text-slate-300 border border-slate-600" : "bg-slate-200 text-slate-700 border border-slate-300"}`}
+                          >
+                            <span>📝</span>
+                            <span>Draft</span>
+                          </div>
+                        ) : contract.status === "COMPLETED" ? (
+                          <Badge tone="slate" className="text-[10px]">
+                            ✓ Completed
+                          </Badge>
+                        ) : expiringInfo.expiring ? (
+                          <Badge
+                            tone="danger"
+                            className="text-[9px] gap-1 animate-pulse"
+                          >
+                            <span>⚠️</span>
+                            <span>Expiring</span>
+                          </Badge>
+                        ) : financialStatus === "not_started" ? (
+                          <Badge tone="amber" className="text-[10px]">
+                            ⏳ Not Started
+                          </Badge>
+                        ) : financialStatus === "needs_review" ? (
+                          <Badge tone="amber" className="text-[10px]">
+                            ⚠️ Review
+                          </Badge>
+                        ) : (
+                          <Badge tone="emerald" className="text-[10px]">
+                            🟢 Active
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Footer Info Section */}
@@ -637,17 +641,6 @@ export function ContractList({
             })}
           </div>
         )}
-      </div>
-
-      {/* Footer Stats */}
-      <div
-        className={`px-4 py-2.5 border-t ${isDark ? "border-slate-700/50 bg-slate-900/50" : "border-slate-200/70 bg-slate-50/50"}`}
-      >
-        <div className="flex items-center justify-between text-[10px]">
-          <span className={isDark ? "text-slate-400" : "text-slate-600"}>
-            Showing {sortedContracts.length} agreements
-          </span>
-        </div>
       </div>
     </div>
   );

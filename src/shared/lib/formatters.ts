@@ -1,9 +1,6 @@
-// src/lib/formatters.ts
-// توابع فرمت و محاسباتی قرارداد
-//  ترکیب توابع اصلی فرمت + re-export از contractCalculations
+// src/shared/lib/formatters.ts
 
 import { format } from "date-fns";
-import * as jalaali from "jalaali-js";
 
 // ============ توابع اصلی فرمت ============
 

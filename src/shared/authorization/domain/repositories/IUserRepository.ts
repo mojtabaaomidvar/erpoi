@@ -1,6 +1,6 @@
 //src/shared/authorization/domain/repositories/IUserRepository.ts
 
-import type { User, UserStatus } from "@/shared/authorization";
+import type { User, UserStatus } from "../models";
 
 export interface CreateUserPayload {
   username: string;

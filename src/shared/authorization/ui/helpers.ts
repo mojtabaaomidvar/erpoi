@@ -1,16 +1,90 @@
 // src/shared/authorization/ui/helpers.ts
 
-import { elementRegistry } from "./registry";
 import type { UIElementDefinition } from "./types";
 
-// تابع کمکی برای پیدا کردن المان هم با ID و هم با Reference
-function getElementByKey(key: string): UIElementDefinition | undefined {
-  const all = (elementRegistry as any).getAll();
-  return all.find((el: any) => el.id === key || el._reference === key);
+// ✅ ایمپورت مستقیم تمام ماژول‌های المان‌ها
+import { ClientElements } from "./elements/ClientElements";
+import { ContractElements } from "./elements/ContractElements";
+import { InspectorElements } from "./elements/InspectorElements";
+import { InspectionElements } from "./elements/InspectionElements";
+import { ProjectElements } from "./elements/ProjectElements";
+
+/**
+ * تابع کمکی برای تخت کردن ساختار تو در تو و افزودن متادیتا
+ */
+function flattenElements(
+  moduleName: string,
+  moduleData: any,
+): UIElementDefinition[] {
+  const flattened: UIElementDefinition[] = [];
+
+  for (const [pageName, pageElements] of Object.entries(moduleData)) {
+    for (const [elementKey, elementData] of Object.entries(
+      pageElements as any,
+    )) {
+      if (typeof elementData === "object" && elementData !== null) {
+        flattened.push({
+          ...(elementData as any),
+          _module: moduleName,
+          _page: pageName,
+          _elementKey: elementKey,
+          _reference: (elementData as any).id,
+        });
+      }
+    }
+  }
+  return flattened;
 }
 
+/**
+ * ✅ دریافت تمام المان‌ها
+ */
 export function getAllElements(): UIElementDefinition[] {
-  return (elementRegistry as any).getAll();
+  return [
+    ...flattenElements("client", ClientElements),
+    ...flattenElements("contract", ContractElements),
+    ...flattenElements("inspector", InspectorElements),
+    ...flattenElements("inspection", InspectionElements),
+    ...flattenElements("project", ProjectElements),
+  ];
+}
+
+/**
+ * ✅ تبدیل Reference به فرمت Component.element_key به ID واقعی (entity_element_key)
+ * مثال‌ها:
+ *   "ProjectList.list_item_view" → "project_list_item_view"
+ *   "ClientDetails.btn_edit"     → "client_btn_edit"
+ *   "ContractForm.field_type"    → "contract_field_type"
+ */
+function resolveReference(ref: string): string {
+  // اگر نقطه ندارد، احتمالاً خودش ID است
+  if (!ref.includes(".")) return ref;
+
+  const [component, elementKey] = ref.split(".");
+
+  // تبدیل نام کامپوننت به نام entity
+  // مثال: ClientList → client, ProjectDetails → project, ContractForm → contract
+  const entity = component
+    .replace(/(List|Details|Form|EditModal|Modal|CreateModal)$/i, "")
+    .toLowerCase();
+
+  return `${entity}_${elementKey}`;
+}
+
+/**
+ * پیدا کردن المان بر اساس ID یا Reference (با پشتیبانی از resolveReference)
+ */
+function getElementByKey(key: string): UIElementDefinition | undefined {
+  const all = getAllElements();
+  const resolvedKey = resolveReference(key);
+
+  return all.find(
+    (el) =>
+      el.id === key ||
+      el.id === resolvedKey ||
+      (el as any)._reference === key ||
+      (el as any)._reference === resolvedKey,
+  );
 }
 
 export function getAllDependenciesChain(
@@ -28,8 +102,9 @@ export function getAllDependenciesChain(
 
   const chain: string[] = [];
   for (const depRef of requires) {
-    const depElement = getElementByKey(depRef);
-    const depKey = depElement ? depElement.id : depRef; // تبدیل Reference به ID
+    // ✅ تبدیل Reference به ID واقعی
+    const depKey = resolveReference(depRef);
+    const depElement = getElementByKey(depKey);
 
     chain.push(depKey);
     chain.push(...getAllDependenciesChain(depKey, visited));
@@ -57,15 +132,15 @@ export function checkDependenciesChain(
   let allSatisfied = true;
 
   for (const depRef of requires) {
-    const depElement = getElementByKey(depRef);
-    const depKey = depElement ? depElement.id : depRef; // تبدیل Reference به ID برای چک کردن در Set
-
-    const isAllowed = allowedSet.has(depKey); // حالا به درستی ID را در لیست مجازها (شامل basePermissions) چک می‌کند
+    // ✅ تبدیل Reference به ID واقعی قبل از بررسی
+    const depKey = resolveReference(depRef);
+    const isAllowed = allowedSet.has(depKey) || allowedSet.has(depRef);
 
     if (!isAllowed) {
       allSatisfied = false;
-      missing.push(depRef); // نمایش Reference در UI برای خوانایی بهتر
+      missing.push(depRef);
 
+      const depElement = getElementByKey(depKey);
       if (depElement) {
         const chainResult = checkDependenciesChain(depKey, allowedSet, visited);
         if (!chainResult.satisfied) {
@@ -73,7 +148,7 @@ export function checkDependenciesChain(
         }
       }
     } else {
-      // اگر خودش مجاز است، باید وابستگی‌های فرعی آن را هم چک کنیم
+      const depElement = getElementByKey(depKey);
       if (depElement) {
         const chainResult = checkDependenciesChain(depKey, allowedSet, visited);
         if (!chainResult.satisfied) {
@@ -88,17 +163,27 @@ export function checkDependenciesChain(
 
 export function getAllChildren(elementKey: string): string[] {
   const children: string[] = [];
-  const all = (elementRegistry as any).getAll();
+  const all = getAllElements();
   const targetElement = getElementByKey(elementKey);
   const targetRef = targetElement
     ? (targetElement as any)._reference
     : elementKey;
+  const resolvedTargetKey = resolveReference(elementKey);
 
   for (const el of all) {
     const requires = (el as any)?.requires || [];
-    // چک کردن هم با Reference و هم با ID برای اطمینان کامل
-    if (requires.includes(targetRef) || requires.includes(elementKey)) {
-      children.push(el.id);
+    for (const req of requires) {
+      const resolvedReq = resolveReference(req);
+      if (
+        resolvedReq === resolvedTargetKey ||
+        resolvedReq === targetRef ||
+        resolvedReq === elementKey ||
+        req === elementKey ||
+        req === targetRef
+      ) {
+        children.push(el.id);
+        break;
+      }
     }
   }
   return children;

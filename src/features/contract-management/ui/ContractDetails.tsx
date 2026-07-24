@@ -38,10 +38,8 @@ export function ContractDetails({
 }: ContractDetailsProps) {
   const { isDark } = useTheme();
 
-  // ✅ تمام منطق و محاسبات در هوک مدیریت می‌شود
   const details = useContractDetails(contract, contractTariffs, clients);
 
-  // Stateهای Pure UI (فقط مربوط به باز/بسته بودن مودال‌ها)
   const [isAmendmentModalOpen, setIsAmendmentModalOpen] = useState(false);
   const [isArchivedCollapsed, setIsArchivedCollapsed] = useState(true);
   const [isFutureCollapsed, setIsFutureCollapsed] = useState(true);
@@ -122,6 +120,12 @@ export function ContractDetails({
   const handleAmendmentSuccess = () => {
     loadAmendments();
   };
+
+  console.log("🔍 [ContractDetails] Permissions Check:", {
+    canInfoSection: permissions.canInfoSection,
+    canTableTariffs: permissions.canTableTariffs,
+    canProgressWork: permissions.canProgressWork,
+  });
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
@@ -405,78 +409,76 @@ export function ContractDetails({
           )}
 
           {/* Stats Cards */}
-          {permissions.canViewFinancial && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {permissions.canStatTotalValue && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {permissions.canStatTotalValue && (
+              <div
+                className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-emerald-700/50 bg-gradient-to-br from-emerald-900/20 to-emerald-900/10 hover:border-emerald-600" : "border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-emerald-50/50 hover:border-emerald-300"}`}
+              >
                 <div
-                  className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-emerald-700/50 bg-gradient-to-br from-emerald-900/20 to-emerald-900/10 hover:border-emerald-600" : "border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-emerald-50/50 hover:border-emerald-300"}`}
+                  className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-emerald-400" : "text-emerald-700"}`}
                 >
-                  <div
-                    className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-emerald-400" : "text-emerald-700"}`}
-                  >
-                    Total Value
-                  </div>
-                  <div
-                    className={`text-lg font-bold truncate ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
-                  >
-                    {formatCurrency(contract.total_value, contract.currency)}
-                  </div>
+                  Total Value
                 </div>
-              )}
-              {permissions.canStatPerformedWork && (
                 <div
-                  className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-indigo-700/50 bg-gradient-to-br from-indigo-900/20 to-indigo-900/10 hover:border-indigo-600" : "border-indigo-200/70 bg-gradient-to-br from-indigo-50 to-indigo-50/50 hover:border-indigo-300"}`}
+                  className={`text-lg font-bold truncate ${isDark ? "text-emerald-300" : "text-emerald-700"}`}
                 >
-                  <div
-                    className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-indigo-400" : "text-indigo-700"}`}
-                  >
-                    Performed Work
-                  </div>
-                  <div
-                    className={`text-lg font-bold truncate ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
-                  >
-                    {formatCurrency(totalPerformedWork, contract.currency)}
-                  </div>
+                  {formatCurrency(contract.total_value, contract.currency)}
                 </div>
-              )}
-              {permissions.canStatInvoiced && (
+              </div>
+            )}
+            {permissions.canStatPerformedWork && (
+              <div
+                className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-indigo-700/50 bg-gradient-to-br from-indigo-900/20 to-indigo-900/10 hover:border-indigo-600" : "border-indigo-200/70 bg-gradient-to-br from-indigo-50 to-indigo-50/50 hover:border-indigo-300"}`}
+              >
                 <div
-                  className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-violet-700/50 bg-gradient-to-br from-violet-900/20 to-violet-900/10 hover:border-violet-600" : "border-violet-200/70 bg-gradient-to-br from-violet-50 to-violet-50/50 hover:border-violet-300"}`}
+                  className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-indigo-400" : "text-indigo-700"}`}
                 >
-                  <div
-                    className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-violet-400" : "text-violet-700"}`}
-                  >
-                    Invoiced
-                  </div>
-                  <div
-                    className={`text-lg font-bold truncate ${isDark ? "text-violet-300" : "text-violet-700"}`}
-                  >
-                    {formatCurrency(totalInvoiced)}
-                  </div>
+                  Performed Work
                 </div>
-              )}
-              {permissions.canStatNotInvoiced && (
                 <div
-                  className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-rose-700/50 bg-gradient-to-br from-rose-900/20 to-rose-900/10 hover:border-rose-600" : "border-rose-200/70 bg-gradient-to-br from-rose-50 to-rose-50/50 hover:border-rose-300"}`}
+                  className={`text-lg font-bold truncate ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
                 >
-                  <div
-                    className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-rose-400" : "text-rose-700"}`}
-                  >
-                    Not Invoiced
-                  </div>
-                  <div
-                    className={`text-lg font-bold truncate ${isDark ? "text-rose-300" : "text-rose-700"}`}
-                  >
-                    {formatCurrency(totalNotInvoiced, contract.currency)}
-                  </div>
+                  {formatCurrency(totalPerformedWork, contract.currency)}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+            {permissions.canStatInvoiced && (
+              <div
+                className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-violet-700/50 bg-gradient-to-br from-violet-900/20 to-violet-900/10 hover:border-violet-600" : "border-violet-200/70 bg-gradient-to-br from-violet-50 to-violet-50/50 hover:border-violet-300"}`}
+              >
+                <div
+                  className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-violet-400" : "text-violet-700"}`}
+                >
+                  Invoiced
+                </div>
+                <div
+                  className={`text-lg font-bold truncate ${isDark ? "text-violet-300" : "text-violet-700"}`}
+                >
+                  {formatCurrency(totalInvoiced)}
+                </div>
+              </div>
+            )}
+            {permissions.canStatNotInvoiced && (
+              <div
+                className={`rounded-xl border p-4 transition-all hover:shadow-md ${isDark ? "border-rose-700/50 bg-gradient-to-br from-rose-900/20 to-rose-900/10 hover:border-rose-600" : "border-rose-200/70 bg-gradient-to-br from-rose-50 to-rose-50/50 hover:border-rose-300"}`}
+              >
+                <div
+                  className={`text-[10px] uppercase font-semibold mb-2 ${isDark ? "text-rose-400" : "text-rose-700"}`}
+                >
+                  Not Invoiced
+                </div>
+                <div
+                  className={`text-lg font-bold truncate ${isDark ? "text-rose-300" : "text-rose-700"}`}
+                >
+                  {formatCurrency(totalNotInvoiced, contract.currency)}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Progress Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {permissions.canProgressWork && permissions.canViewFinancial && (
+            {permissions.canProgressWork && permissions.canStatTotalValue && (
               <Card
                 className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
               >
@@ -500,33 +502,34 @@ export function ContractDetails({
                 </div>
               </Card>
             )}
-            {permissions.canProgressInvoice && permissions.canViewFinancial && (
-              <Card
-                className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
-              >
-                <div
-                  className={`text-xs mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
-                >
-                  Invoice Progress
-                </div>
-                <div
-                  className={`text-lg font-bold ${getProgressTextClass(invoiceProgress)}`}
-                >
-                  {invoiceProgress.toFixed(1)}%
-                  {invoiceProgress > 100 && (
-                    <span className="text-xs ml-1">(Over)</span>
-                  )}
-                </div>
-                <div
-                  className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+            {permissions.canProgressInvoice &&
+              permissions.canStatTotalValue && (
+                <Card
+                  className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
                 >
                   <div
-                    className={`h-full rounded-full ${getProgressColor(invoiceProgress)}`}
-                    style={{ width: `${Math.min(invoiceProgress, 100)}%` }}
-                  />
-                </div>
-              </Card>
-            )}
+                    className={`text-xs mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                  >
+                    Invoice Progress
+                  </div>
+                  <div
+                    className={`text-lg font-bold ${getProgressTextClass(invoiceProgress)}`}
+                  >
+                    {invoiceProgress.toFixed(1)}%
+                    {invoiceProgress > 100 && (
+                      <span className="text-xs ml-1">(Over)</span>
+                    )}
+                  </div>
+                  <div
+                    className={`mt-2 h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+                  >
+                    <div
+                      className={`h-full rounded-full ${getProgressColor(invoiceProgress)}`}
+                      style={{ width: `${Math.min(invoiceProgress, 100)}%` }}
+                    />
+                  </div>
+                </Card>
+              )}
             {permissions.canProgressTime && (
               <Card
                 className={`rounded-xl border p-4 ${isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-200/70 bg-white"}`}
@@ -626,7 +629,7 @@ export function ContractDetails({
           </div>
 
           {/* Tariffs Table */}
-          {permissions.canTableTariffs && permissions.canViewFinancial && (
+          {permissions.canTableTariffs && permissions.canStatTotalValue && (
             <div>
               <h3
                 className={`text-sm font-bold mb-3 ${isDark ? "text-slate-100" : "text-slate-900"}`}

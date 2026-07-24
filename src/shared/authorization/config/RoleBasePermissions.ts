@@ -1,8 +1,23 @@
 // src/shared/authorization/config/RoleBasePermissions.ts
 
+// ✅ تولید دسترسی به فرمت entity_action (مثال: project_list_item_view)
 function entityActions(entity: string, actions: string[]): string[] {
   return actions.map((action) => `${entity}_${action}`);
 }
+
+// ✅ لیست تمام ماژول‌های (Entity) شناخته‌شده در سیستم برای استخراج هوشمند
+const KNOWN_ENTITIES = [
+  "client",
+  "contract",
+  "amendment",
+  "inspector",
+  "project",
+  "inspection",
+  "user",
+  "report",
+  "department",
+  "permission",
+];
 
 export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
   admin: ["*:*"],
@@ -12,7 +27,6 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
     // 👥 Clients
     // ═══════════════════════════════════════
     ...entityActions("client", [
-      // ClientList
       "list_item_view",
       "list_item_click",
       "search_box",
@@ -21,7 +35,6 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
       "total_agreement_value_badge",
       "btn_add",
       "btn_export",
-      // ClientDeatails
       "btn_edit",
       "btn_delete",
       "emails_dropdown",
@@ -35,7 +48,6 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
       "agreement_progress_work",
       "agreement_progress_invoice",
       "contract_dates",
-      // ContractDetailsModal
       "info_section",
       "info_start_date",
       "info_end_date",
@@ -57,22 +69,25 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
     // 📄 Contracts
     // ═══════════════════════════════════════
     ...entityActions("contract", [
+      // 1. List
       "list_item_view",
       "list_item_click",
       "search_box",
       "filter_type",
       "filter_status",
       "status_badge",
+      "list_dates",
       "list_value",
       "progress_bar",
       "contract_dates",
       "btn_add",
       "btn_export",
-      "btn_edit",
-      "btn_delete",
-      "btn_approve",
-      "btn_close",
+
+      // 2. Details Sections
       "info_section",
+      "amendments_section",
+
+      // 3. Details Info & Stats
       "info_start_date",
       "info_end_date",
       "stat_total_value",
@@ -84,6 +99,16 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
       "progress_time",
       "reminder_section",
       "table_tariffs",
+
+      // 4. Actions
+      "btn_edit",
+      "btn_delete",
+      "btn_approve",
+      "btn_close",
+      "btn_amend",
+      "btn_doc",
+
+      // 5. Form Fields
       "modal_add",
       "modal_edit",
       "field_type",
@@ -112,11 +137,11 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
     // 📝 Amendments & Others
     // ═══════════════════════════════════════
     ...entityActions("amendment", ["view", "create", "approve", "reject"]),
-    "user_view", // اگر user هم آندرلاین است
+    "user_view",
     "report_view",
 
     // ═══════════════════════════════════════
-    // 📝 Inpsectors
+    // 📝 Inspectors
     // ═══════════════════════════════════════
     ...entityActions("inspector", [
       "list_view",
@@ -129,7 +154,7 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
     ]),
 
     // ═══════════════════════════════════════
-    // 📁 Projects
+    // 📁 Projects (کامل و هماهنگ با ProjectElements)
     // ═══════════════════════════════════════
     ...entityActions("project", [
       "list_item_view",
@@ -137,9 +162,42 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
       "search_box",
       "filter_status",
       "btn_add",
+      "btn_export",
       "btn_edit",
       "btn_delete",
-      "details_view",
+      "basic_info_section",
+      "info_name",
+      "info_status",
+      "info_service_types",
+      "info_period",
+      "info_description",
+      "stats_section",
+      "stat_tpi_spot",
+      "stat_tpi_resident",
+      "stat_mws",
+      "stat_total_inspections",
+      "stat_completed_inspections",
+      "stat_total_man_days",
+      "progress_overall",
+      "team_section",
+      "info_pm",
+      "info_coordinator",
+      "form_view",
+      "step1_client_select",
+      "step1_contract_select",
+      "step1_service_types",
+      "step2_title_input",
+      "step2_description_input",
+      "step2_start_date",
+      "step2_end_date",
+      "step2_contract_period_ref",
+      "step2_pm_select",
+      "step2_coordinator_select",
+      "step3_review_section",
+      "btn_next",
+      "btn_back",
+      "btn_submit",
+      "btn_cancel",
     ]),
 
     // ═══════════════════════════════════════
@@ -175,17 +233,15 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
 
   expert: [
     // ═══════════════════════════════════════
-    // 👥 Clients
+    // 👥 Clients (مشاهده‌ای)
     // ═══════════════════════════════════════
     ...entityActions("client", [
-      // ClientList
       "list_item_view",
       "list_item_click",
       "search_box",
       "filter_type",
       "total_agreement_badge",
       "btn_add",
-      // ClientDeatails
       "btn_edit",
       "emails_dropdown",
       "contacts_dropdown",
@@ -193,7 +249,6 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
       "agreements_section",
       "agreement_progress_work",
       "contract_dates",
-      // ContractDetailsModal
       "info_section",
       "info_start_date",
       "info_end_date",
@@ -203,18 +258,37 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
     ]),
 
     // ═══════════════════════════════════════
-    // 📄 Contracts
+    // 📁 Projects (مشاهده‌ای)
+    // ═══════════════════════════════════════
+    ...entityActions("project", [
+      "list_item_view",
+      "list_item_click",
+      "search_box",
+      "filter_status",
+      "basic_info_section",
+      "info_name",
+      "info_status",
+      "info_service_types",
+      "info_period",
+      "info_description",
+      "stats_section",
+      "stat_tpi_spot",
+      "stat_tpi_resident",
+      "stat_mws",
+      "stat_total_inspections",
+      "stat_completed_inspections",
+      "stat_total_man_days",
+      "progress_overall",
+      "team_section",
+      "info_pm",
+      "info_coordinator",
+    ]),
+
+    // ═══════════════════════════════════════
+    // سایر ماژول‌ها (محدود)
     // ═══════════════════════════════════════
     ...entityActions("contract", []),
-
-    // ═══════════════════════════════════════
-    // 📝 Amendments & Others
-    // ═══════════════════════════════════════
     ...entityActions("amendment", []),
-
-    // ═══════════════════════════════════════
-    // 📝 Inpsectors
-    // ═══════════════════════════════════════
     ...entityActions("inspector", []),
   ],
 };
@@ -252,17 +326,25 @@ export function getBasePermissionsInfo(role: string): {
 }
 
 /**
- * لیست همه entity های موجود
+ * ✅ لیست همه entity های موجود (نسخه اصلاح‌شده و هوشمند)
+ * این تابع دیگر به split کردن رشته وابسته نیست و از لیست ماژول‌های شناخته‌شده استفاده می‌کند.
  */
 export function getAllEntities(): string[] {
   const entities = new Set<string>();
+
   Object.values(ROLE_BASE_PERMISSIONS).forEach((permissions) => {
     permissions.forEach((perm) => {
-      if (perm !== "*:*") {
-        const entity = perm.split(":")[0];
-        entities.add(entity);
+      if (perm === "*:*") return;
+
+      // بررسی می‌کنیم این دسترسی متعلق به کدام ماژول شناخته‌شده است
+      const matchedEntity = KNOWN_ENTITIES.find((entity) =>
+        perm.startsWith(`${entity}_`),
+      );
+      if (matchedEntity) {
+        entities.add(matchedEntity);
       }
     });
   });
+
   return Array.from(entities).sort();
 }

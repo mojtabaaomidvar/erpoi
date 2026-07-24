@@ -39,23 +39,27 @@ export function ClientList({
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
 
-  const permissions = {
-    viewList: canAccessElement(ClientElements.ClientList.list_item_view.id),
-    clickItem: canAccessElement(ClientElements.ClientList.list_item_click.id),
-    search: canAccessElement(ClientElements.ClientList.search_box.id),
-    filterType: canAccessElement(ClientElements.ClientList.filter_type.id),
-    badgeAgreements: canAccessElement(
-      ClientElements.ClientList.total_agreement_badge.id,
-    ),
-    badgeValue: canAccessElement(
-      ClientElements.ClientList.total_agreement_value_badge.id,
-    ),
-    add: canAccessElement(ClientElements.ClientList.btn_add.id),
-    export: canAccessElement(ClientElements.ClientList.btn_export.id),
-  };
+  const canViewItems = canAccessElement(
+    ClientElements.ClientList.list_item_view.id,
+  );
+  const canclickItem = canAccessElement(
+    ClientElements.ClientList.list_item_click.id,
+  );
+  const cansearch = canAccessElement(ClientElements.ClientList.search_box.id);
+  const canfilterType = canAccessElement(
+    ClientElements.ClientList.filter_type.id,
+  );
+  const canbadgeAgreements = canAccessElement(
+    ClientElements.ClientList.total_agreement_badge.id,
+  );
+  const canbadgeValue = canAccessElement(
+    ClientElements.ClientList.total_agreement_value_badge.id,
+  );
+  const canadd = canAccessElement(ClientElements.ClientList.btn_add.id);
+  const canexport = canAccessElement(ClientElements.ClientList.btn_export.id);
 
   const handleClientClick = (client: Client) => {
-    if (!permissions.clickItem) {
+    if (!canclickItem) {
       showToast(
         "error",
         "Access Denied",
@@ -106,12 +110,19 @@ export function ClientList({
               >
                 Clients
               </h2>
+              {canViewItems && (
+                <p
+                  className={`text-[10px] ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                >
+                  {clientCounts.total} total
+                </p>
+              )}
             </div>
           </div>
 
           {/* ✅ Conditional Buttons based on Registry */}
           <div className="flex gap-1.5">
-            {permissions.search && (
+            {cansearch && (
               <FloatingSearch
                 value={searchQuery}
                 onChange={setSearchQuery}
@@ -119,7 +130,7 @@ export function ClientList({
                 icon="🔍"
               />
             )}
-            {permissions.export && (
+            {canexport && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -130,7 +141,7 @@ export function ClientList({
                 📊
               </Button>
             )}
-            {permissions.add && (
+            {canadd && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -145,7 +156,7 @@ export function ClientList({
         </div>
       </div>
 
-      {permissions.filterType && (
+      {canfilterType && (
         <div
           className={`px-4 py-2.5 border-b ${isDark ? "border-slate-700/50 bg-slate-900/30" : "border-slate-200/70 bg-slate-50/50"}`}
         >
@@ -177,7 +188,7 @@ export function ClientList({
 
       {/* Client List Content */}
       <div className="flex-1 overflow-y-auto">
-        {!permissions.viewList ? (
+        {!canViewItems ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
             <div
               className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
@@ -229,9 +240,9 @@ export function ClientList({
                 <button
                   key={client.id}
                   onClick={() => handleClientClick(client)}
-                  disabled={!permissions.clickItem}
+                  disabled={!canclickItem}
                   className={`group relative w-full text-left rounded-xl p-3 transition-all duration-200 ${
-                    !permissions.clickItem
+                    !canclickItem
                       ? "cursor-not-allowed opacity-60"
                       : "cursor-pointer"
                   } ${
@@ -283,7 +294,7 @@ export function ClientList({
 
                       {/* Stats */}
                       <div className="flex items-center gap-3">
-                        {permissions.badgeAgreements && (
+                        {canbadgeAgreements && (
                           <div
                             className={`flex items-center gap-1 text-[10px] ${isDark ? "text-slate-400" : "text-slate-600"}`}
                           >
@@ -295,7 +306,7 @@ export function ClientList({
                           </div>
                         )}
 
-                        {permissions.badgeValue && totalValue > 0 && (
+                        {canbadgeValue && totalValue > 0 && (
                           <div
                             className={`flex items-center gap-1 text-[10px] ${isDark ? "text-emerald-400" : "text-emerald-600"}`}
                           >
@@ -317,17 +328,6 @@ export function ClientList({
             })}
           </div>
         )}
-      </div>
-
-      {/* Footer Stats */}
-      <div
-        className={`px-4 py-2.5 border-t ${isDark ? "border-slate-700/50 bg-slate-900/50" : "border-slate-200/70 bg-slate-50/50"}`}
-      >
-        <div className="flex items-center justify-between text-[10px]">
-          <span className={isDark ? "text-slate-400" : "text-slate-600"}>
-            Showing {sortedClients.length} clients
-          </span>
-        </div>
       </div>
     </div>
   );

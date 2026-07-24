@@ -1,30 +1,112 @@
+// src/shared/lib/validators.ts
+
+/**
+ * فرمت قیمت را به صورت سه رقم سه رقم با کاما جدا می‌کند
+ */
+export function formatPrice(value: number | string): string {
+  const num =
+    typeof value === "string" ? parseFloat(value.replace(/,/g, "")) : value;
+  if (isNaN(num)) return "0";
+  return num.toLocaleString("en-US");
+}
+
+/**
+ * کاماها را از رشته حذف کرده و عدد برمی‌گرداند
+ */
+export function parsePrice(value: string): number {
+  const cleaned = value.replace(/,/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+/**
+ * اعتبارسنجی شماره موبایل ایران
+ */
+export function validateMobile(mobile: string): boolean {
+  const regex = /^09[0-9]{9}$/;
+  return regex.test(mobile);
+}
+
+/**
+ * اعتبارسنجی کد ملی ایران
+ */
 export function validateNationalCode(code: string): boolean {
   if (!/^\d{10}$/.test(code)) return false;
-  const check = parseInt(code[9]);
-  const sum =
-    code
-      .split("")
-      .slice(0, 9)
-      .reduce((acc, val, i) => acc + parseInt(val) * (10 - i), 0) % 11;
-  return sum < 2 ? check === sum : check === 11 - sum;
+
+  const check = parseInt(code[9], 10);
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(code[i], 10) * (10 - i);
+  }
+  const remainder = sum % 11;
+
+  return (
+    (remainder < 2 && check === remainder) ||
+    (remainder >= 2 && check === 11 - remainder)
+  );
 }
 
+/**
+ * اعتبارسنجی شناسه ملی شرکت
+ */
 export function validateNationalId(id: string): boolean {
-  return /^\d{11}$/.test(id);
+  if (!/^\d{11}$/.test(id)) return false;
+  return true; // می‌توانید الگوریتم دقیق‌تر را اضافه کنید
 }
 
-export function validateMobile(phone: string): boolean {
-  return /^09\d{9}$/.test(phone);
+/**
+ * ✅ تبدیل تاریخ جلالی (YYYY/MM/DD) به عدد قابل مقایسه
+ */
+function jalaaliDateToNumber(date: string): number {
+  if (!date) return 0;
+  const parts = date.split("/").map((p) => parseInt(p, 10));
+  if (parts.length !== 3 || parts.some(isNaN)) return 0;
+  const [year, month, day] = parts;
+  // تبدیل به یک عدد یکتا برای مقایسه: YYYYMMDD
+  return year * 10000 + month * 100 + day;
 }
 
-export function formatPrice(value: string | number | undefined | null): string {
-  if (value === undefined || value === null) return "";
-  const number =
-    typeof value === "string" ? value.replace(/,/g, "") : value.toString();
-  if (number === "" || isNaN(Number(number))) return "";
-  return number.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+/**
+ * ✅ اعتبارسنجی بازه تاریخ (تاریخ شروع نباید بعد از تاریخ پایان باشد)
+ * @param startDate تاریخ شروع به فرمت YYYY/MM/DD
+ * @param endDate تاریخ پایان به فرمت YYYY/MM/DD
+ * @returns نتیجه اعتبارسنجی
+ */
+export function validateDateRange(
+  startDate: string,
+  endDate: string,
+): { isValid: boolean; error?: string } {
+  if (!startDate || !endDate) {
+    return { isValid: true }; // اگر یکی خالی است، اعتبارسنجی بازه لازم نیست
+  }
+
+  const startNum = jalaaliDateToNumber(startDate);
+  const endNum = jalaaliDateToNumber(endDate);
+
+  if (startNum === 0 || endNum === 0) {
+    return { isValid: false, error: "Invalid date format" };
+  }
+
+  if (startNum > endNum) {
+    return {
+      isValid: false,
+      error: "Start date cannot be after end date",
+    };
+  }
+
+  return { isValid: true };
 }
 
-export function parsePrice(formattedValue: string): number {
-  return Number(formattedValue.replace(/,/g, ""));
+/**
+ * ✅ بررسی معتبر بودن فرمت تاریخ جلالی
+ */
+export function isValidJalaaliDate(date: string): boolean {
+  if (!date) return false;
+  const parts = date.split("/").map((p) => parseInt(p, 10));
+  if (parts.length !== 3 || parts.some(isNaN)) return false;
+  const [year, month, day] = parts;
+  if (year < 1300 || year > 1500) return false;
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  return true;
 }

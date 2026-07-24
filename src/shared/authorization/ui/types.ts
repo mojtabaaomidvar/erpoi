@@ -27,23 +27,10 @@ export type UIElementType =
   | "information"
   | "search";
 
-export type UIElementCategory =
-  | "crud"
-  | "navigation"
-  | "information"
-  | "reporting"
-  | "filtering"
-  | "workflow"
-  | "approval"
-  | "security"
-  | "administration"
-  | "analytics";
-
 export interface UIElementDefinition {
   id: string;
   label: string;
   type: UIElementType;
-  category: UIElementCategory;
   requires: string[]; // Reference-based: "PageName.elementName"
   description?: string;
   icon?: string;

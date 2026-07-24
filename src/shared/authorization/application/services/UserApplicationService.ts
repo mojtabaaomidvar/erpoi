@@ -1,6 +1,6 @@
 //src/shared/authorization/application/services/UserApplicationService.ts
 
-import type { User, UserFormData } from "@/shared/authorization";
+import type { User, UserFormData } from "../../domain/models";
 import type { IUserRepository } from "../../domain/repositories/IUserRepository";
 import { authAppService } from "@/features/auth";
 import { eventBus } from "@infra/events";

@@ -15,14 +15,14 @@ import {
 } from "lucide-react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
-import { usePermission } from "@shared/authorization/hooks/usePermission";
+import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { supabase } from "@shared/database/supabase";
 
 export type ViewKey =
   | "dashboard"
   | "clients"
   | "contracts"
-  | "projects"
+  | "project"
   | "inspectors"
   | "inspections"
   | "billing"
@@ -67,10 +67,10 @@ const navItems: Array<{
     gradient: "from-violet-500 to-purple-600",
   },
   {
-    key: "projects",
+    key: "project",
     label: "Projects",
     icon: Folder,
-    entity: "projects",
+    entity: "project",
     gradient: "from-violet-500 to-purple-600",
   },
   {
@@ -118,14 +118,15 @@ export function Sidebar({
 }: SidebarProps) {
   const { isDark } = useTheme();
   const { user } = useAuth();
-  const { canAccessEntity, isAdmin } = usePermission();
+  const { canAccess, isAdmin } = usePermissionMapping();
 
   const [pendingAmendmentsCount, setPendingAmendmentsCount] = useState(0);
 
   const loadPendingAmendmentsCount = async () => {
     try {
       const { count, error } = await supabase
-        .from('contracts.contract_amendments')
+        .schema("contracts")
+        .from("contract_amendments")
         .select("*", { count: "exact", head: true })
         .eq("approval_status", "PENDING");
 
@@ -151,7 +152,7 @@ export function Sidebar({
   const visibleNavItems = navItems.filter((item) => {
     if (item.key === "dashboard") return true;
     if (!item.entity) return true;
-    return canAccessEntity(item.entity);
+    return canAccess(item.entity);
   });
 
   return (

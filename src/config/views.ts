@@ -23,7 +23,7 @@ export const views: Record<ViewKey, ViewMeta> = {
     subtitle: "Master service agreements and work orders",
   },
 
-  projects: { title: "Projects", subtitle: "Master service projects" },
+  project: { title: "Projects", subtitle: "Master service projects" },
 
   inspectors: {
     title: "Inspector Roster",

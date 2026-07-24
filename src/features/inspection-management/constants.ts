@@ -106,7 +106,7 @@ export const PRIORITY_CONFIG: Record<
   Priority,
   { label: string; color: string; icon: string }
 > = {
-  LOW: { label: "Low", color: "slate", icon: "🔽" },
+  LOW: { label: "Low", color: "", icon: "🔽" },
   NORMAL: { label: "Normal", color: "blue", icon: "➡️" },
   HIGH: { label: "High", color: "orange", icon: "️" },
   URGENT: { label: "Urgent", color: "rose", icon: "🚨" },
@@ -117,7 +117,7 @@ export const INSPECTION_CATEGORY_CONFIG: Record<
   { label: string; icon: string; color: string }
 > = {
   TPI: { label: "Third Party Inspection (TPI)", icon: "🏭", color: "indigo" },
-  MWS: { label: "Marine Warranty Survey (MWS)", icon: "🚢", color: "blue" },
+  MWS: { label: "Marine Warranty Survey (MWS)", icon: "🚢", color: "emerald" },
 };
 
 export const INSPECTION_MODE_CONFIG: Record<

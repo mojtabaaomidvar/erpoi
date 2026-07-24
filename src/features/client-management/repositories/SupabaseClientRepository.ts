@@ -1,15 +1,23 @@
-//src/features/client-management/repositories/SupabaseClientRepository.ts
+// src/features/client-management/repositories/SupabaseClientRepository.ts
 
 import { supabase } from "@shared/database/supabase";
+import {
+  applyDepartmentFilter,
+  getDepartmentFilter,
+} from "@/shared/data-access/withDepartmentFilter";
 import type { Client, ClientContact, IClientRepository } from "../domain";
 
 export class SupabaseClientRepository implements IClientRepository {
   async getAll(): Promise<Client[]> {
-    const { data, error } = await supabase
+    let query = supabase
       .schema("crm")
       .from("clients")
       .select("*")
       .order("created_at", { ascending: false });
+
+    query = applyDepartmentFilter(query, "department", true);
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("[SupabaseClientRepository] Failed to get clients:", error);
@@ -36,13 +44,12 @@ export class SupabaseClientRepository implements IClientRepository {
   }
 
   async getById(id: string): Promise<Client | null> {
-    const { data, error } = await supabase
-      .schema("crm")
-      .from("clients")
-      .select("*")
-      .eq("id", id)
-      .single();
+    let query = supabase.schema("crm").from("clients").select("*").eq("id", id);
 
+    // ✅ امنیت: حتی در دریافت تکی هم چک می‌کنیم متعلق به دپارتمان کاربر باشد
+    query = applyDepartmentFilter(query, "department", true);
+
+    const { data, error } = await query.single();
     if (error || !data) return null;
 
     const { data: contacts } = await supabase
@@ -62,12 +69,24 @@ export class SupabaseClientRepository implements IClientRepository {
       dbClient.id ||
       `c_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    const currentDept = getDepartmentFilter();
+
+    const deptToSave =
+      currentDept !== null
+        ? [currentDept]
+        : Array.isArray(dbClient.department)
+          ? dbClient.department
+          : dbClient.department
+            ? [dbClient.department]
+            : [];
+
     const { data, error } = await supabase
       .schema("crm")
       .from("clients")
       .insert({
         ...dbClient,
         id: clientId,
+        department: deptToSave,
         contact_persons: contactPersons || [],
         contacts: contactPersons?.length || 0,
       })
@@ -87,7 +106,7 @@ export class SupabaseClientRepository implements IClientRepository {
     const { contactPersons, ...clientWithoutContacts } = client;
     const dbClient = this.mapToDb(clientWithoutContacts);
 
-    const { data, error } = await supabase
+    let query = supabase
       .schema("crm")
       .from("clients")
       .update({
@@ -96,10 +115,12 @@ export class SupabaseClientRepository implements IClientRepository {
         contacts: contactPersons?.length || 0,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", id)
-      .select()
-      .single();
+      .eq("id", id);
 
+    // ✅ امنیت: کاربر فقط می‌تواند مشتری‌های دپارتمان خودش را آپدیت کند
+    query = applyDepartmentFilter(query, "department", true);
+
+    const { data, error } = await query.select().single();
     if (error) throw new Error(error.message);
 
     let updatedContacts: any[] = [];
@@ -123,20 +144,22 @@ export class SupabaseClientRepository implements IClientRepository {
   }
 
   async delete(id: string): Promise<void> {
+    let query = supabase.schema("crm").from("clients").delete().eq("id", id);
+
+    // ✅ امنیت: کاربر فقط می‌تواند مشتری‌های دپارتمان خودش را حذف کند
+    query = applyDepartmentFilter(query, "department", true);
+
+    const { error } = await query;
+    if (error) throw new Error(error.message);
+
     await supabase
       .schema("crm")
       .from("client_contacts")
       .delete()
       .eq("client_id", id);
-    const { error } = await supabase
-      .schema("crm")
-      .from("clients")
-      .delete()
-      .eq("id", id);
-    if (error) throw new Error(error.message);
   }
 
-  // --- Private Helper Methods (Mapping & Internal Logic) ---
+  // --- Private Helper Methods ---
 
   private async insertContactPersons(
     clientId: string,
@@ -179,7 +202,7 @@ export class SupabaseClientRepository implements IClientRepository {
       .schema("crm")
       .from("clients")
       .select(
-        "id, name_en, name_fa, type, national_id, departments, contact_persons, emails",
+        "id, name_en, name_fa, type, national_id, department, contact_persons, emails",
       )
       .eq("national_id", nationalId);
 
@@ -204,8 +227,12 @@ export class SupabaseClientRepository implements IClientRepository {
       national_id: dbClient.national_id || "",
       phone: dbClient.phone || "",
       email: dbClient.email || "",
-      emails: dbClient.emails || [],
-      departments: dbClient.departments || [],
+      departments: Array.isArray(dbClient.department)
+        ? dbClient.department
+        : dbClient.department
+          ? [dbClient.department]
+          : dbClient.departments || [],
+
       contactPersons: (contacts || []).map((cp: any) => ({
         id: cp.id,
         name: cp.name,
@@ -215,7 +242,7 @@ export class SupabaseClientRepository implements IClientRepository {
         department: cp.department || "",
       })),
       logoColor: dbClient.logo_color || "from-blue-500 to-purple-600",
-      contracts: 0, // This is calculated in UI/App layer
+      contracts: 0,
       contacts: contacts?.length || 0,
       registration_no: dbClient.registration_no,
       economic_code: dbClient.economic_code,
@@ -237,7 +264,12 @@ export class SupabaseClientRepository implements IClientRepository {
       phone: client.phone,
       email: client.email,
       emails: client.emails || [],
-      departments: client.departments || [],
+      department: Array.isArray(client.departments)
+        ? client.departments
+        : client.departments
+          ? [client.departments]
+          : [],
+
       logo_color: client.logoColor,
       registration_no: client.registration_no,
       economic_code: client.economic_code,
