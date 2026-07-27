@@ -1,3 +1,5 @@
+// src/features/inspector-managment/ui/InspectorDeatilsModal.tsx
+
 import { Modal, Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import type { Inspector } from "../domain";

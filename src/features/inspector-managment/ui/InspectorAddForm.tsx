@@ -3,6 +3,7 @@
 import { Modal, Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import type { Inspector, InspectorType } from "../domain";
+import { INSPECTOR_SPECIALTY_OPTIONS } from "../domain/models/Inspector";
 import { useInspectorForm } from "../hooks/useInspectorForm";
 
 interface InspectorAddFormProps {
@@ -72,7 +73,6 @@ export function InspectorAddForm({
 }: InspectorAddFormProps) {
   const { isDark } = useTheme();
 
-  // ✅ تمام منطق و State در هوک مدیریت می‌شود
   const {
     currentStep,
     isSaving,
@@ -274,24 +274,8 @@ export function InspectorAddForm({
                   Specialties {!isAdmin && "*"}
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {[
-                    "General",
-                    "Telecommunication",
-                    "Architecture",
-                    "Piping",
-                    "Instrumentation",
-                    "Mechanical",
-                    "Electrical",
-                    "Process",
-                    "Welding",
-                    "HVAC",
-                    "Civil",
-                    "Coating",
-                    "NDT",
-                    "Structure",
-                    "Material",
-                    "MWS",
-                  ].map((spec) => (
+                  {/* ✅ جایگزینی آرایه هاردکد شده با ثابت تعریف‌شده در Domain */}
+                  {INSPECTOR_SPECIALTY_OPTIONS.map((spec) => (
                     <button
                       key={spec}
                       type="button"

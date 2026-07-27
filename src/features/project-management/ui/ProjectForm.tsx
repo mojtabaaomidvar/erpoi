@@ -5,7 +5,6 @@ import { Modal, Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
-import { ProjectElements } from "@shared/authorization/ui/elements/ProjectElements";
 import { showToast } from "@shared/ui/ToastContainer";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
 import type { Project } from "../domain/types";
@@ -13,7 +12,7 @@ import { INSPECTION_CATEGORY_CONFIG } from "@features/inspection-management/cons
 import { CreateProjectSchema } from "../application/dto/CreateProjectCommand";
 import { useProjectForm } from "../hooks/useProjectForm";
 import { validateDateRange } from "@shared/lib/validators";
-import { compareJalaliDates, getTodayJalali } from "../utils/projectDateUtils";
+import { getTodayJalali, compareJalaliDates } from "@/shared/utils/dateUtils";
 
 export type InspectionCategory = "TPI" | "MWS" | "TPER" | "Other";
 
@@ -42,9 +41,10 @@ export function ProjectForm({
   onSave,
   initialData,
 }: ProjectFormProps) {
+  // ✅ ۱. تمام هوک‌ها باید در بالاترین سطح و قبل از هر return شرطی باشند
   const { isDark } = useTheme();
   const { user } = useAuth();
-  const { canAccessElement } = usePermissionMapping(); // ✅ هوک دسترسی
+  const { canAccessElement } = usePermissionMapping();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -97,12 +97,10 @@ export function ProjectForm({
         (c: any) => c.id === formData.contract_id,
       );
       if (contract) {
-        // ✅ بررسی انقضای قرارداد در پس‌زمینه
         const today = getTodayJalali();
         const isExpired = compareJalaliDates(today, contract.end_date) > 0;
         setIsContractExpired(isExpired);
 
-        // پر کردن خودکار تاریخ‌ها
         setFormData((prev) => ({
           ...prev,
           start_date: prev.start_date || contract.start_date || "",
@@ -175,6 +173,31 @@ export function ProjectForm({
     }
   }, [formData.project_manager_id, formData.coordinator_id, users]);
 
+  // ✅ ۲. بررسی دسترسی باید بعد از تمام هوک‌ها انجام شود
+  const canViewForm =
+    canAccessElement("project_form_view") || canAccessElement("project_create");
+
+  if (!canViewForm) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Access Denied" size="xl">
+        <div className="p-8 text-center">
+          <p className="text-rose-500 font-semibold">
+            You do not have permission to view or edit this project.
+          </p>
+        </div>
+      </Modal>
+    );
+  }
+
+  if (isDataLoading) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Loading..." size="xl">
+        <div className="p-8 text-center">Loading form data...</div>
+      </Modal>
+    );
+  }
+
+  // ... (توابع کمکی بدون تغییر)
   const isServiceTypeAvailable = (type: InspectionCategory): boolean => {
     if (comingSoonServices.includes(type)) return false;
     return availableServiceTypes.includes(type);
@@ -192,19 +215,16 @@ export function ProjectForm({
 
   const validateStep = () => {
     const newErrors: any = {};
-
     if (currentStep === 1) {
       if (!formData.client_id) newErrors.client_id = "Client is required";
       if (!formData.contract_id) newErrors.contract_id = "Contract is required";
-      if (formData.service_types.length === 0) {
+      if (formData.service_types.length === 0)
         newErrors.service_types = "At least one service type is required";
-      }
       const invalidTypes = formData.service_types.filter(
         (type) => !availableServiceTypes.includes(type),
       );
-      if (invalidTypes.length > 0) {
+      if (invalidTypes.length > 0)
         newErrors.service_types = "Invalid service types selected";
-      }
     } else if (currentStep === 2) {
       if (!formData.name.trim()) newErrors.name = "Project title is required";
       if (!formData.project_manager_id)
@@ -212,19 +232,22 @@ export function ProjectForm({
       if (!formData.coordinator_id)
         newErrors.coordinator_id = "Coordinator is required";
 
+      const selectedContract = contracts.find(
+        (c: any) => c.id === formData.contract_id,
+      );
       if (formData.contract_id && selectedContract) {
         if (
           formData.start_date &&
           compareJalaliDates(formData.start_date, selectedContract.start_date) <
             0
         ) {
-          newErrors.start_date = `Start date cannot be before the contract start date (${selectedContract.start_date}).`;
+          newErrors.start_date = `Start date cannot be before contract start (${selectedContract.start_date}).`;
         }
         if (
           formData.end_date &&
           compareJalaliDates(formData.end_date, selectedContract.end_date) > 0
         ) {
-          newErrors.end_date = `End date cannot be after the contract end date (${selectedContract.end_date}).`;
+          newErrors.end_date = `End date cannot be after contract end (${selectedContract.end_date}).`;
         }
       }
 
@@ -232,15 +255,10 @@ export function ProjectForm({
         formData.start_date,
         formData.end_date,
       );
-      if (!dateValidation.isValid) {
-        newErrors.end_date = dateValidation.error;
-      }
-
-      if (errors.coordinator_id) {
+      if (!dateValidation.isValid) newErrors.end_date = dateValidation.error;
+      if (errors.coordinator_id)
         newErrors.coordinator_id = errors.coordinator_id;
-      }
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -248,7 +266,6 @@ export function ProjectForm({
   const handleNext = () => {
     if (validateStep()) setCurrentStep((prev) => Math.min(prev + 1, 3));
   };
-
   const handlePrev = () => {
     if (currentStep > 1) setCurrentStep((prev) => prev - 1);
   };
@@ -266,10 +283,7 @@ export function ProjectForm({
 
     setIsSubmitting(true);
     try {
-      const payload = {
-        ...formData,
-        created_by: user?.id || "unknown",
-      };
+      const payload = { ...formData, created_by: user?.id || "unknown" };
       CreateProjectSchema.parse(payload);
       await onSave(payload);
     } catch (err: any) {
@@ -292,22 +306,7 @@ export function ProjectForm({
   );
   const coordinator = users.find((u) => u.id === formData.coordinator_id);
 
-  <Modal isOpen={isOpen} onClose={onClose} title="Access Denied" size="xl">
-    <div className="p-8 text-center">
-      <p className="text-rose-500 font-semibold">
-        You do not have permission to view or edit this project.
-      </p>
-    </div>
-  </Modal>;
-
-  if (isDataLoading) {
-    return (
-      <Modal isOpen={isOpen} onClose={onClose} title="Loading..." size="xl">
-        <div className="p-8 text-center">Loading form data...</div>
-      </Modal>
-    );
-  }
-
+  // ✅ ۳. رندر اصلی کامپوننت
   return (
     <Modal
       isOpen={isOpen}
@@ -324,24 +323,12 @@ export function ProjectForm({
                 className="flex flex-col items-center flex-1 relative"
               >
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all z-10 ${
-                    currentStep >= step
-                      ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg"
-                      : isDark
-                        ? "bg-slate-700 text-slate-400"
-                        : "bg-slate-200 text-slate-500"
-                  }`}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all z-10 ${currentStep >= step ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg" : isDark ? "bg-slate-700 text-slate-400" : "bg-slate-200 text-slate-500"}`}
                 >
                   {currentStep > step ? "✓" : step}
                 </div>
                 <span
-                  className={`text-[10px] mt-1.5 font-medium ${
-                    currentStep >= step
-                      ? isDark
-                        ? "text-indigo-300"
-                        : "text-indigo-600"
-                      : "text-slate-500"
-                  }`}
+                  className={`text-[10px] mt-1.5 font-medium ${currentStep >= step ? (isDark ? "text-indigo-300" : "text-indigo-600") : "text-slate-500"}`}
                 >
                   {step === 1
                     ? "Contract & Services"
@@ -351,13 +338,7 @@ export function ProjectForm({
                 </span>
                 {step < 3 && (
                   <div
-                    className={`absolute top-5 left-1/2 w-full h-0.5 -z-0 ${
-                      currentStep > step
-                        ? "bg-gradient-to-r from-indigo-500 to-violet-600"
-                        : isDark
-                          ? "bg-slate-700"
-                          : "bg-slate-200"
-                    }`}
+                    className={`absolute top-5 left-1/2 w-full h-0.5 -z-0 ${currentStep > step ? "bg-gradient-to-r from-indigo-500 to-violet-600" : isDark ? "bg-slate-700" : "bg-slate-200"}`}
                   />
                 )}
               </div>
@@ -384,9 +365,7 @@ export function ProjectForm({
                     setErrors({});
                     setIsContractExpired(false);
                   }}
-                  className={`w-full rounded-lg px-3 py-2.5 text-sm input-themed ${
-                    errors.client_id ? "border-rose-500" : ""
-                  }`}
+                  className={`w-full rounded-lg px-3 py-2.5 text-sm input-themed ${errors.client_id ? "border-rose-500" : ""}`}
                 >
                   <option value="">-- Select Client --</option>
                   {clients.map((client: any) => (
@@ -431,7 +410,6 @@ export function ProjectForm({
                     to create a new project unless renewed.
                   </p>
                 )}
-
                 {errors.contract_id && !isContractExpired && (
                   <p className="text-[11px] text-rose-600 mt-1">
                     ✕ {errors.contract_id}
@@ -441,12 +419,11 @@ export function ProjectForm({
 
               <div>
                 <label className="block text-xs font-semibold mb-1.5 text-primary">
-                  Service Types <span className="text-rose-500">*</span>
+                  Service Types <span className="text-rose-500">*</span>{" "}
                   <span className="text-[10px] font-normal text-slate-500 ml-1">
                     (Based on selected contract)
                   </span>
                 </label>
-
                 <div className="grid grid-cols-2 gap-2">
                   {allServiceTypes.map((type) => {
                     const isAvailable = isServiceTypeAvailable(type);
@@ -456,47 +433,33 @@ export function ProjectForm({
                       INSPECTION_CATEGORY_CONFIG[
                         type as keyof typeof INSPECTION_CATEGORY_CONFIG
                       ];
-
-                    // ✅ اگر قرارداد منقضی باشد، همه سرویس‌ها غیرفعال می‌شوند
                     const isDisabled = !isAvailable || isContractExpired;
-
                     return (
-                      <div key={type} className="relative group">
-                        <button
-                          type="button"
-                          // ✅ غیرفعال کردن عملکردی (اگر قرارداد منقضی باشد یا سرویس در دسترس نباشد)
-                          disabled={isDisabled}
-                          onClick={() => handleServiceTypeToggle(type)}
-                          // ✅ بازخورد بصری کامل
-                          className={`w-full py-2.5 rounded-lg text-xs font-semibold border transition-all flex flex-col items-center gap-1 ${
-                            isDisabled
-                              ? "opacity-60 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-500"
-                              : isSelected
-                                ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
-                                : "bg-white border-slate-200 text-slate-600 hover:border-indigo-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
-                          }`}
-                        >
-                          <span className="text-sm">
-                            {config?.icon || (type === "TPER" ? "🔍" : "📦")}{" "}
-                            {config?.label || type}
+                      <button
+                        key={type}
+                        type="button"
+                        disabled={isDisabled}
+                        onClick={() => handleServiceTypeToggle(type)}
+                        className={`w-full py-2.5 rounded-lg text-xs font-semibold border transition-all flex flex-col items-center gap-1 ${isDisabled ? "opacity-60 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-500" : isSelected ? "bg-indigo-600 text-white border-indigo-600 shadow-md" : "bg-white border-slate-200 text-slate-600 hover:border-indigo-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"}`}
+                      >
+                        <span className="text-sm">
+                          {config?.icon || (type === "TPER" ? "🔍" : "📦")}{" "}
+                          {config?.label || type}
+                        </span>
+                        {isComingSoon && !isContractExpired && (
+                          <span className="text-[9px] opacity-80">
+                            Coming Soon
                           </span>
-                          {isComingSoon && !isContractExpired && (
-                            <span className="text-[9px] opacity-80">
-                              Coming Soon
-                            </span>
-                          )}
-                        </button>
-                      </div>
+                        )}
+                      </button>
                     );
                   })}
                 </div>
-
                 {errors.service_types && (
                   <p className="text-[11px] text-rose-600 mt-1">
                     ✕ {errors.service_types}
                   </p>
                 )}
-
                 {availableServiceTypes.length === 0 && formData.contract_id && (
                   <p className="text-[10px] mt-1.5 text-amber-600 dark:text-amber-400 flex items-center gap-1">
                     <span>ℹ️</span> No service types are defined for this
@@ -544,9 +507,8 @@ export function ProjectForm({
                 />
               </div>
 
-              {/* ✅ بخش تاریخ‌ها با Z-Index بالا و ابعاد کوچک‌تر */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="relative z-[9999]">
+                <div>
                   <label className="block text-xs font-semibold mb-1.5 text-primary">
                     Start Date
                   </label>
@@ -556,7 +518,6 @@ export function ProjectForm({
                       setFormData({ ...formData, start_date: date })
                     }
                     placeholder="Select date"
-                    className="z-[9999] w-full scale-90 origin-top-left"
                   />
                   {errors.start_date && (
                     <p className="text-[11px] text-rose-600 mt-1">
@@ -564,7 +525,7 @@ export function ProjectForm({
                     </p>
                   )}
                 </div>
-                <div className="relative z-[9999]">
+                <div>
                   <label className="block text-xs font-semibold mb-1.5 text-primary">
                     End Date
                   </label>
@@ -574,7 +535,6 @@ export function ProjectForm({
                       setFormData({ ...formData, end_date: date })
                     }
                     placeholder="Select date"
-                    className={`z-[9999] w-full scale-90 origin-top-left ${errors.end_date ? "border-rose-500" : ""}`}
                   />
                   {errors.end_date && (
                     <p className="text-[11px] text-rose-600 mt-1 font-semibold">
@@ -584,7 +544,6 @@ export function ProjectForm({
                 </div>
               </div>
 
-              {/* ✅ نمایش تاریخ قرارداد برای مرجع کاربر */}
               {selectedContract &&
                 (selectedContract.start_date || selectedContract.end_date) && (
                   <div
@@ -756,11 +715,7 @@ export function ProjectForm({
                   type="button"
                   onClick={handleNext}
                   disabled={isContractExpired}
-                  className={`gap-2 transition-all ${
-                    isContractExpired
-                      ? "bg-slate-400 text-slate-200 cursor-not-allowed opacity-60"
-                      : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/30"
-                  }`}
+                  className={`gap-2 transition-all ${isContractExpired ? "bg-slate-400 text-slate-200 cursor-not-allowed opacity-60" : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/30"}`}
                 >
                   Next Step →
                 </Button>

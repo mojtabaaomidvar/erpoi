@@ -285,6 +285,41 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
     ]),
 
     // ═══════════════════════════════════════
+    // 🏭 TPI (Third Party Inspection)
+    // ═══════════════════════════════════════
+    ...entityActions("tpi", [
+      // List
+      "list_item_view",
+      "list_item_click",
+      "search_box",
+      "filter_mode",
+      "btn_add",
+      // Form
+      "form_view",
+      "select_project",
+      "select_mode",
+      "select_vendor",
+      "select_site_rep",
+      "select_service_domain",
+      "input_scope",
+      "input_date",
+      "select_priority",
+      "btn_submit",
+      "btn_cancel",
+      // Details
+      "details_view",
+      "btn_edit",
+      "btn_delete",
+      "info_section",
+      "documents_section",
+      "inspector_section",
+      "checklist_section",
+      "ncr_section",
+      "report_section",
+      "release_note_section",
+    ]),
+
+    // ═══════════════════════════════════════
     // سایر ماژول‌ها (محدود)
     // ═══════════════════════════════════════
     ...entityActions("contract", []),

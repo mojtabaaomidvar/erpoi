@@ -1,7 +1,9 @@
+// src/features/inspector-managment/ui/InspectorList.tsx
 import { useMemo } from "react";
 import { Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import type { Inspector, InspectorType, InspectorStatus } from "../domain";
+import type { Inspection } from "@/features/inspection-management/domain/types";
 import { InspectorElements } from "@shared/authorization/ui/elements/InspectorElements";
 import { usePermissionMapping } from "@/shared/authorization";
 
@@ -14,6 +16,7 @@ const STATUS_COLORS: Record<
   ON_LEAVE: "slate",
   INACTIVE: "danger",
 };
+
 const STATUS_LABELS: Record<InspectorStatus, string> = {
   AVAILABLE: "Available",
   ON_MISSION: "On Mission",
@@ -39,6 +42,8 @@ interface InspectorListProps {
   onInspectorClick: (inspector: Inspector) => void;
   onAddClick: () => void;
   loading?: boolean;
+  // ✅ Prop جدید: برنامه‌های آینده بازرس‌ها (کلید: inspector_id)
+  upcomingAssignments?: Record<string, Inspection[]>;
 }
 
 function StatCard({
@@ -79,25 +84,82 @@ function StatCard({
   );
 }
 
+// ✅ کامپوننت کمکی برای نمایش نشانگر برنامه‌های آینده
+function UpcomingAssignmentsBadge({
+  assignments,
+  isDark,
+}: {
+  assignments: Inspection[];
+  isDark: boolean;
+}) {
+  // مرتب‌سازی بر اساس تاریخ (زودترین ابتدا)
+  const sorted = [...assignments].sort((a, b) => {
+    if (!a.execution_date) return 1;
+    if (!b.execution_date) return -1;
+    return a.execution_date.localeCompare(b.execution_date);
+  });
+
+  const visible = sorted.slice(0, 2);
+  const remaining = sorted.length - visible.length;
+
+  return (
+    <div className="flex flex-wrap gap-1 mt-1.5">
+      {visible.map((assignment, idx) => (
+        <span
+          key={idx}
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+            isDark
+              ? "bg-indigo-900/30 text-indigo-300 border border-indigo-800/50"
+              : "bg-indigo-50 text-indigo-700 border border-indigo-200"
+          }`}
+          title={
+            assignment.location ? `📍 ${assignment.location}` : "Inspection"
+          }
+        >
+          📅{" "}
+          {new Date(assignment.execution_date!).toLocaleDateString(
+            "fa-IR-u-nu-latn",
+          )}
+        </span>
+      ))}
+      {remaining > 0 && (
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
+            isDark
+              ? "bg-slate-700 text-slate-300"
+              : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          +{remaining} more
+        </span>
+      )}
+    </div>
+  );
+}
+
 function InspectorRow({
   inspector,
   isDark,
   onClick,
   canClick,
+  upcomingAssignments,
 }: {
   inspector: Inspector;
   isDark: boolean;
   onClick: () => void;
   canClick: boolean;
+  upcomingAssignments?: Inspection[];
 }) {
+  const hasUpcoming = upcomingAssignments && upcomingAssignments.length > 0;
+
   return (
     <div
       className={`px-4 py-3 flex items-center justify-between transition-colors ${canClick ? "hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer" : "cursor-not-allowed opacity-60"}`}
       onClick={canClick ? onClick : undefined}
     >
-      <div className="flex items-center gap-3 flex-1">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
         <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${isDark ? "bg-indigo-900/50 text-indigo-300" : "bg-indigo-100 text-indigo-700"}`}
+          className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isDark ? "bg-indigo-900/50 text-indigo-300" : "bg-indigo-100 text-indigo-700"}`}
         >
           {inspector.name_en
             .split(" ")
@@ -119,10 +181,12 @@ function InspectorRow({
               }
               className="text-[9px]"
             >
-              {inspector.inspector_type === "ICS_MEMBER" ? "ICS" : "FL"}
+              {inspector.inspector_type === "ICS_MEMBER"
+                ? "ICS Member"
+                : "Freelancer"}
             </Badge>
           </div>
-          <div className="flex items-center gap-2 text-[11px]">
+          <div className="flex items-center gap-2 text-[11px] flex-wrap">
             <span className={isDark ? "text-slate-400" : "text-slate-500"}>
               📞 {inspector.phone || "N/A"}
             </span>
@@ -132,6 +196,20 @@ function InspectorRow({
             <span className={isDark ? "text-slate-400" : "text-slate-500"}>
               ⭐ {inspector.rating.toFixed(1)}
             </span>
+            {inspector.specialties && inspector.specialties.length > 0 && (
+              <>
+                <span className={isDark ? "text-slate-500" : "text-slate-400"}>
+                  •
+                </span>
+                <span
+                  className={`text-[10px] truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                >
+                  🎯 {inspector.specialties.slice(0, 2).join(", ")}
+                  {inspector.specialties.length > 2 &&
+                    ` +${inspector.specialties.length - 2}`}
+                </span>
+              </>
+            )}
             {inspector.resume_url && (
               <>
                 <span className={isDark ? "text-slate-500" : "text-slate-400"}>
@@ -141,9 +219,32 @@ function InspectorRow({
               </>
             )}
           </div>
+          {/* ✅ نمایش نشانگر برنامه‌های آینده */}
+          {hasUpcoming && (
+            <UpcomingAssignmentsBadge
+              assignments={upcomingAssignments!}
+              isDark={isDark}
+            />
+          )}
         </div>
       </div>
-      <Badge tone={STATUS_COLORS[inspector.status]} className="text-[10px]">
+      {hasUpcoming && (
+        <Badge tone="indigo" className="text-[9px]">
+          📋 {upcomingAssignments.length} scheduled
+        </Badge>
+      )}
+      {!hasUpcoming && inspector.status === "AVAILABLE" && (
+        <Badge
+          tone="emerald"
+          className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium"
+        >
+          ✅ Free
+        </Badge>
+      )}
+      <Badge
+        tone={STATUS_COLORS[inspector.status]}
+        className="text-[10px] shrink-0 ml-2"
+      >
         {STATUS_LABELS[inspector.status]}
       </Badge>
     </div>
@@ -163,6 +264,7 @@ export function InspectorList({
   onInspectorClick,
   onAddClick,
   loading = false,
+  upcomingAssignments = {}, // ✅ مقدار پیش‌فرض خالی
 }: InspectorListProps) {
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
@@ -270,6 +372,7 @@ export function InspectorList({
                 isDark={isDark}
                 onClick={() => onInspectorClick(insp)}
                 canClick={canClickItem}
+                upcomingAssignments={upcomingAssignments[insp.id]}
               />
             ))}
           </div>

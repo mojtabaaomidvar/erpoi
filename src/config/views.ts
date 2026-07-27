@@ -33,6 +33,12 @@ export const views: Record<ViewKey, ViewMeta> = {
     title: "Inspection Workflow",
     subtitle: "5-step pipeline from request to completion",
   },
+
+  tpi: {
+    title: "Third Party Inspection",
+    subtitle: "5-step pipeline from request to completion",
+  },
+
   billing: {
     title: "Billing & Invoices",
     subtitle: "Financial records tied to completed inspections",

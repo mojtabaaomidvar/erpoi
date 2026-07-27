@@ -1,10 +1,13 @@
 // src/shared/ui/JalaaliDatePicker.tsx
 
+import { useState } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import DatePicker from "react-multi-date-picker";
 import DateObject from "react-date-object";
 import persian from "react-date-object/calendars/persian";
 import persian_en from "react-date-object/locales/persian_en";
+import gregorian from "react-date-object/calendars/gregorian";
+import gregorian_en from "react-date-object/locales/gregorian_en";
 
 interface JalaaliDatePickerProps {
   value: string;
@@ -27,73 +30,110 @@ export function JalaaliDatePicker({
 }: JalaaliDatePickerProps) {
   const { isDark } = useTheme();
 
-  // ✅ تبدیل ایمن رشته جلالی به DateObject
-  const stringToDateObject = (jDate: string): DateObject | undefined => {
-    if (!jDate) return undefined;
+  const [activeCalendar, setActiveCalendar] = useState<"jalali" | "gregorian">(
+    "jalali",
+  );
+
+  const currentCalendar = activeCalendar === "jalali" ? persian : gregorian;
+  const currentLocale = activeCalendar === "jalali" ? persian_en : gregorian_en;
+
+  const smartParseDate = (
+    dateStr: string,
+    targetCal: typeof persian | typeof gregorian,
+    targetLoc: any,
+  ): DateObject | undefined => {
+    if (!dateStr) return undefined;
     try {
-      const parts = jDate.split("/");
+      const parts = dateStr.split("/");
       if (parts.length !== 3) return undefined;
 
       const year = Number(parts[0]);
-      const month = Number(parts[1]); // عدد ۱ تا ۱۲ (کتابخانه خودش ایندکس را مدیریت می‌کند)
+      const month = Number(parts[1]);
       const day = Number(parts[2]);
 
       if (!year || !month || !day) return undefined;
 
-      return new DateObject({
+      const isLikelyGregorian = year > 1500;
+      const sourceCal = isLikelyGregorian ? gregorian : persian;
+      const sourceLoc = isLikelyGregorian ? gregorian_en : persian_en;
+
+      const sourceDateObj = new DateObject({
         year,
         month,
         day,
-        calendar: persian,
-        locale: persian_en,
+        calendar: sourceCal,
+        locale: sourceLoc,
+      });
+
+      if (sourceCal === targetCal) return sourceDateObj;
+
+      return new DateObject({
+        date: sourceDateObj,
+        calendar: targetCal,
+        locale: targetLoc,
       });
     } catch {
       return undefined;
     }
   };
 
-  // ✅ هندلر انتخاب تاریخ با استفاده از متد داخلی format (حذف باگ یک ماه اختلاف)
   const handleSelect = (date: any) => {
     if (!date) {
       onChange("");
       return;
     }
 
-    // اگر کاربر بازه انتخاب کرد، فقط تاریخ اول را در نظر می‌گیریم
     const selectedDate = Array.isArray(date) ? date[0] : date;
 
     if (selectedDate) {
-      // 🔑 کلید حل مشکل: استفاده از متد format خود کتابخانه
-      // این متد به صورت ذاتی تقویم و لوکال را می‌شناسد و باگ‌های 0-index یا 1-index را ندارد
+      let dateObj: DateObject;
       if (typeof selectedDate.format === "function") {
-        onChange(selectedDate.format("YYYY/MM/DD"));
+        dateObj = selectedDate;
       } else {
-        // Fallback نهایی برای اطمینان صددرصد
-        const d = new DateObject({
+        dateObj = new DateObject({
           date: selectedDate,
-          calendar: persian,
-          locale: persian_en,
+          calendar: currentCalendar,
+          locale: currentLocale,
         });
-        onChange(d.format("YYYY/MM/DD"));
       }
+
+      const jalaliDateObj = new DateObject({
+        date: dateObj,
+        calendar: persian,
+        locale: persian_en,
+      });
+
+      onChange(jalaliDateObj.format("YYYY/MM/DD"));
     }
+  };
+
+  const handleToggleCalendar = () => {
+    setActiveCalendar((prev) => (prev === "jalali" ? "gregorian" : "jalali"));
   };
 
   return (
     <div className={`w-full relative ${className}`}>
       <DatePicker
-        calendar={persian}
-        locale={persian_en} // نمایش روزهای هفته به انگلیسی (Sat, Sun, ...)
-        value={stringToDateObject(value)}
+        calendar={currentCalendar}
+        locale={currentLocale}
+        value={smartParseDate(value, currentCalendar, currentLocale)}
         onChange={handleSelect}
-        minDate={minDate ? stringToDateObject(minDate) : undefined}
-        maxDate={maxDate ? stringToDateObject(maxDate) : undefined}
+        minDate={
+          minDate
+            ? smartParseDate(minDate, currentCalendar, currentLocale)
+            : undefined
+        }
+        maxDate={
+          maxDate
+            ? smartParseDate(maxDate, currentCalendar, currentLocale)
+            : undefined
+        }
         placeholder={placeholder}
         disabled={disabled}
         format="YYYY/MM/DD"
         calendarPosition="bottom-right"
-        portal // ✅ رندر مستقیم در body برای جلوگیری از رفتن به زیر مودال
-        inputClass={`w-full rounded-lg py-2.5 px-3 text-sm text-left font-sans input-themed transition-colors outline-none cursor-pointer ${
+        portal
+        inputClass={`w-full rounded-lg py-2.5 pl-10 pr-3 text-sm text-left font-sans input-themed transition-colors outline-none cursor-pointer ${
           isDark
             ? "border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             : "border-slate-300 bg-white text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
@@ -101,6 +141,29 @@ export function JalaaliDatePicker({
         containerClassName="w-full"
         style={{ width: "100%" }}
       />
+
+      {!disabled && (
+        <button
+          type="button"
+          onClick={handleToggleCalendar}
+          className={`absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-colors ${
+            isDark
+              ? "text-slate-400 hover:text-indigo-400 hover:bg-slate-700"
+              : "text-slate-500 hover:text-indigo-600 hover:bg-slate-100"
+          }`}
+          title={
+            activeCalendar === "jalali"
+              ? "Switch to Gregorian"
+              : "Switch to Jalali"
+          }
+        >
+          {activeCalendar === "jalali" ? (
+            <span className="text-[10px] font-bold tracking-wider">FA</span>
+          ) : (
+            <span className="text-[10px] font-bold tracking-wider">EN</span>
+          )}
+        </button>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 // src/pages/Inspectors.tsx
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { InspectorElements } from "@shared/authorization/ui/elements/InspectorElements";
@@ -13,11 +13,42 @@ import { useInspectors } from "@/features/inspector-managment/hooks/useInspector
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 import { showToast } from "@shared/ui/ToastContainer";
 import type { Inspector } from "@/features/inspector-managment/domain";
+import { inspectionAppService } from "@/features/inspection-management/application";
+import type { Inspection } from "@/features/inspection-management/domain/types";
 
 export function Inspectors() {
   const { isDark } = useTheme();
   const { user } = useAuth();
   const { canAccessElement } = usePermissionMapping();
+
+  const [upcomingAssignments, setUpcomingAssignments] = useState<
+    Record<string, Inspection[]>
+  >({});
+
+  useEffect(() => {
+    const loadAssignments = async () => {
+      try {
+        const allInspections = await inspectionAppService.getAll();
+
+        // ✅ گروه‌بندی بازرسی‌های SCHEDULED بر اساس inspector_id
+        const grouped = allInspections.reduce<Record<string, Inspection[]>>(
+          (acc, curr) => {
+            if (curr.status === "SCHEDULED" && curr.execution_date) {
+              if (!acc[curr.inspector_id]) acc[curr.inspector_id] = [];
+              acc[curr.inspector_id].push(curr);
+            }
+            return acc;
+          },
+          {},
+        );
+
+        setUpcomingAssignments(grouped);
+      } catch (err) {
+        console.error("Failed to load upcoming assignments:", err);
+      }
+    };
+    loadAssignments();
+  }, []);
 
   // ✅ استفاده از هوک هوشمند به جای Stateهای دستی
   const {
@@ -223,7 +254,6 @@ export function Inspectors() {
 
   return (
     <>
-      {/* ✅ کامپوننت لیست با props کامل و صحیح */}
       <InspectorList
         inspectors={inspectors}
         filteredInspectors={filteredInspectors}
@@ -240,6 +270,7 @@ export function Inspectors() {
           setIsAddModalOpen(true);
         }}
         loading={loading}
+        upcomingAssignments={upcomingAssignments}
       />
 
       {/* مودال جزئیات */}

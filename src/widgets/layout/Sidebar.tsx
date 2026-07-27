@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Shield,
   Folder,
+  Search,
 } from "lucide-react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
@@ -25,6 +26,7 @@ export type ViewKey =
   | "project"
   | "inspectors"
   | "inspections"
+  | "tpi"
   | "billing"
   | "reports"
   | "audit"
@@ -77,6 +79,13 @@ const navItems: Array<{
     key: "inspectors",
     label: "Inspectors",
     icon: UserCheck,
+    entity: "inspector",
+    gradient: "from-amber-500 to-orange-600",
+  },
+  {
+    key: "tpi",
+    label: "TPI",
+    icon: Search,
     entity: "inspector",
     gradient: "from-amber-500 to-orange-600",
   },

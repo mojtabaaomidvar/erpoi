@@ -11,4 +11,16 @@ export interface IDocumentReviewRepository {
   ): Promise<DocumentReview>;
   update(id: string, data: Partial<DocumentReview>): Promise<DocumentReview>;
   delete(id: string): Promise<void>;
+
+  verifyDocument(
+    id: string,
+    verifiedBy: string,
+    letterNumber: string,
+    verificationDate: string,
+  ): Promise<DocumentReview>;
+
+  unverifyDocument(id: string): Promise<DocumentReview>;
+
+  uploadFile(file: File, requestId: string): Promise<string>;
+  deleteFileFromStorage(fileUrl: string): Promise<void>;
 }

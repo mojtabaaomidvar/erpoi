@@ -8,7 +8,6 @@ import type {
   TariffLine,
 } from "@/features/contract-management/domain";
 import {
-  calculateProgressFromTariffs,
   calculateDaysLeft,
   calculateDaysProgress,
   getDaysUntilStart,

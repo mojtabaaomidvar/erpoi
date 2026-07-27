@@ -7,32 +7,32 @@ import { InspectionElements } from "@shared/authorization/ui/elements/Inspection
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { inspectionRequestAppService } from "@features/inspection-management/application/InspectionRequestApplicationService";
 import { InspectionList } from "@features/inspection-management/ui/InspectionList";
-import { InspectionRequestForm } from "@features/inspection-management/ui/InspectionRequestForm";
+import { TPIRequestForm } from "@/features/tpi-management/ui/TPIRequestForm";
 import { InspectionDetailsModal } from "@features/inspection-management/ui/InspectionDetailsModal";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 import type {
-  InspectionRequest,
   InspectionStatus,
   Priority,
 } from "@/features/inspection-management/domain/types";
+import type { TPIRequest } from "@/features/tpi-management/domain/types";
 import { showToast } from "@shared/ui/ToastContainer";
+
+import { tpiRequestAppService } from "@/features/tpi-management";
 
 export function Inspections() {
   const { isDark } = useTheme();
   const { user } = useAuth();
   const { canAccessElement } = usePermissionMapping();
 
-  // State های سطح بالا
-  const [inspectionRequests, setInspectionRequests] = useState<
-    InspectionRequest[]
-  >([]);
+  const [inspectionRequests, setInspectionRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [editingRequest, setEditingRequest] =
-    useState<InspectionRequest | null>(null);
-  const [selectedRequest, setSelectedRequest] =
-    useState<InspectionRequest | null>(null);
+  const [editingRequest, setEditingRequest] = useState<TPIRequest | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<TPIRequest | null>(
+    null,
+  );
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const [filterStatus, setFilterStatus] = useState<InspectionStatus | "ALL">(
@@ -43,7 +43,6 @@ export function Inspections() {
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
-  // ✅ دسترسی‌ها با استفاده از Registry (بدون رشته‌های سخت‌کد شده)
   const canViewItems = canAccessElement(
     InspectionElements.InspectionList.list_item_view.id,
   );
@@ -61,7 +60,7 @@ export function Inspections() {
   const loadInspectionRequests = async () => {
     setLoading(true);
     try {
-      const data = await inspectionRequestAppService.getAll();
+      const data = await tpiRequestAppService.getAll();
       setInspectionRequests(data);
     } catch (err: any) {
       showToast("error", "Load Failed", err.message);
@@ -99,7 +98,7 @@ export function Inspections() {
     }
   };
 
-  const handleRequestClick = (request: InspectionRequest) => {
+  const handleRequestClick = (request: TPIRequest) => {
     if (!canClickItem) {
       showToast(
         "error",
@@ -112,7 +111,7 @@ export function Inspections() {
     setIsDetailsOpen(true);
   };
 
-  const handleEditFromDetails = (request: InspectionRequest) => {
+  const handleEditFromDetails = (request: TPIRequest) => {
     if (!canEdit) {
       showToast(
         "error",
@@ -125,7 +124,7 @@ export function Inspections() {
     setIsAddModalOpen(true);
   };
 
-  const handleDeleteRequest = async (request: InspectionRequest) => {
+  const handleDeleteRequest = async (request: TPIRequest) => {
     if (!canDelete) {
       showToast(
         "error",
@@ -137,7 +136,7 @@ export function Inspections() {
 
     const confirmed = await confirmDialog({
       title: "Delete Inspection Request",
-      message: `Are you sure you want to delete "${request.inspection_scope}"?\n\nThis action cannot be undone.`,
+      message: `Are you sure you want to delete "${request.methods}"?\n\nThis action cannot be undone.`,
       confirmText: "Yes, Delete",
       cancelText: "Cancel",
       variant: "danger",
@@ -145,13 +144,11 @@ export function Inspections() {
 
     if (!confirmed) return;
 
-    // ✅ Optimistic UI: حذف فوری از لیست
     setIsDetailsOpen(false);
     setSelectedRequest(null);
     setInspectionRequests((prev) => prev.filter((r) => r.id !== request.id));
     showToast("success", "Deleted", "Inspection request has been removed");
 
-    // ✅ Rollback در صورت خطای سرور
     await inspectionRequestAppService
       .delete(request.id, user?.id || "unknown")
       .catch((err: any) => {
@@ -216,18 +213,18 @@ export function Inspections() {
         inspectionRequest={selectedRequest}
         onEdit={handleEditFromDetails}
         onDelete={handleDeleteRequest}
-        // ✅ حذف Propsهای دسترسی: کامپوننت Modal نیز خودش آن‌ها را مدیریت می‌کند
       />
 
-      <InspectionRequestForm
-        isOpen={isAddModalOpen}
-        onClose={() => {
-          setIsAddModalOpen(false);
-          setEditingRequest(null);
+      <TPIRequestForm
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        onSuccess={async () => {
+          const data = await tpiRequestAppService.getAll();
+          setInspectionRequests(data);
+          setShowForm(false);
+          setSelectedRequest(null);
         }}
-        onSave={handleSaveRequest}
-        initialData={editingRequest}
-        isAdmin={isAdmin}
+        initialData={selectedRequest}
       />
     </>
   );

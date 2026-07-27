@@ -1,6 +1,7 @@
 // src/features/inspection-management/repositories/IInspectionRepository.ts
 
 import type { Inspection } from "../domain/types";
+import type { TPICancellationReason } from "@/features/tpi-management";
 
 export interface IInspectionRepository {
   getAll(): Promise<Inspection[]>;
@@ -11,4 +12,22 @@ export interface IInspectionRepository {
   ): Promise<Inspection>;
   update(id: string, data: Partial<Inspection>): Promise<Inspection>;
   delete(id: string): Promise<void>;
+
+  getInspectionsByInspectorAndDate(
+    inspectorId: string,
+    executionDate: string,
+  ): Promise<Inspection[]>;
+
+  cancelInspection(
+    id: string,
+    cancelledBy: string,
+    reason?: TPICancellationReason,
+    relatedInspectionId?: string,
+    newScheduledDate?: string,
+    dateIsUnknown?: boolean,
+    newScopes?: string[],
+    cancellationNotes?: string,
+  ): Promise<Inspection>;
+
+  getInspectionWithDetails(id: string): Promise<any>;
 }

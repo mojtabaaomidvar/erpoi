@@ -8,23 +8,23 @@ import { InspectionElements } from "@shared/authorization/ui/elements/Inspection
 import { showToast } from "@shared/ui/ToastContainer";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
 import type {
-  InspectionRequest,
   InspectionStatus,
   Priority,
 } from "@/features/inspection-management/domain/types";
+import type { TPIRequest } from "@/features/tpi-management";
 import { INSPECTION_STATUS_CONFIG, PRIORITY_CONFIG } from "../constants";
 
 type ViewMode = "kanban" | "calendar" | "list";
 
 interface InspectionListProps {
-  inspectionRequests: InspectionRequest[];
+  inspectionRequests: TPIRequest[];
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   filterStatus: InspectionStatus | "ALL";
   setFilterStatus: (status: InspectionStatus | "ALL") => void;
   filterPriority: Priority | "ALL";
   setFilterPriority: (priority: Priority | "ALL") => void;
-  onRequestClick: (request: InspectionRequest) => void;
+  onRequestClick: (request: TPIRequest) => void;
   onAddClick: () => void;
   loading?: boolean;
 }
@@ -66,10 +66,9 @@ export function InspectionList({
     return inspectionRequests.filter((request) => {
       const matchesSearch =
         !searchQuery ||
-        request.inspection_scope
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        request.id.toLowerCase().includes(searchQuery.toLowerCase());
+        request.methods.some((m: string) =>
+          m.toLowerCase().includes(searchQuery.toLowerCase()),
+        );
       const matchesStatus =
         filterStatus === "ALL" || request.status === filterStatus;
       const matchesPriority =
@@ -80,12 +79,13 @@ export function InspectionList({
 
   // گروه‌بندی بر اساس Status برای Kanban
   const groupedByStatus = useMemo(() => {
-    const groups: Record<InspectionStatus, InspectionRequest[]> = {
-      PENDING: [],
-      DOCUMENT_REVIEW: [],
-      APPROVED: [],
-      IN_PROGRESS: [],
-      COMPLETED: [],
+    const groups: Record<InspectionStatus, TPIRequest[]> = {
+      NEW: [],
+      INSPECTOR_ASSIGNED: [],
+      INSPECTION_COMPLETED: [],
+      REPORT_ISSUED: [],
+      FOLLOW_UP: [],
+      CLOSED: [],
       REJECTED: [],
     };
     filteredRequests.forEach((r) => {
@@ -101,15 +101,15 @@ export function InspectionList({
     ).length;
     const high = filteredRequests.filter((r) => r.priority === "HIGH").length;
     const open = filteredRequests.filter(
-      (r) => r.status !== "COMPLETED" && r.status !== "REJECTED",
+      (r) => r.status !== "CLOSED" && r.status !== "REJECTED",
     ).length;
     const completed = filteredRequests.filter(
-      (r) => r.status === "COMPLETED",
+      (r) => r.status === "CLOSED",
     ).length;
     return { urgent, high, open, completed, total: filteredRequests.length };
   }, [filteredRequests]);
 
-  const handleRequestClick = (request: InspectionRequest) => {
+  const handleRequestClick = (request: TPIRequest) => {
     if (!canClickItem) {
       showToast(
         "error",
@@ -138,7 +138,6 @@ export function InspectionList({
       `Moved to ${INSPECTION_STATUS_CONFIG[status].label}`,
     );
     setDraggedId(null);
-    // اینجا می‌تونی status رو در دیتابیس آپدیت کنی
   };
 
   return (
@@ -441,7 +440,7 @@ export function InspectionList({
                                 <h4
                                   className={`text-xs font-semibold mb-1 line-clamp-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
                                 >
-                                  {request.inspection_scope}
+                                  {request.methods}
                                 </h4>
 
                                 <div
@@ -531,7 +530,7 @@ export function InspectionList({
                       <h3
                         className={`text-sm font-bold truncate ${isDark ? "text-slate-100" : "text-slate-900"}`}
                       >
-                        {request.inspection_scope}
+                        {request.methods}
                       </h3>
                       {request.notes && (
                         <p

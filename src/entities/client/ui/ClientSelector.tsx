@@ -38,7 +38,6 @@ export function ClientSelector({
     }
   };
 
-  // 🔧 NEW: بارگذاری مشتریان از Supabase
   useEffect(() => {
     loadClients();
   }, []);

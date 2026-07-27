@@ -10,6 +10,7 @@ import { Contracts } from "@pages/Contracts";
 import { Projects } from "@pages/Projects";
 import { Inspectors } from "@pages/Inspectors";
 import { Inspections } from "@pages/Inspections";
+import { TPI } from "@pages/TPI";
 import { Billing } from "@pages/Billing";
 import { Reports } from "@pages/Reports";
 import { Settings } from "@pages/Settings";
@@ -45,6 +46,12 @@ const meta: Record<ViewKey, { title: string; subtitle: string }> = {
     title: "Inspection Workflow",
     subtitle: "5-step pipeline from request to completion",
   },
+
+  tpi: {
+    title: "Third Party Inspection",
+    subtitle: "Spot and Resident inspection management for quality control",
+  },
+
   billing: {
     title: "Billing & Invoices",
     subtitle: "Financial records tied to completed inspections",
@@ -135,6 +142,7 @@ function AppContent() {
           {view === "project" && <Projects />}
           {view === "inspectors" && <Inspectors />}
           {view === "inspections" && <Inspections />}
+          {view === "tpi" && <TPI />}
           {view === "billing" && <Billing />}
           {view === "reports" && <Reports />}
           {view === "settings" && <Settings />}

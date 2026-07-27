@@ -1,68 +1,58 @@
 // src/features/inspection-management/repositories/SupabaseInspectionRequestRepository.ts
 
 import { supabase } from "@shared/database/supabase";
-import type { InspectionRequest } from "../domain/types";
-import type { CreateInspectionRequestCommand } from "../application/dto/CreateInspectionRequestCommand";
 import type { IInspectionRequestRepository } from "./IInspectionRequestRepository";
+import type { BaseInspectionRequest } from "../domain/types";
 
-export class SupabaseInspectionRequestRepository implements IInspectionRequestRepository {
-  async getAll(): Promise<InspectionRequest[]> {
+class SupabaseInspectionRequestRepository implements IInspectionRequestRepository {
+  async getAll(): Promise<BaseInspectionRequest[]> {
     const { data, error } = await supabase
       .schema("inspection")
       .from("inspection_requests")
       .select("*")
       .order("created_at", { ascending: false });
+
     if (error) throw new Error(error.message);
-    return data || [];
+    return data as BaseInspectionRequest[];
   }
 
-  async getById(id: string): Promise<InspectionRequest | null> {
+  async getById(id: string): Promise<BaseInspectionRequest | null> {
     const { data, error } = await supabase
       .schema("inspection")
       .from("inspection_requests")
       .select("*")
       .eq("id", id)
       .single();
-    if (error || !data) return null;
-    return data as InspectionRequest;
+
+    if (error) throw new Error(error.message);
+    return data as BaseInspectionRequest | null;
   }
 
-  async getByProject(projectId: string): Promise<InspectionRequest[]> {
+  async getByProject(projectId: string): Promise<BaseInspectionRequest[]> {
     const { data, error } = await supabase
       .schema("inspection")
       .from("inspection_requests")
       .select("*")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false });
+
     if (error) throw new Error(error.message);
-    return data || [];
+    return data as BaseInspectionRequest[];
   }
 
-  async create(
-    data: CreateInspectionRequestCommand & { requested_by: string },
-  ): Promise<InspectionRequest> {
-    const id = `insp_req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  async create(data: any): Promise<BaseInspectionRequest> {
     const { data: newRecord, error } = await supabase
       .schema("inspection")
       .from("inspection_requests")
-      .insert({
-        id,
-        ...data,
-        status: "PENDING", // Default business rule
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .insert(data)
       .select()
       .single();
 
     if (error) throw new Error(error.message);
-    return newRecord as InspectionRequest;
+    return newRecord as BaseInspectionRequest;
   }
 
-  async update(
-    id: string,
-    data: Partial<InspectionRequest>,
-  ): Promise<InspectionRequest> {
+  async update(id: string, data: any): Promise<BaseInspectionRequest> {
     const { data: updatedRecord, error } = await supabase
       .schema("inspection")
       .from("inspection_requests")
@@ -70,8 +60,9 @@ export class SupabaseInspectionRequestRepository implements IInspectionRequestRe
       .eq("id", id)
       .select()
       .single();
+
     if (error) throw new Error(error.message);
-    return updatedRecord as InspectionRequest;
+    return updatedRecord as BaseInspectionRequest;
   }
 
   async delete(id: string): Promise<void> {
@@ -80,10 +71,10 @@ export class SupabaseInspectionRequestRepository implements IInspectionRequestRe
       .from("inspection_requests")
       .delete()
       .eq("id", id);
+
     if (error) throw new Error(error.message);
   }
 }
 
-// Singleton Export
 export const inspectionRequestRepository =
   new SupabaseInspectionRequestRepository();

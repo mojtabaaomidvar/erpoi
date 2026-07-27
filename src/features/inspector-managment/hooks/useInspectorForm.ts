@@ -3,22 +3,21 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
-import type { Inspector, InspectorType } from "../domain";
+import type {
+  Inspector,
+  InspectorType,
+  InspectorSpecialty,
+} from "../domain/models/Inspector";
+import { INSPECTOR_SPECIALTY_OPTIONS } from "../domain/models/Inspector";
 import { inspectorAppService } from "../application";
 import { useAuth } from "@features/auth/hooks/useAuth";
-
-const SPECIALTIES_OPTIONS = [
-  "General", "Telecommunication", "Architecture", "Piping", "Instrumentation",
-  "Mechanical", "Electrical", "Process", "Welding", "HVAC", "Civil",
-  "Coating", "NDT", "Structure", "Material", "MWS",
-];
 
 export function useInspectorForm(
   isOpen: boolean,
   initialData: Inspector | null | undefined,
   isAdmin: boolean,
   onSave: (data: any, isEdit: boolean) => Promise<void>,
-  onClose: () => void
+  onClose: () => void,
 ) {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
@@ -31,7 +30,7 @@ export function useInspectorForm(
     name_en: "",
     name_fa: "",
     inspector_type: "ICS_MEMBER" as InspectorType,
-    specialties: [] as string[],
+    specialties: [] as InspectorSpecialty[], // ✅ تایپ دقیق
     phone: "",
     email: "",
     location_base: "",
@@ -50,10 +49,15 @@ export function useInspectorForm(
       const fetchUsers = async () => {
         try {
           const currentEditingUserId = initialData?.user_id || null;
-          const availableUsers = await inspectorAppService.getAvailableUsersForIcsMember(currentEditingUserId);
+          const availableUsers =
+            await inspectorAppService.getAvailableUsersForIcsMember(
+              currentEditingUserId,
+            );
           let finalUsers = availableUsers;
           if (user?.department) {
-            finalUsers = availableUsers.filter((u: any) => u.department === user.department);
+            finalUsers = availableUsers.filter(
+              (u: any) => u.department === user.department,
+            );
           }
           setUsers(finalUsers);
         } catch (err) {
@@ -83,10 +87,21 @@ export function useInspectorForm(
         });
       } else {
         setFormData({
-          name_en: "", name_fa: "", inspector_type: "ICS_MEMBER", specialties: [],
-          phone: "", email: "", location_base: "", personnel_code: "", user_id: "",
-          resumeFile: null, resume_name: "", resume_size: 0, rating: 0,
-          completed_inspections: 0, active_missions: 0,
+          name_en: "",
+          name_fa: "",
+          inspector_type: "ICS_MEMBER",
+          specialties: [],
+          phone: "",
+          email: "",
+          location_base: "",
+          personnel_code: "",
+          user_id: "",
+          resumeFile: null,
+          resume_name: "",
+          resume_size: 0,
+          rating: 0,
+          completed_inspections: 0,
+          active_missions: 0,
         });
       }
       setErrors({});
@@ -97,7 +112,6 @@ export function useInspectorForm(
   const updateField = useCallback((field: string, value: any) => {
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
-      // منطق خاص: اگر نام انگلیسی تغییر کرد و فایل رزومه وجود داشت، نام فایل را هم به‌روز کن
       if (field === "name_en" && prev.resumeFile) {
         const fileExt = prev.resumeFile.name.split(".").pop() || "pdf";
         next.resume_name = `${(value as string).trim() || "Inspector"} - CV.${fileExt}`;
@@ -106,7 +120,7 @@ export function useInspectorForm(
     });
   }, []);
 
-  const toggleSpecialty = useCallback((spec: string) => {
+  const toggleSpecialty = useCallback((spec: InspectorSpecialty) => {
     setFormData((prev) => ({
       ...prev,
       specialties: prev.specialties.includes(spec)
@@ -115,96 +129,128 @@ export function useInspectorForm(
     }));
   }, []);
 
-  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("error", "File Too Large", "Resume must be less than 5MB");
-      return;
-    }
-    const allowedTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ];
-    if (!allowedTypes.includes(file.type)) {
-      showToast("error", "Invalid Format", "Only PDF and Word documents are allowed");
-      return;
-    }
-    const fileExt = file.name.split(".").pop() || "pdf";
-    const inspectorName = formData.name_en.trim() || "Inspector";
-    setFormData((prev) => ({
-      ...prev,
-      resumeFile: file,
-      resume_name: `${inspectorName} - CV.${fileExt}`,
-      resume_size: file.size,
-    }));
-  }, [formData.name_en]);
+  const handleFileUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) {
+        showToast("error", "File Too Large", "Resume must be less than 5MB");
+        return;
+      }
+      const allowedTypes = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ];
+      if (!allowedTypes.includes(file.type)) {
+        showToast(
+          "error",
+          "Invalid Format",
+          "Only PDF and Word documents are allowed",
+        );
+        return;
+      }
+      const fileExt = file.name.split(".").pop() || "pdf";
+      const inspectorName = formData.name_en.trim() || "Inspector";
+      setFormData((prev) => ({
+        ...prev,
+        resumeFile: file,
+        resume_name: `${inspectorName} - CV.${fileExt}`,
+        resume_size: file.size,
+      }));
+    },
+    [formData.name_en],
+  );
 
   const removeResume = useCallback(() => {
-    setFormData((prev) => ({ ...prev, resumeFile: null, resume_name: "", resume_size: 0 }));
+    setFormData((prev) => ({
+      ...prev,
+      resumeFile: null,
+      resume_name: "",
+      resume_size: 0,
+    }));
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
 
-  const validateStep = useCallback((step: number) => {
-    if (isAdmin) {
+  const validateStep = useCallback(
+    (step: number) => {
+      if (isAdmin) {
+        setErrors({});
+        return true;
+      }
+      const newErrors: any = {};
+      if (step === 1) {
+        if (!formData.name_en.trim())
+          newErrors.name_en = "English name is required";
+        if (formData.inspector_type === "ICS_MEMBER") {
+          if (!formData.email.trim())
+            newErrors.email = "Email is required for ICS Members";
+          if (!formData.personnel_code.trim())
+            newErrors.personnel_code = "Personnel code is required";
+        }
+      } else if (step === 2) {
+        if (!formData.phone.trim())
+          newErrors.phone = "Phone number is required";
+        if (formData.specialties.length === 0)
+          newErrors.specialties = "Select at least one specialty";
+      }
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        showToast(
+          "error",
+          "Validation Error",
+          "Please fill in all required fields",
+        );
+        return false;
+      }
       setErrors({});
       return true;
-    }
-    const newErrors: any = {};
-    if (step === 1) {
-      if (!formData.name_en.trim()) newErrors.name_en = "English name is required";
-      if (formData.inspector_type === "ICS_MEMBER") {
-        if (!formData.email.trim()) newErrors.email = "Email is required for ICS Members";
-        if (!formData.personnel_code.trim()) newErrors.personnel_code = "Personnel code is required";
-      }
-    } else if (step === 2) {
-      if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
-      if (formData.specialties.length === 0) newErrors.specialties = "Select at least one specialty";
-    }
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      showToast("error", "Validation Error", "Please fill in all required fields");
-      return false;
-    }
-    setErrors({});
-    return true;
-  }, [isAdmin, formData]);
+    },
+    [isAdmin, formData],
+  );
 
   const handleNext = useCallback(() => {
-    if (validateStep(currentStep)) setCurrentStep((prev) => Math.min(prev + 1, 3));
+    if (validateStep(currentStep))
+      setCurrentStep((prev) => Math.min(prev + 1, 3));
   }, [currentStep, validateStep]);
 
   const handlePrev = useCallback(() => {
     setCurrentStep((prev) => Math.max(prev - 1, 1));
   }, []);
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (currentStep !== 3) return;
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (currentStep !== 3) return;
 
-    if (!isAdmin && !formData.resumeFile && !initialData?.resume_url) {
-      const confirmed = await confirmDialog({
-        title: "Resume Not Selected",
-        message: "You haven't selected a resume file. Do you want to continue without it?",
-        confirmText: "Continue Without Resume",
-        cancelText: "Go Back",
-        variant: "warning",
-      });
-      if (!confirmed) return;
-    }
+      if (!isAdmin && !formData.resumeFile && !initialData?.resume_url) {
+        const confirmed = await confirmDialog({
+          title: "Resume Not Selected",
+          message:
+            "You haven't selected a resume file. Do you want to continue without it?",
+          confirmText: "Continue Without Resume",
+          cancelText: "Go Back",
+          variant: "warning",
+        });
+        if (!confirmed) return;
+      }
 
-    setIsSaving(true);
-    try {
-      const payload = { ...formData, status: initialData ? initialData.status : "AVAILABLE" };
-      await onSave(payload, !!initialData);
-      onClose();
-    } catch (err: any) {
-      showToast("error", "Save Failed", err.message || "Failed to save");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [currentStep, isAdmin, formData, initialData, onSave, onClose]);
+      setIsSaving(true);
+      try {
+        const payload = {
+          ...formData,
+          status: initialData ? initialData.status : "AVAILABLE",
+        };
+        await onSave(payload, !!initialData);
+        onClose();
+      } catch (err: any) {
+        showToast("error", "Save Failed", err.message || "Failed to save");
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [currentStep, isAdmin, formData, initialData, onSave, onClose],
+  );
 
   return {
     currentStep,

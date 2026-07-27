@@ -308,7 +308,6 @@ export function ProjectList({
                         >
                           {project.name}
                         </h3>
-
                         {project.client && (
                           <p
                             className={`text-[11px] truncate ${isDark ? "text-slate-400" : "text-slate-600"}`}

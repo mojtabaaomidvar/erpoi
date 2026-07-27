@@ -1,18 +1,17 @@
 // src/features/inspection-management/repositories/IInspectionRequestRepository.ts
 
-import type { InspectionRequest } from "../domain/types";
-import type { CreateInspectionRequestCommand } from "../application/dto/CreateInspectionRequestCommand";
+import type { BaseInspectionRequest } from "../domain/types";
 
 export interface IInspectionRequestRepository {
-  getAll(): Promise<InspectionRequest[]>;
-  getById(id: string): Promise<InspectionRequest | null>;
-  getByProject(projectId: string): Promise<InspectionRequest[]>;
+  getAll(): Promise<BaseInspectionRequest[]>;
+  getById(id: string): Promise<BaseInspectionRequest | null>;
+  getByProject(projectId: string): Promise<BaseInspectionRequest[]>;
   create(
-    data: CreateInspectionRequestCommand & { requested_by: string },
-  ): Promise<InspectionRequest>;
+    data: Omit<BaseInspectionRequest, "id" | "created_at" | "updated_at">,
+  ): Promise<BaseInspectionRequest>;
   update(
     id: string,
-    data: Partial<InspectionRequest>,
-  ): Promise<InspectionRequest>;
+    data: Partial<BaseInspectionRequest>,
+  ): Promise<BaseInspectionRequest>; // ✅ تغییر به BaseInspectionRequest
   delete(id: string): Promise<void>;
 }

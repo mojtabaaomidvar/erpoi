@@ -1,7 +1,7 @@
 // src/features/inspection-management/application/DocumentReviewApplicationService.ts
 
 import { documentReviewRepository } from "../repositories/SupabaseDocumentReviewRepository";
-import type { DocumentReview } from "../domain/types";
+import type { DocumentReview, ReviewStatus } from "../domain/types";
 import {
   CreateDocumentReviewSchema,
   type CreateDocumentReviewCommand,
@@ -24,10 +24,9 @@ class DocumentReviewApplicationService {
 
   async create(command: CreateDocumentReviewCommand): Promise<DocumentReview> {
     const validatedData = CreateDocumentReviewSchema.parse(command);
-
     return await this.repository.create({
       ...validatedData,
-      review_status: "PENDING",
+      review_status: "INITIAL",
     });
   }
 
@@ -81,16 +80,65 @@ class DocumentReviewApplicationService {
 
   async uploadDocument(data: {
     inspection_request_id: string;
-    document_type: any;
+    document_type: string; // ✅ تغییر به string برای پشتیبانی از TPI و MWS
     document_name: string;
     document_url: string;
     document_number?: string;
     revision?: string;
-  }): Promise<any> {
+    review_status?: ReviewStatus;
+  }): Promise<DocumentReview> {
     return await this.repository.create({
       ...data,
-      review_status: "PENDING",
+      review_status: data.review_status || "INITIAL",
+      reviewed_by: undefined,
+      reviewed_at: undefined,
     });
+  }
+
+  async verifyDocument(
+    id: string,
+    verifiedBy: string,
+    letterNumber: string,
+    verificationDate: string,
+  ): Promise<DocumentReview> {
+    return await this.repository.verifyDocument(
+      id,
+      verifiedBy,
+      letterNumber,
+      verificationDate,
+    );
+  }
+
+  async unverifyDocument(id: string): Promise<DocumentReview> {
+    return await this.repository.unverifyDocument(id);
+  }
+
+  async uploadDocuments(requestId: string, files: any[], userId: string) {
+    await Promise.all(
+      files.map(async (f) => {
+        const fileUrl = await this.repository.uploadFile(f.file, requestId);
+        await this.repository.create({
+          inspection_request_id: requestId,
+          document_type: f.document_type,
+          document_name: f.document_name,
+          document_url: fileUrl,
+          document_number: f.document_number || undefined,
+          revision: f.revision || undefined,
+          review_status: "INITIAL",
+        });
+      }),
+    );
+  }
+
+  async deleteDocument(id: string, fileUrl: string) {
+    await this.repository.deleteFileFromStorage(fileUrl);
+    await this.repository.delete(id);
+  }
+
+  async bulkDeleteDocuments(docs: { id: string; fileUrl: string }[]) {
+    for (const doc of docs) {
+      await this.deleteDocument(doc.id, doc.fileUrl);
+    }
   }
 }
 
