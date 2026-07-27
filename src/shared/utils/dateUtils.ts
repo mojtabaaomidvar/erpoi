@@ -56,3 +56,30 @@ export const parseDateFlexible = (
   }
   return null;
 };
+
+export const formatJalaliDate = (dateString: string): string => {
+  if (!dateString) return "—";
+
+  const jalaliRegex = /^\d{4}[/\-]\d{1,2}[/\-]\d{1,2}$/;
+  if (jalaliRegex.test(dateString)) {
+    return dateString.replace(/-/g, "/");
+  }
+
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+
+    const jalaliDate = date.toLocaleDateString("en-US-u-ca-persian-nu-latn", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+
+    const parts = jalaliDate.split("/");
+    return parts.length === 3
+      ? `${parts[2]}/${parts[0]}/${parts[1]}`
+      : jalaliDate;
+  } catch {
+    return dateString;
+  }
+};

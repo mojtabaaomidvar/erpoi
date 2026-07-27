@@ -1,11 +1,11 @@
 // src/features/inspector-managment/ui/InspectorList.tsx
-import { useMemo } from "react";
 import { Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import type { Inspector, InspectorType, InspectorStatus } from "../domain";
 import type { Inspection } from "@/features/inspection-management/domain/types";
 import { InspectorElements } from "@shared/authorization/ui/elements/InspectorElements";
 import { usePermissionMapping } from "@/shared/authorization";
+import { formatJalaliDate } from "@/shared/utils/dateUtils";
 
 const STATUS_COLORS: Record<
   InspectorStatus,
@@ -42,7 +42,6 @@ interface InspectorListProps {
   onInspectorClick: (inspector: Inspector) => void;
   onAddClick: () => void;
   loading?: boolean;
-  // ✅ Prop جدید: برنامه‌های آینده بازرس‌ها (کلید: inspector_id)
   upcomingAssignments?: Record<string, Inspection[]>;
 }
 
@@ -83,8 +82,6 @@ function StatCard({
     </div>
   );
 }
-
-// ✅ کامپوننت کمکی برای نمایش نشانگر برنامه‌های آینده
 function UpcomingAssignmentsBadge({
   assignments,
   isDark,
@@ -92,7 +89,6 @@ function UpcomingAssignmentsBadge({
   assignments: Inspection[];
   isDark: boolean;
 }) {
-  // مرتب‌سازی بر اساس تاریخ (زودترین ابتدا)
   const sorted = [...assignments].sort((a, b) => {
     if (!a.execution_date) return 1;
     if (!b.execution_date) return -1;
@@ -116,10 +112,7 @@ function UpcomingAssignmentsBadge({
             assignment.location ? `📍 ${assignment.location}` : "Inspection"
           }
         >
-          📅{" "}
-          {new Date(assignment.execution_date!).toLocaleDateString(
-            "fa-IR-u-nu-latn",
-          )}
+          📅 {formatJalaliDate(assignment.execution_date!)}
         </span>
       ))}
       {remaining > 0 && (
