@@ -6,6 +6,8 @@ import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { showToast } from "@shared/ui/ToastContainer";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
+import { getTodayJalali, formatJalaliDate } from "@/shared/utils/dateUtils";
+import { jalaaliToGregorianDate } from "@/entities/contract/services/contractCalculations";
 import { inspectionAppService } from "../../application";
 import { inspectorAppService } from "@/features/inspector-managment/application";
 import type {
@@ -19,8 +21,7 @@ import {
   TPI_CANCELLATION_REASON_CONFIG,
 } from "../../constants";
 import { TPI_DISCIPLINE_OPTIONS } from "@/features/tpi-management";
-import { getTodayJalali } from "@/shared/utils/dateUtils";
-import { jalaaliToGregorianDate } from "@/entities/contract/services/contractCalculations";
+
 import { formatArrayField } from "@/shared/utils/formatUtils";
 
 interface InspectorAssignmentSectionProps {
@@ -408,6 +409,18 @@ export function InspectorAssignmentSection({
     (item) => !assignedInspectorIds.has(item.inspector.id),
   );
 
+  const sortedInspections = [...inspections].sort((a, b) => {
+    const aIsCancelled = a.status === "CANCELLED";
+    const bIsCancelled = b.status === "CANCELLED";
+
+    if (aIsCancelled && !bIsCancelled) return 1;
+    if (!aIsCancelled && bIsCancelled) return -1;
+
+    if (!a.execution_date) return 1;
+    if (!b.execution_date) return -1;
+    return a.execution_date.localeCompare(b.execution_date);
+  });
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -436,7 +449,7 @@ export function InspectorAssignmentSection({
             Loading...
           </p>
         </div>
-      ) : inspections.length === 0 ? (
+      ) : sortedInspections.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-5xl mb-3">👷</div>
           <p
@@ -447,7 +460,7 @@ export function InspectorAssignmentSection({
         </div>
       ) : (
         <div className="space-y-3">
-          {inspections.map((inspection) => {
+          {sortedInspections.map((inspection) => {
             const statusConfig =
               INSPECTION_EXECUTION_STATUS_CONFIG[inspection.status];
             const isCancelled = inspection.status === "CANCELLED";
@@ -461,8 +474,8 @@ export function InspectorAssignmentSection({
                 className={`p-4 rounded-xl border transition-all ${
                   isCancelled
                     ? isDark
-                      ? "bg-rose-900/10 border-rose-800/50 opacity-75"
-                      : "bg-rose-50 border-rose-200 opacity-75"
+                      ? "bg-slate-800/30 border-slate-700 opacity-60"
+                      : "bg-slate-50 border-slate-200 opacity-60"
                     : isDark
                       ? "bg-slate-800/50 border-slate-700"
                       : "bg-white border-slate-200 shadow-sm"
@@ -491,7 +504,7 @@ export function InspectorAssignmentSection({
                     >
                       {inspection.execution_date && (
                         <span>
-                          📅 {inspection.execution_date.replace(/-/g, "/")}
+                          📅 {formatJalaliDate(inspection.execution_date)}
                         </span>
                       )}
                       {inspection.location && (
@@ -586,7 +599,7 @@ export function InspectorAssignmentSection({
                   </div>
 
                   <div className="flex gap-2 shrink-0">
-                    {inspection.status === "SCHEDULED" && (
+                    {!isCancelled && inspection.status === "SCHEDULED" && (
                       <Button
                         variant="danger"
                         size="sm"

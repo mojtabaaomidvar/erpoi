@@ -43,6 +43,7 @@ interface InspectorListProps {
   onAddClick: () => void;
   loading?: boolean;
   upcomingAssignments?: Record<string, Inspection[]>;
+  onInspectionClick?: (inspection: Inspection) => void;
 }
 
 function StatCard({
@@ -82,12 +83,15 @@ function StatCard({
     </div>
   );
 }
+
 function UpcomingAssignmentsBadge({
   assignments,
   isDark,
+  onInspectionClick,
 }: {
   assignments: Inspection[];
   isDark: boolean;
+  onInspectionClick?: (inspection: Inspection) => void;
 }) {
   const sorted = [...assignments].sort((a, b) => {
     if (!a.execution_date) return 1;
@@ -100,21 +104,35 @@ function UpcomingAssignmentsBadge({
 
   return (
     <div className="flex flex-wrap gap-1 mt-1.5">
-      {visible.map((assignment, idx) => (
-        <span
-          key={idx}
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-            isDark
-              ? "bg-indigo-900/30 text-indigo-300 border border-indigo-800/50"
-              : "bg-indigo-50 text-indigo-700 border border-indigo-200"
-          }`}
-          title={
-            assignment.location ? `📍 ${assignment.location}` : "Inspection"
-          }
-        >
-          📅 {formatJalaliDate(assignment.execution_date!)}
-        </span>
-      ))}
+      {visible.map((assignment, idx) => {
+        const isClickable = !!onInspectionClick;
+        return (
+          <button
+            key={idx}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onInspectionClick?.(assignment);
+            }}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
+              isClickable
+                ? "cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-800/50"
+                : "cursor-default"
+            } ${
+              isDark
+                ? "bg-indigo-900/30 text-indigo-300 border border-indigo-800/50"
+                : "bg-indigo-50 text-indigo-700 border border-indigo-200"
+            }`}
+            title={
+              assignment.location
+                ? `📍 ${assignment.location} (Click to view details)`
+                : "Click to view inspection details"
+            }
+          >
+            📅 {formatJalaliDate(assignment.execution_date!)}
+          </button>
+        );
+      })}
       {remaining > 0 && (
         <span
           className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
@@ -136,12 +154,14 @@ function InspectorRow({
   onClick,
   canClick,
   upcomingAssignments,
+  onInspectionClick,
 }: {
   inspector: Inspector;
   isDark: boolean;
   onClick: () => void;
   canClick: boolean;
   upcomingAssignments?: Inspection[];
+  onInspectionClick?: (inspection: Inspection) => void;
 }) {
   const hasUpcoming = upcomingAssignments && upcomingAssignments.length > 0;
 
@@ -212,11 +232,12 @@ function InspectorRow({
               </>
             )}
           </div>
-          {/* ✅ نمایش نشانگر برنامه‌های آینده */}
+
           {hasUpcoming && (
             <UpcomingAssignmentsBadge
               assignments={upcomingAssignments!}
               isDark={isDark}
+              onInspectionClick={onInspectionClick}
             />
           )}
         </div>
@@ -257,7 +278,8 @@ export function InspectorList({
   onInspectorClick,
   onAddClick,
   loading = false,
-  upcomingAssignments = {}, // ✅ مقدار پیش‌فرض خالی
+  upcomingAssignments = {},
+  onInspectionClick,
 }: InspectorListProps) {
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
@@ -366,6 +388,7 @@ export function InspectorList({
                 onClick={() => onInspectorClick(insp)}
                 canClick={canClickItem}
                 upcomingAssignments={upcomingAssignments[insp.id]}
+                onInspectionClick={onInspectionClick}
               />
             ))}
           </div>

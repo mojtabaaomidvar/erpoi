@@ -7,6 +7,9 @@ import { InspectorElements } from "@shared/authorization/ui/elements/InspectorEl
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { inspectorAppService } from "@/features/inspector-managment/application";
 import { InspectorList } from "@/features/inspector-managment/ui/InspectorList";
+import { tpiRequestAppService } from "@/features/tpi-management/application/TPIRequestApplicationService";
+import { TPIDetailsModal } from "@/features/tpi-management/ui/TPIDetailsModal";
+// import { MWSDetailsModal } from "@/features/mws-management/ui/MWSDetailsModal";
 import { InspectorAddForm } from "@/features/inspector-managment/ui/InspectorAddForm";
 import { InspectorDetailsModal } from "@/features/inspector-managment/ui/InspectorDetailsModal";
 import { useInspectors } from "@/features/inspector-managment/hooks/useInspectors";
@@ -21,6 +24,29 @@ export function Inspectors() {
   const { user } = useAuth();
   const { canAccessElement } = usePermissionMapping();
 
+  const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
+
+  const [selectedInspectionRequest, setSelectedInspectionRequest] =
+    useState<any>(null);
+
+  const handleInspectionClick = async (inspection: Inspection) => {
+    try {
+      const requestDetails = await tpiRequestAppService.getById(
+        inspection.inspection_request_id,
+      );
+
+      if (requestDetails) {
+        setSelectedInspectionRequest(requestDetails);
+        setIsInspectionModalOpen(true);
+      } else {
+        showToast("error", "Not Found", "Could not load inspection details.");
+      }
+    } catch (err: any) {
+      console.error("Failed to load inspection details:", err);
+      showToast("error", "Error", "Failed to load inspection details.");
+    }
+  };
+
   const [upcomingAssignments, setUpcomingAssignments] = useState<
     Record<string, Inspection[]>
   >({});
@@ -30,7 +56,6 @@ export function Inspectors() {
       try {
         const allInspections = await inspectionAppService.getAll();
 
-        // ✅ گروه‌بندی بازرسی‌های SCHEDULED بر اساس inspector_id
         const grouped = allInspections.reduce<Record<string, Inspection[]>>(
           (acc, curr) => {
             if (curr.status === "SCHEDULED" && curr.execution_date) {
@@ -50,7 +75,6 @@ export function Inspectors() {
     loadAssignments();
   }, []);
 
-  // ✅ استفاده از هوک هوشمند به جای Stateهای دستی
   const {
     inspectors,
     loading,
@@ -63,8 +87,8 @@ export function Inspectors() {
     setFilterType,
     filterStatus,
     setFilterStatus,
-    filteredInspectors, // ✅ حالا این متغیر تعریف شده است
-    stats, // ✅ حالا این متغیر تعریف شده است
+    filteredInspectors,
+    stats,
   } = useInspectors();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -87,13 +111,11 @@ export function Inspectors() {
     InspectorElements.InspectorList.btn_delete.id,
   );
 
-  // 🔧 هندلر ذخیره (ایجاد یا ویرایش)
   const handleSaveInspector = async (formData: any, isEdit: boolean) => {
     try {
       let savedInspector: Inspector;
 
       if (isEdit && editingInspector) {
-        // حذف رزومه قدیمی در صورت وجود رزومه جدید
         if (editingInspector.resume_url && formData.resumeFile) {
           await inspectorAppService.deleteResume(editingInspector.resume_url);
         }
@@ -112,7 +134,6 @@ export function Inspectors() {
       await refresh();
       showToast("success", "Saved", "Inspector saved successfully!");
 
-      // آپلود رزومه در پس‌زمینه (Background Upload)
       if (formData.resumeFile && savedInspector) {
         inspectorAppService
           .uploadResume(
@@ -153,7 +174,6 @@ export function Inspectors() {
     }
   };
 
-  // 🔧 هندلر کلیک روی آیتم (باز کردن مودال جزئیات)
   const handleInspectorClick = (inspector: Inspector) => {
     if (!canClickItem) {
       showToast(
@@ -167,7 +187,6 @@ export function Inspectors() {
     setIsDetailsOpen(true);
   };
 
-  // 🔧 هندلر ویرایش از داخل مودال جزئیات
   const handleEditFromDetails = (inspector: Inspector) => {
     if (!canEdit) {
       showToast(
@@ -182,7 +201,6 @@ export function Inspectors() {
     setIsAddModalOpen(true);
   };
 
-  // 🔧 هندلر حذف با Optimistic Update
   const handleDeleteInspector = async (inspector: Inspector) => {
     if (!canDelete) {
       showToast(
@@ -203,14 +221,11 @@ export function Inspectors() {
 
     if (!confirmed) return;
 
-    // ۱. بستن فوری مودال
     setIsDetailsOpen(false);
     setSelectedInspector(null);
 
-    // ۲. نمایش پیام موفقیت
     showToast("success", "Deleted", `${inspector.name_en} has been removed`);
 
-    // ۳. حذف واقعی از دیتابیس و refresh لیست
     try {
       await inspectorAppService.delete(inspector.id);
       await refresh();
@@ -271,6 +286,7 @@ export function Inspectors() {
         }}
         loading={loading}
         upcomingAssignments={upcomingAssignments}
+        onInspectionClick={handleInspectionClick}
       />
 
       {/* مودال جزئیات */}
@@ -296,6 +312,38 @@ export function Inspectors() {
         initialData={editingInspector}
         isAdmin={isAdmin}
       />
+
+      {isInspectionModalOpen && selectedInspectionRequest && (
+        <>
+          <TPIDetailsModal
+            isOpen={isInspectionModalOpen}
+            onClose={() => {
+              setIsInspectionModalOpen(false);
+              setSelectedInspectionRequest(null);
+            }}
+            request={selectedInspectionRequest}
+            onEdit={(req) => {
+              setIsInspectionModalOpen(false);
+              showToast("info", "Edit", "Edit functionality coming soon");
+            }}
+            onDelete={async (req) => {
+              setIsInspectionModalOpen(false);
+              await refresh();
+            }}
+          />
+
+          {/* {/* ✅ در آینده وقتی ماژول MWS آماده شد، فقط این شرط را اضافه می‌کنید: 
+          {selectedInspectionRequest.category === "MWS" && (
+            <MWSDetailsModal
+              isOpen={isInspectionModalOpen}
+              onClose={() => { setIsInspectionModalOpen(false); setSelectedInspectionRequest(null); }}
+              request={selectedInspectionRequest}
+              // ...
+            />
+          )} 
+          */}
+        </>
+      )}
     </>
   );
 }
