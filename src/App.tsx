@@ -21,6 +21,9 @@ import { ConfirmDialogProvider } from "@shared/ui/ConfirmDialog";
 import { ToastProvider } from "@shared/ui/ToastContainer";
 import { amendmentAppService } from "./features/contract-management/application";
 
+// ✅ ۱. ایمپورت کامپوننت جدید
+import { ApprovalDashboard } from "@/features/master-data/ui/ApprovalDashboard";
+
 const meta: Record<ViewKey, { title: string; subtitle: string }> = {
   dashboard: {
     title: "Operations Dashboard",
@@ -46,12 +49,14 @@ const meta: Record<ViewKey, { title: string; subtitle: string }> = {
     title: "Inspection Workflow",
     subtitle: "5-step pipeline from request to completion",
   },
-
   tpi: {
     title: "Third Party Inspection",
     subtitle: "Spot and Resident inspection management for quality control",
   },
-
+  approvals: {
+    title: "Master Data Approvals",
+    subtitle: "Review and approve new custom values (Other) requested by users",
+  },
   billing: {
     title: "Billing & Invoices",
     subtitle: "Financial records tied to completed inspections",
@@ -143,6 +148,7 @@ function AppContent() {
           {view === "inspectors" && <Inspectors />}
           {view === "inspections" && <Inspections />}
           {view === "tpi" && <TPI />}
+          {view === "approvals" && <ApprovalDashboard />}
           {view === "billing" && <Billing />}
           {view === "reports" && <Reports />}
           {view === "settings" && <Settings />}

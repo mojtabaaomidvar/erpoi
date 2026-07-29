@@ -30,48 +30,46 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
   },
   manager: {
     id: "manager",
-    label: "Department Manager",
+    label: "Department / Unit Manager", // ✅ برچسب دقیق‌تر
     icon: "👔",
     color: "from-blue-500 to-indigo-600",
-    description: "Manages department operations and approvals",
+    description:
+      "Manages department operations, workflows, and master data approvals", // ✅ توضیحات به‌روز شد
     defaultPermissions: [
       // 🏢 Clients
       "client:list",
       "client:view",
       "client:create",
       "client:update",
-
       // 📄 Contracts
       "contract:list",
       "contract:view",
       "contract:create",
       "contract:update",
-
       // 📝 Amendments
       "amendment:list",
       "amendment:view",
       "amendment:create",
       "amendment:approve",
-
       // 🔍 Inspections
       "inspection:list",
       "inspection:view",
       "inspection:create",
       "inspection:assign",
-
       // 👷 Inspectors
       "inspector:list",
       "inspector:view",
-
-      // 💰 Financials (View Only for Managers usually)
+      // 💰 Financials
       "invoice:view",
       "tariff:view",
-
       // 📊 Reports
       "report:view",
-
-      // 👥 Users (Limited to their department)
+      // 👥 Users
       "user:view",
+
+      "approval:view",
+      "approval:approve",
+      "approval:reject",
     ],
     isManager: true,
   },

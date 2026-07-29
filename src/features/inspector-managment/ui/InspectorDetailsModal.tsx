@@ -5,6 +5,8 @@ import { useTheme } from "@app/providers/ThemeProvider";
 import type { Inspector } from "../domain";
 import { InspectionElements } from "@shared/authorization/ui/elements/InspectionElements";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
+import { sortSpecialties } from "@/shared/utils/formatUtils";
+import { processOtherValue } from "@/shared/utils/formatUtils";
 
 interface InspectorDetailsModalProps {
   isOpen: boolean;
@@ -256,16 +258,20 @@ export function InspectorDetailsModal({
             <span>🛠️</span> Specialties & Skills
           </h3>
           <div className="flex flex-wrap gap-1.5">
-            {inspector.specialties && inspector.specialties.length > 0 ? (
-              inspector.specialties.map((spec, i) => (
-                <Badge
-                  key={i}
-                  tone="emerald"
-                  className="text-[10px] px-2 py-0.5"
-                >
-                  {spec}
-                </Badge>
-              ))
+            {sortSpecialties(inspector.specialties).length > 0 ? (
+              sortSpecialties(inspector.specialties).map((spec, i) => {
+                const { displayValue, isOther } = processOtherValue(spec);
+                return (
+                  <Badge
+                    key={i}
+                    tone={isOther ? "amber" : "emerald"}
+                    className="text-[10px] px-2 py-0.5"
+                  >
+                    {isOther && <span className="mr-1">✨</span>}
+                    {displayValue}
+                  </Badge>
+                );
+              })
             ) : (
               <span
                 className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}

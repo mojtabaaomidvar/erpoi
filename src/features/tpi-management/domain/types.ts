@@ -10,111 +10,15 @@ export type TPIMode = "SPOT" | "RESIDENT";
 export type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "LEAVE";
 
 // ═══════════════════════════════════════
-// 🎯 TPI Core Classifications
+// 🎯 TPI Core Classifications (Dynamic)
 // ═══════════════════════════════════════
 
-export type TPIDiscipline =
-  | "General"
-  | "Mechanical"
-  | "Dimensional"
-  | "Welding"
-  | "Paint & Coating"
-  | "Civil"
-  | "Piping"
-  | "Electrical"
-  | "Instrumentation"
-  | "Structure"
-  | "Process"
-  | "Safety"
-  | "Material"
-  | "HVAC"
-  | "Architecture"
-  | "Telecommunication";
-
-export type TPIInspectionStage =
-  | "In-Process"
-  | "Final Inspection"
-  | "Pre-Shipment"
-  | "Other";
-
-export type TPIInspectionMethod =
-  | "Pre-Inspection Meeting"
-  | "Document Review"
-  | "Visual Inspection"
-  | "Dimensional Inspection"
-  | "Marking / ID Verification"
-  | "Functional Verification"
-  | "Performance Verification"
-  | "Quantity"
-  | "Sampling"
-  | "NDT (PT, MT, ...)"
-  | "PMI"
-  | "Laboratory Test"
-  | "Hydrostatic Test"
-  | "Other";
-
-export const TPI_DISCIPLINE_OPTIONS: TPIDiscipline[] = [
-  "General",
-  "Mechanical",
-  "Dimensional",
-  "Welding",
-  "Paint & Coating",
-  "Civil",
-  "Piping",
-  "Electrical",
-  "Instrumentation",
-  "Structure",
-  "Process",
-  "Safety",
-  "Material",
-  "HVAC",
-  "Architecture",
-  "Telecommunication",
-];
-
-export const TPI_INSPECTION_STAGE_OPTIONS: TPIInspectionStage[] = [
-  "In-Process",
-  "Final Inspection",
-  "Pre-Shipment",
-  "Other",
-];
-
-export const TPI_INSPECTION_METHOD_OPTIONS: TPIInspectionMethod[] = [
-  "Pre-Inspection Meeting",
-  "Document Review",
-  "Visual Inspection",
-  "Dimensional Inspection",
-  "Marking / ID Verification",
-  "Functional Verification",
-  "Performance Verification",
-  "Quantity",
-  "Sampling",
-  "NDT (PT, MT, ...)",
-  "PMI",
-  "Laboratory Test",
-  "Hydrostatic Test",
-  "Other",
-];
-
-export type TPICancellationReason =
-  | "REASSIGNED"
-  | "CLIENT_REQUEST"
-  | "VENDOR_UNAVAILABLE"
-  | "SCOPE_CHANGED"
-  | "OTHER";
-
-export type TPIReportType = "IR" | "IRN" | "SRN";
-
-export type TPIDocumentType =
-  | "ITP"
-  | "QCP"
-  | "Procedure"
-  | "Drawing"
-  | "MTC"
-  | "Calibration"
-  | "WPS/PQR"
-  | "NDT Report"
-  | "Other";
+export type TPIDiscipline = string;
+export type TPIInspectionStage = string;
+export type TPIInspectionMethod = string;
+export type TPICancellationReason = string;
+export type TPIReportType = string;
+export type TPIDocumentType = string;
 
 // ═══════════════════════════════════════
 // 🏭 Vendor
@@ -201,9 +105,13 @@ export interface TPIRequest extends BaseInspectionRequest {
   vendor_id?: string;
   site_representative_id?: string;
 
-  disciplines: TPIDiscipline[];
-  stages: TPIInspectionStage[];
-  methods: TPIInspectionMethod[];
+  equipment_type_id?: string;
+  equipment_instance_id?: string;
+
+  disciplines: string[];
+  stages: string[];
+  methods: string[];
+
   cancellation_reason?: TPICancellationReason;
 }
 
@@ -212,7 +120,7 @@ export interface TPIRequest extends BaseInspectionRequest {
 // ═══════════════════════════════════════
 
 export type InspectionItemSourceType = "MANUAL" | "UPLOAD";
-export type SourceFileType = "PACKING_LIST" | "MTO" | "OTHER";
+export type SourceFileType = "PACKING_LIST" | "MTO" | "Others";
 
 export interface InspectionItem {
   id: string;

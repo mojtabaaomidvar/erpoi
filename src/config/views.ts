@@ -23,12 +23,16 @@ export const views: Record<ViewKey, ViewMeta> = {
     subtitle: "Master service agreements and work orders",
   },
 
-  project: { title: "Projects", subtitle: "Master service projects" },
+  project: {
+    title: "Projects",
+    subtitle: "Master service projects",
+  },
 
   inspectors: {
     title: "Inspector Roster",
     subtitle: "Certified engineers, specialties, and availability",
   },
+
   inspections: {
     title: "Inspection Workflow",
     subtitle: "5-step pipeline from request to completion",
@@ -36,7 +40,7 @@ export const views: Record<ViewKey, ViewMeta> = {
 
   tpi: {
     title: "Third Party Inspection",
-    subtitle: "5-step pipeline from request to completion",
+    subtitle: "Spot and Resident inspection management for quality control",
   },
 
   billing: {
@@ -62,5 +66,10 @@ export const views: Record<ViewKey, ViewMeta> = {
   "user-management": {
     title: "User Management",
     subtitle: "Manage users, roles, departments, and permissions",
+  },
+
+  approvals: {
+    title: "Master Data Approvals",
+    subtitle: "Review and approve new custom values (Other) requested by users",
   },
 };

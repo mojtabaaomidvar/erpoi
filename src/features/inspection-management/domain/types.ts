@@ -8,6 +8,8 @@ import type { Inspector } from "@/features/inspector-managment/domain";
 
 export type InspectionCategory = "TPI" | "MWS";
 export type Priority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+export type ChecklistResult = "PASS" | "FAIL" | "NA" | "PENDING";
+export type ChecklistStatus = "DRAFT" | "SUBMITTED" | "APPROVED";
 
 export type InspectionStatus =
   | "NEW"
@@ -31,7 +33,7 @@ export type CancellationReason =
   | "CLIENT_REQUEST"
   | "VENDOR_UNAVAILABLE"
   | "SCOPE_CHANGED"
-  | "OTHER";
+  | "Others";
 
 // ═══════════════════════════════════════
 // 📋 Base Entities
@@ -105,4 +107,24 @@ export interface EnrichedInspector {
   isMatch: boolean;
   isAvailable: boolean;
   conflictingInspections: Inspection[];
+}
+
+export interface ChecklistItem {
+  id: string;
+  checklist_id: string;
+  category: string;
+  description: string;
+  result: ChecklistResult;
+  remarks?: string;
+  photo_urls?: string[];
+}
+
+export interface InspectionChecklist {
+  id: string;
+  inspection_id: string;
+  inspector_id: string;
+  status: ChecklistStatus;
+  items: ChecklistItem[];
+  created_at: string;
+  updated_at: string;
 }

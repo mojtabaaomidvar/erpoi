@@ -42,7 +42,6 @@ export function Inspectors() {
         showToast("error", "Not Found", "Could not load inspection details.");
       }
     } catch (err: any) {
-      console.error("Failed to load inspection details:", err);
       showToast("error", "Error", "Failed to load inspection details.");
     }
   };
@@ -77,7 +76,10 @@ export function Inspectors() {
 
   const {
     inspectors,
+    filteredInspectors,
+    stats,
     loading,
+    refreshing,
     refresh,
     searchQuery,
     setSearchQuery,
@@ -87,8 +89,7 @@ export function Inspectors() {
     setFilterType,
     filterStatus,
     setFilterStatus,
-    filteredInspectors,
-    stats,
+    updateInspectorsLocal,
   } = useInspectors();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -112,60 +113,68 @@ export function Inspectors() {
   );
 
   const handleSaveInspector = async (formData: any, isEdit: boolean) => {
+    setIsAddModalOpen(false);
+
+    const tempId = `temp_${Date.now()}`;
+    const tempInspector: Inspector = {
+      id: tempId,
+      name_en: formData.name_en,
+      name_fa: formData.name_fa || "",
+      inspector_type: formData.inspector_type,
+      status: formData.status || "AVAILABLE",
+      specialties: formData.specialties || [],
+      phone: formData.phone,
+      email: formData.email || "",
+      location_base: formData.location_base || "",
+      personnel_code: formData.personnel_code || "",
+      user_id: formData.user_id || "",
+      resume_name: formData.resume_name || "",
+      resume_url: "",
+      resume_size: formData.resume_size || 0,
+      rating: 0,
+      completed_inspections: 0,
+      active_missions: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (isEdit && editingInspector) {
+      updateInspectorsLocal((prev: Inspector[]) =>
+        prev.map((i: Inspector) =>
+          i.id === editingInspector.id ? tempInspector : i,
+        ),
+      );
+    } else {
+      updateInspectorsLocal((prev: Inspector[]) => [tempInspector, ...prev]);
+    }
+
+    setEditingInspector(null);
+    showToast("success", "Saved", "Inspector saved successfully!");
+
     try {
       let savedInspector: Inspector;
 
       if (isEdit && editingInspector) {
-        if (editingInspector.resume_url && formData.resumeFile) {
-          await inspectorAppService.deleteResume(editingInspector.resume_url);
-        }
-        const { resumeFile, ...inspectorData } = formData;
         savedInspector = await inspectorAppService.update(
           editingInspector.id,
-          inspectorData,
+          formData,
         );
       } else {
-        const { resumeFile, ...inspectorData } = formData;
-        savedInspector = await inspectorAppService.create(inspectorData);
+        savedInspector = await inspectorAppService.create(formData);
       }
 
-      setEditingInspector(null);
-      setIsAddModalOpen(false);
+      updateInspectorsLocal((prev: Inspector[]) =>
+        prev.map((i: Inspector) => (i.id === tempId ? savedInspector : i)),
+      );
+
       await refresh();
-      showToast("success", "Saved", "Inspector saved successfully!");
-
-      if (formData.resumeFile && savedInspector) {
-        inspectorAppService
-          .uploadResume(
-            formData.resumeFile,
-            savedInspector.id,
-            formData.resume_name,
-          )
-          .then(
-            async (uploadResult: {
-              url: string;
-              name: string;
-              size: number;
-              uploadedAt: string;
-            }) => {
-              await inspectorAppService.update(savedInspector.id, {
-                resume_name: uploadResult.name,
-                resume_url: uploadResult.url,
-                resume_size: uploadResult.size,
-                resume_uploaded_at: uploadResult.uploadedAt,
-              });
-              await refresh();
-            },
-          )
-          .catch(() => {
-            showToast(
-              "warning",
-              "Upload Notice",
-              "Inspector saved, but resume upload failed. You can edit it later.",
-            );
-          });
-      }
     } catch (err: any) {
+      console.error("❌ [PARENT] Background save failed:", err);
+
+      updateInspectorsLocal((prev: Inspector[]) =>
+        prev.filter((i: Inspector) => i.id !== tempId),
+      );
+
       showToast(
         "error",
         "Save Failed",
@@ -202,40 +211,28 @@ export function Inspectors() {
   };
 
   const handleDeleteInspector = async (inspector: Inspector) => {
-    if (!canDelete) {
-      showToast(
-        "error",
-        "Access Denied",
-        "You do not have permission to delete inspectors",
-      );
-      return;
-    }
-
     const confirmed = await confirmDialog({
       title: "Delete Inspector",
-      message: `Are you sure you want to permanently delete "${inspector.name_en}"?\n\nThis action will also delete their associated resume from the server and cannot be undone.`,
-      confirmText: "Yes, Delete",
+      message: `Are you sure you want to delete "${inspector.name_en}"? This action cannot be undone.`,
+      confirmText: "Delete",
       cancelText: "Cancel",
       variant: "danger",
     });
 
     if (!confirmed) return;
 
-    setIsDetailsOpen(false);
-    setSelectedInspector(null);
-
-    showToast("success", "Deleted", `${inspector.name_en} has been removed`);
-
     try {
       await inspectorAppService.delete(inspector.id);
+      showToast("success", "Deleted", "Inspector deleted successfully");
       await refresh();
     } catch (err: any) {
+      console.error("Delete Error:", err);
+
       showToast(
         "error",
         "Delete Failed",
         err.message || "Failed to delete inspector",
       );
-      await refresh();
     }
   };
 

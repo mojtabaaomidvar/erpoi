@@ -13,6 +13,7 @@ import {
   Shield,
   Folder,
   Search,
+  FileCheck,
 } from "lucide-react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
@@ -31,6 +32,7 @@ export type ViewKey =
   | "reports"
   | "audit"
   | "settings"
+  | "approvals"
   | "user-management";
 
 interface SidebarProps {
@@ -40,14 +42,17 @@ interface SidebarProps {
   expiringContractsCount?: number;
 }
 
-const navItems: Array<{
+interface NavItem {
   key: ViewKey;
   label: string;
   icon: typeof LayoutDashboard;
   badge?: string;
   entity?: string;
   gradient: string;
-}> = [
+  unitManagerOnly?: boolean;
+}
+
+const navItems: NavItem[] = [
   {
     key: "dashboard",
     label: "Dashboard",
@@ -97,6 +102,14 @@ const navItems: Array<{
     gradient: "from-cyan-500 to-blue-600",
   },
   {
+    key: "approvals",
+    label: "Approvals",
+    icon: FileCheck,
+    entity: "approval",
+    unitManagerOnly: true,
+    gradient: "from-amber-500 to-yellow-600",
+  },
+  {
     key: "billing",
     label: "Billing",
     icon: Receipt,
@@ -131,6 +144,9 @@ export function Sidebar({
 
   const [pendingAmendmentsCount, setPendingAmendmentsCount] = useState(0);
 
+  const isManagerOrAdmin =
+    isAdmin || user?.role === "manager" || user?.role === "unit_manager";
+
   const loadPendingAmendmentsCount = async () => {
     try {
       const { count, error } = await supabase
@@ -150,16 +166,17 @@ export function Sidebar({
     }
   };
 
-  // 🔧 بارگذاری تعداد amendments در انتظار
   useEffect(() => {
     loadPendingAmendmentsCount();
-
-    // Refresh هر 10 ثانیه
     const interval = setInterval(loadPendingAmendmentsCount, 10000);
     return () => clearInterval(interval);
   }, []);
+
   const visibleNavItems = navItems.filter((item) => {
     if (item.key === "dashboard") return true;
+
+    if (item.unitManagerOnly && !isManagerOrAdmin) return false;
+
     if (!item.entity) return true;
     return canAccess(item.entity);
   });
@@ -181,24 +198,20 @@ export function Sidebar({
           const Icon = item.icon;
           const isActive = active === item.key;
 
-          // 🔧 FIX: محاسبه badge
           const isContracts = item.key === "contracts";
           const hasExpiringContracts = (expiringContractsCount ?? 0) > 0;
           const hasPendingAmendments = pendingAmendmentsCount > 0;
 
-          // 🔧 FIX: نمایش badge اگر expiring contracts یا pending amendments داشته باشیم
           const showBadge = isContracts
             ? hasExpiringContracts || hasPendingAmendments
             : !!item.badge;
 
-          // 🔧 FIX: متن badge
           const badgeText = isContracts
             ? hasPendingAmendments
               ? pendingAmendmentsCount
               : expiringContractsCount
             : item.badge;
 
-          // 🔧 FIX: رنگ badge
           const isAmendmentBadge = isContracts && hasPendingAmendments;
           const isAlert =
             isContracts && hasExpiringContracts && !hasPendingAmendments;
@@ -212,20 +225,16 @@ export function Sidebar({
                 isExpanded ? "gap-3 px-3 py-2.5" : "justify-center px-2 py-2.5"
               } ${
                 isActive
-                  ? isDark
-                    ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg`
-                    : `bg-gradient-to-r ${item.gradient} text-white shadow-lg`
+                  ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg`
                   : isDark
                     ? "text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
             >
-              {/* Active Indicator */}
               {isActive && (
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full bg-white shadow-lg" />
               )}
 
-              {/* Icon */}
               <div
                 className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
                   isActive
@@ -272,7 +281,6 @@ export function Sidebar({
                 </>
               )}
 
-              {/* Notification Dot for collapsed mode */}
               {!isExpanded && showBadge && (
                 <span
                   className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
@@ -291,14 +299,11 @@ export function Sidebar({
         })}
       </nav>
 
-      {/* ═══════════════════════════════════════ */}
-      {/* 🔹 FOOTER - User Management (Admin Only) */}
-      {/* ═══════════════════════════════════════ */}
+      {/* FOOTER - User Management (Admin Only) */}
       <div
         className={`border-t ${isDark ? "border-slate-800/50" : "border-slate-200/70"}`}
       >
         {isAdmin ? (
-          // Admin: User Management با استایل خاص
           <div className="p-3">
             <button
               onClick={() => onSelect("user-management")}
@@ -358,7 +363,6 @@ export function Sidebar({
             </button>
           </div>
         ) : (
-          // Non-Admin: Spacer ساده مثل بقیه سایدبار
           <div className="p-3">
             <div
               className={`flex items-center justify-center rounded-xl py-2.5 ${
@@ -367,7 +371,9 @@ export function Sidebar({
             >
               {isExpanded && (
                 <span className="text-[10px] uppercase font-semibold tracking-wider">
-                  {user?.role || "User"}
+                  {user?.role === "unit_manager" || user?.role === "manager"
+                    ? "Unit Manager"
+                    : user?.role || "User"}
                 </span>
               )}
             </div>

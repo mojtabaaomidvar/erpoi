@@ -80,7 +80,7 @@ class DocumentReviewApplicationService {
 
   async uploadDocument(data: {
     inspection_request_id: string;
-    document_type: string; // ✅ تغییر به string برای پشتیبانی از TPI و MWS
+    document_type: string;
     document_name: string;
     document_url: string;
     document_number?: string;

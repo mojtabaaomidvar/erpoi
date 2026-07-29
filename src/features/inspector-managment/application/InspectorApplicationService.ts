@@ -1,4 +1,4 @@
-//src/features/inspector-managment/application/services/InspectorApplicationService.ts
+// src/features/inspector-management/application/InspectorApplicationService.ts
 
 import type { Inspector, IInspectorRepository } from "./../domain";
 

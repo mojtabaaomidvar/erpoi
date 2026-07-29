@@ -8,7 +8,6 @@ import { tpiRequestAppService } from "@/features/tpi-management";
 import { TPIList } from "@features/tpi-management/ui/TPIList";
 import { TPIRequestForm } from "@features/tpi-management/ui/TPIRequestForm";
 import { TPIDetailsModal } from "@features/tpi-management/ui/TPIDetailsModal";
-import { confirmDialog } from "@shared/ui/ConfirmDialog";
 import { showToast } from "@shared/ui/ToastContainer";
 import type {
   TPIRequest,

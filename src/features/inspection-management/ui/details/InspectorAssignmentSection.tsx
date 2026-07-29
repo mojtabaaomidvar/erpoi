@@ -10,6 +10,7 @@ import { getTodayJalali, formatJalaliDate } from "@/shared/utils/dateUtils";
 import { jalaaliToGregorianDate } from "@/entities/contract/services/contractCalculations";
 import { inspectionAppService } from "../../application";
 import { inspectorAppService } from "@/features/inspector-managment/application";
+import { useMasterDataOptions } from "@/shared/hooks/useMasterDataOptions";
 import type {
   Inspection,
   CancellationReason,
@@ -20,8 +21,6 @@ import {
   INSPECTION_EXECUTION_STATUS_CONFIG,
   TPI_CANCELLATION_REASON_CONFIG,
 } from "../../constants";
-import { TPI_DISCIPLINE_OPTIONS } from "@/features/tpi-management";
-
 import { formatArrayField } from "@/shared/utils/formatUtils";
 
 interface InspectorAssignmentSectionProps {
@@ -47,6 +46,9 @@ export function InspectorAssignmentSection({
 }: InspectorAssignmentSectionProps) {
   const { isDark } = useTheme();
   const { user } = useAuth();
+
+  const { options: disciplineOptions, loading: loadingDisciplines } =
+    useMasterDataOptions("TPI_DISCIPLINE");
 
   const todayString = getTodayJalali();
   const initialDate = plannedDate ? plannedDate.replace(/-/g, "/") : "";
@@ -78,7 +80,7 @@ export function InspectorAssignmentSection({
   });
 
   const [cancelForm, setCancelForm] = useState({
-    reason: "OTHER" as CancellationReason,
+    reason: "Others" as CancellationReason,
     related_inspection_id: "",
     new_scheduled_date: "",
     date_is_unknown: false,
@@ -115,9 +117,7 @@ export function InspectorAssignmentSection({
   };
 
   const loadSuitableInspectors = async () => {
-    if (!assignForm.execution_date) {
-      return;
-    }
+    if (!assignForm.execution_date) return;
 
     const dbDate = assignForm.execution_date.replace(/\//g, "-");
 
@@ -164,7 +164,7 @@ export function InspectorAssignmentSection({
   const handleOpenCancelModal = (inspection: Inspection) => {
     setInspectionToCancel(inspection);
     setCancelForm({
-      reason: "OTHER",
+      reason: "Others",
       related_inspection_id: "",
       new_scheduled_date: "",
       date_is_unknown: false,
@@ -224,9 +224,8 @@ export function InspectorAssignmentSection({
           cancelForm.new_scheduled_date,
           plannedDate,
         );
-        if (!validation.valid) {
+        if (!validation.valid)
           return showToast("error", "Invalid Date", validation.error!);
-        }
       }
     }
 
@@ -235,9 +234,8 @@ export function InspectorAssignmentSection({
         cancelForm.new_scheduled_date,
         plannedDate,
       );
-      if (!validation.valid) {
+      if (!validation.valid)
         return showToast("error", "Invalid Date", validation.error!);
-      }
     }
 
     if (
@@ -252,7 +250,7 @@ export function InspectorAssignmentSection({
     }
 
     if (
-      cancelForm.reason === "OTHER" &&
+      cancelForm.reason === "Others" &&
       !cancelForm.cancellation_notes.trim()
     ) {
       return showToast("error", "Error", "Please provide details in notes");
@@ -412,10 +410,8 @@ export function InspectorAssignmentSection({
   const sortedInspections = [...inspections].sort((a, b) => {
     const aIsCancelled = a.status === "CANCELLED";
     const bIsCancelled = b.status === "CANCELLED";
-
     if (aIsCancelled && !bIsCancelled) return 1;
     if (!aIsCancelled && bIsCancelled) return -1;
-
     if (!a.execution_date) return 1;
     if (!b.execution_date) return -1;
     return a.execution_date.localeCompare(b.execution_date);
@@ -582,7 +578,7 @@ export function InspectorAssignmentSection({
                             </div>
                           )}
 
-                        {inspection.cancellation_reason === "OTHER" &&
+                        {inspection.cancellation_reason === "Others" &&
                           inspection.cancellation_notes && (
                             <div
                               className={`text-[10px] ${isDark ? "text-slate-300" : "text-slate-700"}`}
@@ -653,7 +649,6 @@ export function InspectorAssignmentSection({
                   }
                   className="w-full rounded-lg px-3 py-2 text-sm input-themed"
                 >
-                  {/* ✅ رفع خطای unknown با تایپ‌دهی صحیح */}
                   {Object.entries(TPI_CANCELLATION_REASON_CONFIG).map(
                     ([key, config]: [string, any]) => (
                       <option key={key} value={key}>
@@ -777,6 +772,7 @@ export function InspectorAssignmentSection({
                 </div>
               )}
 
+              {/* ✅ بخش اصلاح‌شده: استفاده از disciplineOptions به جای TPI_DISCIPLINE_OPTIONS */}
               {cancelForm.reason === "SCOPE_CHANGED" && (
                 <div>
                   <label
@@ -787,38 +783,54 @@ export function InspectorAssignmentSection({
                   <div
                     className={`grid grid-cols-2 gap-2 p-3 rounded-lg border max-h-48 overflow-y-auto ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-slate-50 border-slate-200"}`}
                   >
-                    {/* ✅ رفع خطای any با تایپ‌دهی صحیح scope */}
-                    {TPI_DISCIPLINE_OPTIONS.map((scope: string) => {
-                      const isSelected = cancelForm.new_scopes.includes(scope);
-                      const currentScopes = Array.isArray(serviceDomain)
-                        ? serviceDomain
-                        : serviceDomain.split(",").map((s) => s.trim());
-                      const isCurrent = currentScopes.includes(scope);
+                    {loadingDisciplines ? (
+                      <div className="col-span-2 text-center text-xs text-slate-500 py-4 animate-pulse">
+                        Loading scopes...
+                      </div>
+                    ) : (
+                      disciplineOptions.map((scope: string) => {
+                        const isSelected =
+                          cancelForm.new_scopes.includes(scope);
+                        const currentScopes = Array.isArray(serviceDomain)
+                          ? serviceDomain
+                          : (serviceDomain || "")
+                              .split(",")
+                              .map((s) => s.trim());
+                        const isCurrent = currentScopes.includes(scope);
 
-                      return (
-                        <label
-                          key={scope}
-                          className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-all ${isSelected ? (isDark ? "bg-purple-900/30 border border-purple-700" : "bg-purple-50 border border-purple-300") : isDark ? "hover:bg-slate-700 border border-transparent" : "hover:bg-white border border-transparent shadow-sm"}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleScope(scope)}
-                            className="w-4 h-4 rounded cursor-pointer accent-purple-600 shrink-0"
-                          />
-                          <span
-                            className={`text-xs ${isSelected ? (isDark ? "text-purple-200 font-medium" : "text-purple-900 font-medium") : isDark ? "text-slate-300" : "text-slate-700"}`}
+                        return (
+                          <label
+                            key={scope}
+                            className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-all ${
+                              isSelected
+                                ? isDark
+                                  ? "bg-purple-900/30 border border-purple-700"
+                                  : "bg-purple-50 border border-purple-300"
+                                : isDark
+                                  ? "hover:bg-slate-700 border border-transparent"
+                                  : "hover:bg-white border border-transparent shadow-sm"
+                            }`}
                           >
-                            {scope}
-                            {isCurrent && (
-                              <span className="text-[10px] opacity-70 ml-1">
-                                (Current)
-                              </span>
-                            )}
-                          </span>
-                        </label>
-                      );
-                    })}
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleScope(scope)}
+                              className="w-4 h-4 rounded cursor-pointer accent-purple-600 shrink-0"
+                            />
+                            <span
+                              className={`text-xs ${isSelected ? (isDark ? "text-purple-200 font-medium" : "text-purple-900 font-medium") : isDark ? "text-slate-300" : "text-slate-700"}`}
+                            >
+                              {scope}
+                              {isCurrent && (
+                                <span className="text-[10px] opacity-70 ml-1">
+                                  (Current)
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
                   </div>
                   <div
                     className={`mt-2 p-2 rounded-lg text-[11px] ${isDark ? "bg-purple-900/20 text-purple-300 border border-purple-800/30" : "bg-purple-50 text-purple-700 border border-purple-200"}`}
@@ -829,7 +841,7 @@ export function InspectorAssignmentSection({
                 </div>
               )}
 
-              {cancelForm.reason === "OTHER" && (
+              {cancelForm.reason === "Others" && (
                 <div>
                   <label
                     className={`block text-xs font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}
@@ -1073,7 +1085,7 @@ export function InspectorAssignmentSection({
               <span
                 className={`text-sm font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}
               >
-                👷Assign Inspector for {formatArrayField(serviceDomain)}
+                👷 Assign Inspector for {formatArrayField(serviceDomain)}
               </span>
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -1145,8 +1157,7 @@ export function InspectorAssignmentSection({
                             <p
                               className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-500"}`}
                             >
-                              Specialties:{" "}
-                              {insp.specialties?.join(", ") || "All"}
+                              Specialties: {formatArrayField(insp.specialties)}
                             </p>
                             {!item.isAvailable && (
                               <div

@@ -154,7 +154,7 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
     ]),
 
     // ═══════════════════════════════════════
-    // 📁 Projects (کامل و هماهنگ با ProjectElements)
+    // 📁 Projects
     // ═══════════════════════════════════════
     ...entityActions("project", [
       "list_item_view",
@@ -229,6 +229,11 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
       "report_section",
       "report_generate",
     ]),
+
+    // ═══════════════════════════════════════
+    // ✅ Approvals (Master Data) - دسترسی‌های مدیر واحد
+    // ═══════════════════════════════════════
+    ...entityActions("approval", ["view", "approve", "reject"]),
   ],
 
   expert: [

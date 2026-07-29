@@ -1,4 +1,4 @@
-//src/features/inspector-managment/hooks/useInspectors.ts
+// src/features/inspector-managment/hooks/useInspectors.ts
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import type { Inspector, InspectorType, InspectorStatus } from "../domain";
@@ -38,7 +38,20 @@ export function useInspectors() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
   const refresh = useCallback(() => loadData(true), [loadData]);
+
+  const updateInspectorsLocal = useCallback(
+    (action: Inspector[] | ((prev: Inspector[]) => Inspector[])) => {
+      setInspectorsState((prev) => {
+        if (typeof action === "function") {
+          return (action as (p: Inspector[]) => Inspector[])(prev);
+        }
+        return action;
+      });
+    },
+    [],
+  );
 
   const setInspectors = useCallback(
     async (action: Inspector[] | ((prev: Inspector[]) => Inspector[])) => {
@@ -86,6 +99,7 @@ export function useInspectors() {
   return {
     inspectors,
     setInspectors,
+    updateInspectorsLocal,
     loading: initialLoading,
     refreshing,
     error,

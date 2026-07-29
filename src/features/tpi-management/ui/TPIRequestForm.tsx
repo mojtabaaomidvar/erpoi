@@ -1,6 +1,7 @@
 // src/features/tpi-management/ui/TPIRequestForm.tsx
+
 import { useState, useEffect } from "react";
-import { Modal, Button, Badge } from "@design-system";
+import { Modal, Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
@@ -26,11 +27,9 @@ import type {
   TPIInspectionMethod,
   SourceFileType,
 } from "../domain/types";
-import {
-  TPI_DISCIPLINE_OPTIONS,
-  TPI_INSPECTION_STAGE_OPTIONS,
-  TPI_INSPECTION_METHOD_OPTIONS,
-} from "../domain/types";
+
+import { MultiSelectWithOther } from "@/shared/ui/MultiSelectWithOther";
+import { useMasterDataOptions } from "@/shared/hooks/useMasterDataOptions";
 
 interface TPIRequestFormProps {
   isOpen: boolean;
@@ -66,9 +65,9 @@ interface TPIFormData {
   tpi_mode: TPIMode;
   vendor_id: string;
   site_representative_id: string;
-  disciplines: TPIDiscipline[];
-  stages: TPIInspectionStage[];
-  methods: TPIInspectionMethod[];
+  disciplines: string[];
+  stages: string[];
+  methods: string[];
   inspection_date: string;
   priority: Priority;
   notes: string;
@@ -97,7 +96,7 @@ const SOURCE_FILE_TYPES: {
 }[] = [
   { value: "PACKING_LIST", label: "Packing List", icon: "📦" },
   { value: "MTO", label: "MTO (Material Take-Off)", icon: "📋" },
-  { value: "OTHER", label: "Other Document", icon: "📄" },
+  { value: "Others", label: "Others Document", icon: "📄" },
 ];
 
 export function TPIRequestForm({
@@ -125,6 +124,13 @@ export function TPIRequestForm({
   const [itemEntryMode, setItemEntryMode] = useState<"manual" | "upload">(
     "manual",
   );
+
+  const { options: disciplineOptions, loading: loadingDisciplines } =
+    useMasterDataOptions("TPI_DISCIPLINE");
+  const { options: stageOptions, loading: loadingStages } =
+    useMasterDataOptions("TPI_INSPECTION_STAGE");
+  const { options: methodOptions, loading: loadingMethods } =
+    useMasterDataOptions("TPI_INSPECTION_METHOD");
 
   const canViewForm = canAccessElement(TPIElements.TPIForm.form_view.id);
   const canSelectProject = canAccessElement(
@@ -272,7 +278,7 @@ export function TPIRequestForm({
       id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       file,
       file_name: file.name,
-      file_type: "OTHER" as SourceFileType,
+      file_type: "Others" as SourceFileType,
       status: "pending" as const,
       file_size: file.size,
     }));
@@ -288,33 +294,6 @@ export function TPIRequestForm({
 
   const removeFile = (id: string) =>
     setSourceFiles((prev) => prev.filter((f) => f.id !== id));
-
-  const toggleDiscipline = (disc: TPIDiscipline) => {
-    setFormData((prev) => ({
-      ...prev,
-      disciplines: prev.disciplines.includes(disc)
-        ? prev.disciplines.filter((d) => d !== disc)
-        : [...prev.disciplines, disc],
-    }));
-  };
-
-  const toggleStage = (stage: TPIInspectionStage) => {
-    setFormData((prev) => ({
-      ...prev,
-      stages: prev.stages.includes(stage)
-        ? prev.stages.filter((s) => s !== stage)
-        : [...prev.stages, stage],
-    }));
-  };
-
-  const toggleMethod = (method: TPIInspectionMethod) => {
-    setFormData((prev) => ({
-      ...prev,
-      methods: prev.methods.includes(method)
-        ? prev.methods.filter((m) => m !== method)
-        : [...prev.methods, method],
-    }));
-  };
 
   const validateStep = () => {
     const newErrors: any = {};
@@ -580,72 +559,38 @@ export function TPIRequestForm({
 
               {canSelectDiscipline && (
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5 text-primary">
-                    Disciplines <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {TPI_DISCIPLINE_OPTIONS.map((disc) => {
-                      const isSelected = formData.disciplines.includes(disc);
-                      return (
-                        <button
-                          key={disc}
-                          type="button"
-                          onClick={() => toggleDiscipline(disc)}
-                          className={`flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all ${isSelected ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : isDark ? "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            readOnly
-                            className="w-4 h-4 rounded cursor-pointer accent-indigo-600 shrink-0"
-                          />
-                          <span className="text-[11px] font-medium">
-                            {disc}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {errors.disciplines && (
-                    <p className="text-[11px] text-rose-600 mt-1">
-                      ✕ {errors.disciplines}
-                    </p>
+                  <label>Disciplines *</label>
+                  {loadingDisciplines ? (
+                    <span className="text-xs text-slate-500 animate-pulse">
+                      Loading...
+                    </span>
+                  ) : (
+                    <MultiSelectWithOther<string>
+                      options={disciplineOptions as readonly string[]}
+                      value={formData.disciplines}
+                      onChange={(values) =>
+                        updateFormData({ disciplines: values })
+                      }
+                      fieldType="TPI_DISCIPLINE"
+                    />
                   )}
                 </div>
               )}
 
               {canSelectDiscipline && (
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5 text-primary">
-                    Inspection Stages <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {TPI_INSPECTION_STAGE_OPTIONS.map((stage) => {
-                      const isSelected = formData.stages.includes(stage);
-                      return (
-                        <button
-                          key={stage}
-                          type="button"
-                          onClick={() => toggleStage(stage)}
-                          className={`flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all ${isSelected ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : isDark ? "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            readOnly
-                            className="w-4 h-4 rounded cursor-pointer accent-indigo-600 shrink-0"
-                          />
-                          <span className="text-[11px] font-medium">
-                            {stage}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {errors.stages && (
-                    <p className="text-[11px] text-rose-600 mt-1">
-                      ✕ {errors.stages}
-                    </p>
+                  <label>Stages *</label>
+                  {loadingStages ? (
+                    <span className="text-xs text-slate-500 animate-pulse">
+                      Loading...
+                    </span>
+                  ) : (
+                    <MultiSelectWithOther<string>
+                      options={stageOptions as readonly string[]}
+                      value={formData.stages}
+                      onChange={(values) => updateFormData({ stages: values })}
+                      fieldType="TPI_INSPECTION_STAGE"
+                    />
                   )}
                 </div>
               )}
@@ -656,36 +601,18 @@ export function TPIRequestForm({
             <div className="space-y-4 animate-fadeIn">
               {canSelectMethods && (
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5 text-primary">
-                    Inspection Methods <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {TPI_INSPECTION_METHOD_OPTIONS.map((method) => {
-                      const isSelected = formData.methods.includes(method);
-                      return (
-                        <button
-                          key={method}
-                          type="button"
-                          onClick={() => toggleMethod(method)}
-                          className={`flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all ${isSelected ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : isDark ? "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            readOnly
-                            className="w-4 h-4 rounded cursor-pointer accent-indigo-600 shrink-0"
-                          />
-                          <span className="text-[11px] font-medium">
-                            {method}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {errors.methods && (
-                    <p className="text-[11px] text-rose-600 mt-1">
-                      ✕ {errors.methods}
-                    </p>
+                  <label>Methods *</label>
+                  {loadingMethods ? (
+                    <span className="text-xs text-slate-500 animate-pulse">
+                      Loading...
+                    </span>
+                  ) : (
+                    <MultiSelectWithOther<string>
+                      options={methodOptions as readonly string[]}
+                      value={formData.methods}
+                      onChange={(values) => updateFormData({ methods: values })}
+                      fieldType="TPI_INSPECTION_METHOD"
+                    />
                   )}
                 </div>
               )}

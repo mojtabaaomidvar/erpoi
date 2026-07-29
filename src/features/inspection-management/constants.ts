@@ -8,19 +8,6 @@ import type {
   InspectionCategory,
 } from "./domain/types";
 
-import type {
-  TPIMode,
-  TPICancellationReason,
-  TPIReportType,
-  TPIDocumentType,
-} from "../tpi-management/domain/types";
-
-import type {
-  MWSCancellationReason,
-  MWSReportType,
-  MWSDocumentType,
-} from "../mws-management/domain/types";
-
 // ═══════════════════════════════════════
 // 🔍 Shared Inspection Configs
 // ═══════════════════════════════════════
@@ -68,11 +55,7 @@ export const TPI_REQUEST_STATUS_CONFIG: Record<
   string,
   { label: string; color: string; icon: string }
 > = {
-  NEW: {
-    label: "New",
-    color: "slate",
-    icon: "🆕",
-  },
+  NEW: { label: "New", color: "slate", icon: "🆕" },
   INSPECTOR_ASSIGNED: {
     label: "Inspector Assigned",
     color: "blue",
@@ -83,21 +66,9 @@ export const TPI_REQUEST_STATUS_CONFIG: Record<
     color: "indigo",
     icon: "✅",
   },
-  REPORT_ISSUED: {
-    label: "Report Issued",
-    color: "emerald",
-    icon: "📄",
-  },
-  FOLLOW_UP: {
-    label: "Follow Up",
-    color: "amber",
-    icon: "⏳",
-  },
-  COMPLETED: {
-    label: "Completed",
-    color: "indigo",
-    icon: "✅",
-  },
+  REPORT_ISSUED: { label: "Report Issued", color: "emerald", icon: "📄" },
+  FOLLOW_UP: { label: "Follow Up", color: "amber", icon: "⏳" },
+  COMPLETED: { label: "Completed", color: "indigo", icon: "✅" },
 };
 
 export const REVIEW_STATUS_CONFIG: Record<
@@ -129,17 +100,17 @@ export const INSPECTION_CATEGORY_CONFIG: Record<
 };
 
 // ═══════════════════════════════════════
-// 🎯 TPI-Specific Configs & Options
+// 🎯 TPI-Specific Configs
 // ═══════════════════════════════════════
 
-export const TPI_MODE_CONFIG: Record<TPIMode, { label: string; icon: string }> =
+export const TPI_MODE_CONFIG: Record<string, { label: string; icon: string }> =
   {
     SPOT: { label: "Spot Inspection", icon: "📍" },
     RESIDENT: { label: "Resident Inspection", icon: "🏢" },
   };
 
 export const TPI_CANCELLATION_REASON_CONFIG: Record<
-  TPICancellationReason,
+  string,
   { label: string; icon: string; color: string; description: string }
 > = {
   REASSIGNED: {
@@ -166,7 +137,7 @@ export const TPI_CANCELLATION_REASON_CONFIG: Record<
     color: "purple",
     description: "Inspection scope was modified",
   },
-  OTHER: {
+  Others: {
     label: "Other reason",
     icon: "❓",
     color: "slate",
@@ -175,7 +146,7 @@ export const TPI_CANCELLATION_REASON_CONFIG: Record<
 };
 
 export const TPI_REPORT_TYPE_CONFIG: Record<
-  TPIReportType,
+  string,
   { label: string; description: string }
 > = {
   IR: { label: "IR", description: "Inspection Report" },
@@ -184,7 +155,7 @@ export const TPI_REPORT_TYPE_CONFIG: Record<
 };
 
 export const TPI_DOCUMENT_TYPE_CONFIG: Record<
-  TPIDocumentType,
+  string,
   { label: string; icon: string }
 > = {
   ITP: { label: "ITP", icon: "📋" },
@@ -195,15 +166,15 @@ export const TPI_DOCUMENT_TYPE_CONFIG: Record<
   Calibration: { label: "Calibration", icon: "⚖️" },
   "WPS/PQR": { label: "WPS/PQR", icon: "🔥" },
   "NDT Report": { label: "NDT Report", icon: "🔍" },
-  Other: { label: "Other", icon: "📁" },
+  Others: { label: "Other", icon: "📁" },
 };
 
 // ═══════════════════════════════════════
-// 🌊 MWS-Specific Configs & Options
+// 🌊 MWS-Specific Configs
 // ═══════════════════════════════════════
 
 export const MWS_CANCELLATION_REASON_CONFIG: Record<
-  MWSCancellationReason,
+  string,
   { label: string; icon: string; color: string; description: string }
 > = {
   WEATHER_DELAY: {
@@ -230,7 +201,7 @@ export const MWS_CANCELLATION_REASON_CONFIG: Record<
     color: "purple",
     description: "Marine operation scope was modified",
   },
-  OTHER: {
+  Others: {
     label: "Other reason",
     icon: "❓",
     color: "slate",
@@ -239,7 +210,7 @@ export const MWS_CANCELLATION_REASON_CONFIG: Record<
 };
 
 export const MWS_REPORT_TYPE_CONFIG: Record<
-  MWSReportType,
+  string,
   { label: string; description: string }
 > = {
   COA: { label: "COA", description: "Certificate of Approval" },
@@ -259,7 +230,7 @@ export const MWS_REPORT_TYPE_CONFIG: Record<
 };
 
 export const MWS_DOCUMENT_TYPE_CONFIG: Record<
-  MWSDocumentType,
+  string,
   { label: string; icon: string }
 > = {
   "MWS Plan": { label: "MWS Plan", icon: "📋" },
@@ -272,7 +243,7 @@ export const MWS_DOCUMENT_TYPE_CONFIG: Record<
   },
   "Mooring Plan": { label: "Mooring Plan", icon: "🗺️" },
   FMEA: { label: "FMEA", icon: "⚠️" },
-  Other: { label: "Other", icon: "📁" },
+  Others: { label: "Other", icon: "📁" },
 };
 
 export const REPORT_TYPE_CONFIG = TPI_REPORT_TYPE_CONFIG;

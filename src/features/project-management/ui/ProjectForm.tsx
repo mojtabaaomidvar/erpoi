@@ -14,7 +14,7 @@ import { useProjectForm } from "../hooks/useProjectForm";
 import { validateDateRange } from "@shared/lib/validators";
 import { getTodayJalali, compareJalaliDates } from "@/shared/utils/dateUtils";
 
-export type InspectionCategory = "TPI" | "MWS" | "TPER" | "Other";
+export type InspectionCategory = "TPI" | "MWS" | "TPER" | "Others";
 
 const ROLE_HIERARCHY: Record<string, number> = {
   admin: 5,
@@ -62,8 +62,13 @@ export function ProjectForm({
     clearContracts,
   } = useProjectForm();
 
-  const allServiceTypes: InspectionCategory[] = ["TPI", "MWS", "TPER", "Other"];
-  const comingSoonServices: InspectionCategory[] = ["TPER", "Other"];
+  const allServiceTypes: InspectionCategory[] = [
+    "TPI",
+    "MWS",
+    "TPER",
+    "Others",
+  ];
+  const comingSoonServices: InspectionCategory[] = ["TPER", "Others"];
 
   const [formData, setFormData] = useState({
     name: "",

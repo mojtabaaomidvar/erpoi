@@ -49,7 +49,7 @@ export type ChecklistCategory =
   | "COATING"
   | "PACKAGING"
   | "DOCUMENTATION"
-  | "OTHER";
+  | "Others";
 
 // ═══════════════════════════════════════
 // 🏷️ نوع درخواست (مشترک بین TPI و MWS)

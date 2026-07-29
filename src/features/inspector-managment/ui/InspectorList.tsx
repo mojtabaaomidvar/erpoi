@@ -6,6 +6,7 @@ import type { Inspection } from "@/features/inspection-management/domain/types";
 import { InspectorElements } from "@shared/authorization/ui/elements/InspectorElements";
 import { usePermissionMapping } from "@/shared/authorization";
 import { formatJalaliDate } from "@/shared/utils/dateUtils";
+import { processOtherValue } from "@/shared/utils/formatUtils";
 
 const STATUS_COLORS: Record<
   InspectorStatus,
@@ -209,26 +210,50 @@ function InspectorRow({
             <span className={isDark ? "text-slate-400" : "text-slate-500"}>
               ⭐ {inspector.rating.toFixed(1)}
             </span>
+
             {inspector.specialties && inspector.specialties.length > 0 && (
               <>
                 <span className={isDark ? "text-slate-500" : "text-slate-400"}>
                   •
                 </span>
-                <span
-                  className={`text-[10px] truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}
-                >
-                  🎯 {inspector.specialties.slice(0, 2).join(", ")}
-                  {inspector.specialties.length > 2 &&
-                    ` +${inspector.specialties.length - 2}`}
-                </span>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {inspector.specialties.slice(0, 2).map((spec, idx) => {
+                    const { displayValue, isOther } = processOtherValue(spec);
+                    return (
+                      <span
+                        key={idx}
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                          isOther
+                            ? isDark
+                              ? "bg-amber-900/30 text-amber-300 border border-amber-800/50"
+                              : "bg-amber-100 text-amber-700 border border-amber-200"
+                            : isDark
+                              ? "text-slate-400"
+                              : "text-slate-600"
+                        }`}
+                      >
+                        {isOther && "✨ "}
+                        {displayValue}
+                      </span>
+                    );
+                  })}
+                  {inspector.specialties.length > 2 && (
+                    <span
+                      className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}
+                    >
+                      +{inspector.specialties.length - 2}
+                    </span>
+                  )}
+                </div>
               </>
             )}
+
             {inspector.resume_url && (
               <>
                 <span className={isDark ? "text-slate-500" : "text-slate-400"}>
                   •
                 </span>
-                <span className="text-[10px]">📎</span>
+                <span className="text-[10px]">📎 Resume</span>
               </>
             )}
           </div>

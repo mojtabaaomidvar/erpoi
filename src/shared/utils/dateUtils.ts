@@ -30,11 +30,9 @@ export const jalaliToGregorianDate = (jalaliDate: string): Date | null => {
 
 export const compareJalaliDates = (date1: string, date2: string): number => {
   if (!date1 || !date2) return 0;
-
   const normalize = (d: string) => d.trim().replace(/-/g, "/");
   const num1 = parseInt(normalize(date1).replace(/\//g, ""), 10);
   const num2 = parseInt(normalize(date2).replace(/\//g, ""), 10);
-
   if (isNaN(num1) || isNaN(num2)) return 0;
   return num1 - num2;
 };
@@ -57,29 +55,26 @@ export const parseDateFlexible = (
   return null;
 };
 
-export const formatJalaliDate = (dateString: string): string => {
+export const formatJalaliDate = (
+  dateString: string | null | undefined,
+): string => {
   if (!dateString) return "—";
 
   const jalaliRegex = /^\d{4}[/\-]\d{1,2}[/\-]\d{1,2}$/;
   if (jalaliRegex.test(dateString)) {
     return dateString.replace(/-/g, "/");
   }
-
   try {
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
+    if (!isNaN(date.getTime())) {
+      const j = jalaali.toJalaali(
+        date.getFullYear(),
+        date.getMonth() + 1,
+        date.getDate(),
+      );
+      return `${j.jy}/${String(j.jm).padStart(2, "0")}/${String(j.jd).padStart(2, "0")}`;
+    }
+  } catch {}
 
-    const jalaliDate = date.toLocaleDateString("en-US-u-ca-persian-nu-latn", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-
-    const parts = jalaliDate.split("/");
-    return parts.length === 3
-      ? `${parts[2]}/${parts[0]}/${parts[1]}`
-      : jalaliDate;
-  } catch {
-    return dateString;
-  }
+  return dateString;
 };

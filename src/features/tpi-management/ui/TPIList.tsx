@@ -5,11 +5,18 @@ import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
 import { INSPECTION_STATUS_CONFIG } from "@/features/inspection-management/constants";
-import { projectAppService } from "@/features/project-management";
-import { vendorAppService } from "@/features/tpi-management/application/VendorApplicationService";
 import type { TPIRequest, TPIMode } from "../domain/types";
+import { projectAppService } from "@/features/project-management";
 import type { Project } from "@/features/project-management/domain/types";
+import { vendorAppService } from "@/features/tpi-management/application/VendorApplicationService";
 import type { Vendor } from "@/features/tpi-management/domain/types";
+import { clientAppService } from "@/features/client-management/application";
+import type { Client } from "@/features/client-management/domain/models/Client";
+import { formatJalaliDate } from "@/shared/utils/dateUtils";
+import {
+  formatArrayField,
+  formatArrayWithLimit,
+} from "@/shared/utils/formatUtils";
 
 interface TPIListProps {
   tpiRequests: TPIRequest[];
@@ -21,65 +28,6 @@ interface TPIListProps {
   onAddClick: () => void;
   loading?: boolean;
 }
-
-const formatArrayField = (value: any): string => {
-  if (!value) return "—";
-
-  if (Array.isArray(value)) {
-    return value.length > 0 ? value.join(", ") : "—";
-  }
-
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) {
-        return parsed.length > 0 ? parsed.join(", ") : "—";
-      }
-      return parsed;
-    } catch {
-      return value;
-    }
-  }
-
-  return String(value);
-};
-
-const formatJalaliDate = (dateString: string): string => {
-  if (!dateString) return "—";
-
-  const jalaliRegex = /^\d{4}[/\-]\d{1,2}[/\-]\d{1,2}$/;
-  if (jalaliRegex.test(dateString)) {
-    const normalized = dateString.replace(/-/g, "/");
-    const parts = normalized.split("/");
-    if (parts.length === 3) {
-      const year = parts[0].padStart(4, "0");
-      const month = parts[1].padStart(2, "0");
-      const day = parts[2].padStart(2, "0");
-      return `${year}/${month}/${day}`;
-    }
-    return normalized;
-  }
-
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-
-    const jalaliDate = date.toLocaleDateString("en-US-u-ca-persian-nu-latn", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-
-    const parts = jalaliDate.split("/");
-    if (parts.length === 3) {
-      return `${parts[2]}/${parts[0]}/${parts[1]}`;
-    }
-
-    return jalaliDate;
-  } catch {
-    return dateString;
-  }
-};
 
 export function TPIList({
   tpiRequests,
@@ -93,26 +41,28 @@ export function TPIList({
 }: TPIListProps) {
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
-
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-
   const canViewList = canAccessElement("tpi_list_item_view");
   const canAdd = canAccessElement("tpi_btn_add");
   const canSearch = canAccessElement("tpi_search_box");
 
-  // ✅ بارگذاری پروژه‌ها و وندورها
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+
+  //  بارگذاری پروژه‌ها، وندورها و مشتریان
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [projectsData, vendorsData] = await Promise.all([
+        const [projectsData, vendorsData, clientsData] = await Promise.all([
           projectAppService.getAllProjects(),
           vendorAppService.getAll(),
+          clientAppService.getAll(),
         ]);
         setProjects(projectsData);
         setVendors(vendorsData);
+        setClients(clientsData);
       } catch (err) {
-        console.error("Failed to load projects or vendors", err);
+        console.error("Failed to load projects, vendors, or clients", err);
       }
     };
     loadData();
@@ -341,15 +291,17 @@ export function TPIList({
             {filteredRequests.map((request) => {
               const isSpot = request.tpi_mode === "SPOT";
 
-              // ✅ دریافت کانفیگ وضعیت
               const statusConfig = (INSPECTION_STATUS_CONFIG as any)[
                 request.status
               ] ?? {
                 label: request.status || "Unknown",
-                labelFa: "نامشخص",
                 color: "slate",
                 icon: "❓",
               };
+
+              const client = clients.find((c) => c.id === request.client_id);
+              const clientName =
+                client?.name_en || client?.name_en || "Unknown Client";
 
               const project = projects.find((p) => p.id === request.project_id);
               const projectName = project?.name || "Unknown Project";
@@ -362,7 +314,7 @@ export function TPIList({
                   ? request.stages[0]
                   : "No Stage";
 
-              const inspectionTitle = `${projectName} - ${vendorName} - ${firstStage}`;
+              const inspectionTitle = `${clientName} - ${projectName} - ${vendorName} - ${firstStage}`;
 
               return (
                 <button
@@ -381,7 +333,6 @@ export function TPIList({
                   <div className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
-                        {/* ✅ عنوان بازرسی */}
                         <h3
                           className={`text-sm font-bold truncate mb-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
                           title={inspectionTitle}
@@ -410,7 +361,7 @@ export function TPIList({
                       className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"} space-y-1.5`}
                     >
                       <div className="flex items-start gap-2">
-                        <span className="shrink-0 mt-0.5"></span>
+                        <span className="shrink-0 mt-0.5">📅</span>
                         <span>{formatJalaliDate(request.inspection_date)}</span>
                       </div>
 
@@ -420,7 +371,7 @@ export function TPIList({
                           className="truncate"
                           title={formatArrayField(request.disciplines)}
                         >
-                          {formatArrayField(request.disciplines)}
+                          {formatArrayWithLimit(request.disciplines, 2)}
                         </span>
                       </div>
 
@@ -430,7 +381,7 @@ export function TPIList({
                           className="truncate text-[10px] opacity-80"
                           title={formatArrayField(request.methods)}
                         >
-                          {formatArrayField(request.methods)}
+                          {formatArrayWithLimit(request.methods, 2)}
                         </span>
                       </div>
                     </div>

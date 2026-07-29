@@ -2,9 +2,10 @@
 
 import { Modal, Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
-import type { Inspector, InspectorType } from "../domain";
-import { INSPECTOR_SPECIALTY_OPTIONS } from "../domain/models/Inspector";
+import type { Inspector } from "../domain";
 import { useInspectorForm } from "../hooks/useInspectorForm";
+import { MultiSelectWithOther } from "@/shared/ui/MultiSelectWithOther";
+import { useMasterDataOptions } from "@/shared/hooks/useMasterDataOptions";
 
 interface InspectorAddFormProps {
   isOpen: boolean;
@@ -73,6 +74,9 @@ export function InspectorAddForm({
 }: InspectorAddFormProps) {
   const { isDark } = useTheme();
 
+  const { options: specialtyOptions, loading: loadingSpecialties } =
+    useMasterDataOptions("INSPECTOR_SPECIALTY");
+
   const {
     currentStep,
     isSaving,
@@ -81,7 +85,6 @@ export function InspectorAddForm({
     formData,
     fileInputRef,
     updateField,
-    toggleSpecialty,
     handleFileUpload,
     removeResume,
     handleNext,
@@ -273,26 +276,20 @@ export function InspectorAddForm({
                 <label className="block text-xs font-semibold mb-2 text-primary">
                   Specialties {!isAdmin && "*"}
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  {/* ✅ جایگزینی آرایه هاردکد شده با ثابت تعریف‌شده در Domain */}
-                  {INSPECTOR_SPECIALTY_OPTIONS.map((spec) => (
-                    <button
-                      key={spec}
-                      type="button"
-                      onClick={() => toggleSpecialty(spec)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                        formData.specialties.includes(spec)
-                          ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700"
-                          : isDark
-                            ? "bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500"
-                            : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
-                      }`}
-                    >
-                      {formData.specialties.includes(spec) && "✓ "}
-                      {spec}
-                    </button>
-                  ))}
-                </div>
+
+                {loadingSpecialties ? (
+                  <div className="text-xs text-slate-500 animate-pulse py-2">
+                    Loading specialties...
+                  </div>
+                ) : (
+                  <MultiSelectWithOther<string>
+                    options={specialtyOptions as readonly string[]}
+                    value={formData.specialties}
+                    onChange={(values) => updateField("specialties", values)}
+                    fieldType="INSPECTOR_SPECIALTY"
+                  />
+                )}
+
                 {errors.specialties && (
                   <p className="text-[11px] text-rose-600 mt-1">
                     ✕ {errors.specialties}

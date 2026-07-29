@@ -8,15 +8,19 @@ import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionM
 import { TPIElements } from "@shared/authorization/ui/elements/TPIElements";
 import { tpiRequestAppService } from "../application";
 import { projectAppService } from "@/features/project-management";
-import type { TPIRequest, InspectionItem, SourceFile } from "../domain/types";
-import { ResidentDashboard } from "./ResidentDashboard";
-import { DocumentReviewSection } from "@/features/inspection-management/ui/details/DocumentReviewSection";
-import { InspectorAssignmentSection } from "@/features/inspection-management/ui/details/InspectorAssignmentSection";
+import { clientAppService } from "@/features/client-management/application";
 import { vendorAppService } from "../application/VendorApplicationService";
 import {
   INSPECTION_STATUS_CONFIG,
   PRIORITY_CONFIG,
 } from "@/features/inspection-management/constants";
+import { formatJalaliDate } from "@/shared/utils/dateUtils";
+import type { TPIRequest, InspectionItem, SourceFile } from "../domain/types";
+import { ResidentDashboard } from "./ResidentDashboard";
+import { DocumentReviewSection } from "@/features/inspection-management/ui/details/DocumentReviewSection";
+import { InspectorAssignmentSection } from "@/features/inspection-management/ui/details/InspectorAssignmentSection";
+import { ChecklistSection } from "@/features/inspection-management/ui/details/ChecklistSection";
+
 import { showToast } from "@/shared/ui/ToastContainer";
 
 interface TPIDetailsModalProps {
@@ -71,6 +75,7 @@ export function TPIDetailsModal({
   const { canAccessElement } = usePermissionMapping();
 
   //  State های جدید برای داده‌های مرتبط
+  const [clientName, setClientName] = useState<string>("Unknown Client");
   const [vendorName, setVendorName] = useState<string>("");
   const [projectName, setProjectName] = useState<string>("Unknown Project");
   const [items, setItems] = useState<InspectionItem[]>([]);
@@ -85,6 +90,14 @@ export function TPIDetailsModal({
     if (!request) return;
     setLoadingDetails(true);
     try {
+      // دریافت اسم مشتری
+      if (request.client_id) {
+        const client = await clientAppService.getById(request.client_id);
+        if (client) {
+          setClientName(client.name_en || "Unknown Client");
+        }
+      }
+
       // دریافت نام پروژه
       if (request.project_id) {
         const project = await projectAppService.getProjectById(
@@ -131,31 +144,7 @@ export function TPIDetailsModal({
       ? request.stages[0]
       : "No Stage";
 
-  const displayTitle = `${projectName} - ${vendorName || "No Vendor"} - ${firstStage}`;
-
-  // تابع کمکی برای فرمت تاریخ
-  const formatJalaliDate = (dateString: string): string => {
-    if (!dateString) return "—";
-    const jalaliRegex = /^\d{4}[/\-]\d{1,2}[/\-]\d{1,2}$/;
-    if (jalaliRegex.test(dateString)) {
-      return dateString.replace(/-/g, "/");
-    }
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return dateString;
-      const jalaliDate = date.toLocaleDateString("en-US-u-ca-persian-nu-latn", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      });
-      const parts = jalaliDate.split("/");
-      return parts.length === 3
-        ? `${parts[2]}/${parts[0]}/${parts[1]}`
-        : jalaliDate;
-    } catch {
-      return dateString;
-    }
-  };
+  const displayTitle = `${clientName} - ${projectName} - ${vendorName || "No Vendor"} - ${firstStage}`;
 
   const tabs: { id: TabType; label: string; icon: string }[] = [
     { id: "overview", label: "Overview", icon: "📋" },
@@ -537,6 +526,14 @@ export function TPIDetailsModal({
                 />
               )}
 
+              {activeTab === "checklists" && (
+                <ChecklistSection
+                  inspectionId={request.id}
+                  //inspectorId={request.inspector_id} // اگر در درخواست ذخیره شده
+                  isEditable={canEdit} // بر اساس پرمیشن کاربر
+                />
+              )}
+
               {/* Release Note Tab (Placeholder) */}
               {activeTab === "release_note" && (
                 <div className="flex flex-col items-center justify-center h-64 text-center">
@@ -554,10 +551,8 @@ export function TPIDetailsModal({
                 </div>
               )}
 
-              {/* Checklists, NCR, Reports Placeholders */}
-              {(activeTab === "checklists" ||
-                activeTab === "ncr" ||
-                activeTab === "reports") && (
+              {/*  NCR, Reports Placeholders */}
+              {(activeTab === "ncr" || activeTab === "reports") && (
                 <div className="flex flex-col items-center justify-center h-64 text-center">
                   <div className="text-4xl mb-3">🚧</div>
                   <p

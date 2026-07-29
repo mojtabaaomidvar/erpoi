@@ -9,7 +9,7 @@ export const CreateDocumentReviewSchema = z.object({
     "PROCEDURE",
     "CERTIFICATE",
     "DRAWING",
-    "OTHER",
+    "Others",
   ]),
   document_name: z.string().min(1, "Document name is required"),
   document_url: z.string().min(1, "Document URL is required"),

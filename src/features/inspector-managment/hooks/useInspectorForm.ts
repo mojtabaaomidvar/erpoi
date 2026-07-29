@@ -8,7 +8,6 @@ import type {
   InspectorType,
   InspectorSpecialty,
 } from "../domain/models/Inspector";
-import { INSPECTOR_SPECIALTY_OPTIONS } from "../domain/models/Inspector";
 import { inspectorAppService } from "../application";
 import { useAuth } from "@features/auth/hooks/useAuth";
 
@@ -30,7 +29,7 @@ export function useInspectorForm(
     name_en: "",
     name_fa: "",
     inspector_type: "ICS_MEMBER" as InspectorType,
-    specialties: [] as InspectorSpecialty[], // ✅ تایپ دقیق
+    specialties: [] as string[],
     phone: "",
     email: "",
     location_base: "",
@@ -72,7 +71,7 @@ export function useInspectorForm(
           name_en: initialData.name_en || "",
           name_fa: initialData.name_fa || "",
           inspector_type: initialData.inspector_type || "ICS_MEMBER",
-          specialties: initialData.specialties || [],
+          specialties: (initialData.specialties || []) as string[],
           phone: initialData.phone || "",
           email: initialData.email || "",
           location_base: initialData.location_base || "",
@@ -90,7 +89,7 @@ export function useInspectorForm(
           name_en: "",
           name_fa: "",
           inspector_type: "ICS_MEMBER",
-          specialties: [],
+          specialties: [] as string[],
           phone: "",
           email: "",
           location_base: "",
@@ -209,10 +208,15 @@ export function useInspectorForm(
     [isAdmin, formData],
   );
 
-  const handleNext = useCallback(() => {
-    if (validateStep(currentStep))
-      setCurrentStep((prev) => Math.min(prev + 1, 3));
-  }, [currentStep, validateStep]);
+  const handleNext = useCallback(
+    (e?: React.MouseEvent) => {
+      e?.preventDefault();
+      if (validateStep(currentStep)) {
+        setCurrentStep((prev) => (prev < 3 ? prev + 1 : prev));
+      }
+    },
+    [currentStep, validateStep],
+  );
 
   const handlePrev = useCallback(() => {
     setCurrentStep((prev) => Math.max(prev - 1, 1));
@@ -221,7 +225,11 @@ export function useInspectorForm(
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (currentStep !== 3) return;
+
+      if (currentStep !== 3) {
+        showToast("warning", "Incomplete", "Please complete all steps first.");
+        return;
+      }
 
       if (!isAdmin && !formData.resumeFile && !initialData?.resume_url) {
         const confirmed = await confirmDialog({
@@ -236,15 +244,40 @@ export function useInspectorForm(
       }
 
       setIsSaving(true);
+
+      const payload: any = {
+        ...formData,
+        status: initialData ? initialData.status : "AVAILABLE",
+      };
+
+      if (initialData) {
+        const originalUserId = initialData.user_id || null;
+        const newUserId = payload.user_id || null;
+        if (originalUserId === newUserId) {
+          delete payload.user_id;
+        }
+      }
+
       try {
-        const payload = {
-          ...formData,
-          status: initialData ? initialData.status : "AVAILABLE",
-        };
+        // ✅ ارسال به والد (والد مودال را می‌بندد و Optimistic UI را اجرا می‌کند)
         await onSave(payload, !!initialData);
+
+        // ✅ بستن مودال (اگر والد نبسته باشد)
         onClose();
       } catch (err: any) {
-        showToast("error", "Save Failed", err.message || "Failed to save");
+        console.error("Save Error Details:", err);
+        if (
+          err.code === "23505" ||
+          err.message?.includes("unique_user_id_for_inspector")
+        ) {
+          showToast(
+            "error",
+            "User Already Assigned",
+            "This system user is already linked to another inspector profile.",
+          );
+        } else {
+          showToast("error", "Save Failed", err.message || "Failed to save");
+        }
       } finally {
         setIsSaving(false);
       }

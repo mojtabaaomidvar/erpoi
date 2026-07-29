@@ -32,7 +32,7 @@ export function Projects() {
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
-  const comingSoonServices = ["TPER", "Other"];
+  const comingSoonServices = ["TPER", "Others"];
 
   // Permissions
   const canViewItems = canAccessElement("project_list_item_view");

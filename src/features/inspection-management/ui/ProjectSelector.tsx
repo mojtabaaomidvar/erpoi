@@ -27,51 +27,24 @@ export function ProjectSelector({
     setLoadError(null);
 
     try {
-      console.log(
-        "🔵 [ProjectSelector] Calling projectAppService.getAllProjects()...",
-      );
       const data = await projectAppService.getAllProjects();
 
-      console.log("🟣 [ProjectSelector] Raw data received from service:", data);
-      console.log(
-        "🟣 [ProjectSelector] Data type:",
-        typeof data,
-        "Is Array?",
-        Array.isArray(data),
-      );
-
       const activeProjects = data.filter((p: any) => p.status === "ACTIVE");
-      console.log(
-        "🟢 [ProjectSelector] Filtered ACTIVE projects:",
-        activeProjects,
-      );
 
       setProjects(activeProjects);
 
       if (activeProjects.length === 0) {
-        console.warn(
-          "⚠️ [ProjectSelector] No ACTIVE projects found in the database.",
-        );
         setLoadError("هیچ پروژه فعالی یافت نشد.");
       }
     } catch (err: any) {
-      console.error("🔴 [ProjectSelector] CRITICAL ERROR CAUGHT:");
-      console.error("🔴 Error Object:", err);
-      console.error("🔴 Error Message:", err?.message);
-      console.error("🔴 Error Details:", JSON.stringify(err, null, 2));
-
       const errorMsg = err?.message || "خطای ناشناخته در بارگذاری پروژه‌ها";
       setLoadError(errorMsg);
     } finally {
-      console.log("⚪ [ProjectSelector] Loading state set to false.");
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    console.log(
-      "🟢 [ProjectSelector] Component mounted. Starting loadProjects...",
-    );
     loadProjects();
   }, []);
 
