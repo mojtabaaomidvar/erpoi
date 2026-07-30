@@ -40,6 +40,13 @@ const FIELD_TO_TABLE_MAPPING: Record<
     column: "methods",
     isArray: true,
   },
+  TPI_INSPECTION_ITEM: {
+    schema: "equipment",
+    table: "equipment",
+    column: "name",
+    isArray: false,
+  },
+
   TPI_CANCELLATION_REASON: {
     schema: "inspection",
     table: "inspections",

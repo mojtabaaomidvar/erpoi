@@ -12,7 +12,6 @@ const MASTER_DATA_SEED: Record<string, string[]> = {
   INSPECTOR_SPECIALTY: [
     "General",
     "Mechanical",
-    "Dimensional",
     "Welding",
     "Paint & Coating",
     "Civil",
@@ -31,7 +30,6 @@ const MASTER_DATA_SEED: Record<string, string[]> = {
   TPI_DISCIPLINE: [
     "General",
     "Mechanical",
-    "Dimensional",
     "Welding",
     "Paint & Coating",
     "Civil",

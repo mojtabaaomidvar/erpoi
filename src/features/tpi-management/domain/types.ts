@@ -109,6 +109,7 @@ export interface TPIRequest extends BaseInspectionRequest {
   equipment_instance_id?: string;
 
   disciplines: string[];
+  item_types: string[];
   stages: string[];
   methods: string[];
 

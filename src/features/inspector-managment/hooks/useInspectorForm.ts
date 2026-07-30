@@ -259,10 +259,8 @@ export function useInspectorForm(
       }
 
       try {
-        // ✅ ارسال به والد (والد مودال را می‌بندد و Optimistic UI را اجرا می‌کند)
         await onSave(payload, !!initialData);
 
-        // ✅ بستن مودال (اگر والد نبسته باشد)
         onClose();
       } catch (err: any) {
         console.error("Save Error Details:", err);

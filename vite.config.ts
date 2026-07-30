@@ -1,29 +1,28 @@
 // vite.config.ts
 
-import path from "path";
-import { fileURLToPath } from "url";
-import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
-      "@app": path.resolve(__dirname, "src/app"),
-      "@shared": path.resolve(__dirname, "src/shared"),
-      "@entities": path.resolve(__dirname, "src/entities"),
-      "@features": path.resolve(__dirname, "src/features"),
-      "@widgets": path.resolve(__dirname, "src/widgets"),
-      "@pages": path.resolve(__dirname, "src/pages"),
-      "@infra": path.resolve(__dirname, "src/infrastructure"),
-      "@design-system": path.resolve(__dirname, "src/design-system"),
-      "@data": path.resolve(__dirname, "./src/data"),
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@app": fileURLToPath(new URL("./src/app", import.meta.url)),
+      "@shared": fileURLToPath(new URL("./src/shared", import.meta.url)),
+      "@entities": fileURLToPath(new URL("./src/entities", import.meta.url)),
+      "@features": fileURLToPath(new URL("./src/features", import.meta.url)),
+      "@widgets": fileURLToPath(new URL("./src/widgets", import.meta.url)),
+      "@pages": fileURLToPath(new URL("./src/pages", import.meta.url)),
+      "@infra": fileURLToPath(new URL("./src/infrastructure", import.meta.url)),
+      "@design-system": fileURLToPath(
+        new URL("./src/design-system", import.meta.url),
+      ),
+      "@data": fileURLToPath(new URL("./src/data", import.meta.url)),
+      "@shared/ui": fileURLToPath(new URL("./src/shared/ui", import.meta.url)),
     },
   },
 });
