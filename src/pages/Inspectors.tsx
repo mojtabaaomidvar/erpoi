@@ -72,9 +72,7 @@ export function Inspectors() {
         );
 
         setUpcomingAssignments(upcomingMap);
-      } catch (err) {
-        console.error("Failed to load upcoming assignments", err);
-      }
+      } catch (err) {}
     };
     loadUpcomingAssignments();
   }, []);
@@ -124,9 +122,7 @@ export function Inspectors() {
       try {
         const assignments = await inspectionAppService.getAllAssignments("TPI");
         setAllAssignments(assignments);
-      } catch (err) {
-        console.error("Failed to load data", err);
-      }
+      } catch (err) {}
     };
     loadData();
   }, []);
@@ -136,9 +132,7 @@ export function Inspectors() {
       try {
         const assignments = await inspectionAppService.getAllAssignments("TPI");
         setAllAssignments(assignments);
-      } catch (err) {
-        console.error("Failed to load assignments", err);
-      }
+      } catch (err) {}
     };
     loadAllAssignments();
   }, []);
@@ -200,8 +194,6 @@ export function Inspectors() {
 
       await refresh();
     } catch (err: any) {
-      console.error("❌ [PARENT] Background save failed:", err);
-
       updateInspectorsLocal((prev: Inspector[]) =>
         prev.filter((i: Inspector) => i.id !== tempId),
       );
@@ -257,8 +249,6 @@ export function Inspectors() {
       showToast("success", "Deleted", "Inspector deleted successfully");
       await refresh();
     } catch (err: any) {
-      console.error("Delete Error:", err);
-
       showToast(
         "error",
         "Delete Failed",
@@ -297,9 +287,6 @@ export function Inspectors() {
 
   return (
     <>
-      console.log("🔍 [Inspectors Page] allAssignments state:",
-      allAssignments?.length || 0); console.log("🔍 [Inspectors Page] First
-      assignment:", allAssignments?.[0]);
       <InspectorList
         inspectors={inspectors}
         filteredInspectors={filteredInspectors}
