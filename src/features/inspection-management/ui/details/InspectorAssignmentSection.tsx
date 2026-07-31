@@ -26,8 +26,9 @@ import { formatArrayField } from "@/shared/utils/formatUtils";
 interface InspectorAssignmentSectionProps {
   requestId: string;
   serviceDomain: string | string[];
-  plannedDate?: string;
-  mode?: "SPOT" | "RESIDENT";
+  plannedDate: string;
+  mode: "SPOT" | "RESIDENT";
+  category?: "TPI" | "MWS";
 }
 
 type InspectionProjectDetails = {
@@ -42,7 +43,8 @@ export function InspectorAssignmentSection({
   requestId,
   serviceDomain,
   plannedDate,
-  mode = "SPOT",
+  mode,
+  category = "TPI",
 }: InspectorAssignmentSectionProps) {
   const { isDark } = useTheme();
   const { user } = useAuth();
@@ -104,7 +106,7 @@ export function InspectorAssignmentSection({
     setLoading(true);
     try {
       const [inspData, inspList] = await Promise.all([
-        inspectionAppService.getByInspectionRequest(requestId),
+        inspectionAppService.getByInspectionRequest(requestId, category),
         inspectorAppService.getAll(),
       ]);
       setInspections(inspData);
@@ -119,33 +121,42 @@ export function InspectorAssignmentSection({
   const loadSuitableInspectors = async () => {
     if (!assignForm.execution_date) return;
 
-    const dbDate = assignForm.execution_date.replace(/\//g, "-");
-
-    const parseToRealArray = (data: any): string[] => {
-      if (!data) return [];
-      if (Array.isArray(data)) return data;
-      if (typeof data === "string") {
-        try {
-          const parsed = JSON.parse(data);
-          if (Array.isArray(parsed)) return parsed.map((s: string) => s.trim());
-        } catch {
-          return data
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean);
-        }
-      }
-      return [];
-    };
-
-    const requiredDisciplines: string[] = parseToRealArray(serviceDomain);
-
     try {
-      const suitable = await inspectionAppService.getSuitableInspectors(
-        requiredDisciplines,
-        dbDate,
+      const dbDate = assignForm.execution_date.replace(/\//g, "-");
+      const disciplinesArray = Array.isArray(serviceDomain)
+        ? serviceDomain
+        : (serviceDomain || "")
+            .split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+
+      const suitable =
+        await inspectorAppService.getSuitableInspectors(disciplinesArray);
+
+      const allAssignments =
+        await inspectionAppService.getAllAssignments(category);
+
+      const assignmentsOnDate = allAssignments.filter(
+        (a: any) =>
+          a.execution_date === dbDate &&
+          (a.status === "ASSIGNED" || a.status === "IN_PROGRESS"),
       );
-      setAvailableInspectors(suitable);
+
+      const enrichedInspectors = suitable.map((insp: any) => {
+        const conflicts = assignmentsOnDate.filter(
+          (a: any) => a.inspector_id === insp.id,
+        );
+
+        return {
+          ...insp,
+          inspector: insp,
+          isMatch: true,
+          isAvailable: conflicts.length === 0,
+          conflictingInspections: conflicts,
+        };
+      });
+
+      setAvailableInspectors(enrichedInspectors);
     } catch (err: any) {
       showToast("error", "Failed to load inspectors", err.message);
     }
@@ -153,7 +164,7 @@ export function InspectorAssignmentSection({
 
   useEffect(() => {
     loadData();
-  }, [requestId]);
+  }, [requestId, category]);
 
   useEffect(() => {
     if (showAssignModal && assignForm.execution_date) {
@@ -267,14 +278,6 @@ export function InspectorAssignmentSection({
               cancelled_at: new Date().toISOString(),
               cancelled_by: user?.id || "",
               cancellation_reason: cancelForm.reason,
-              related_inspection_id:
-                cancelForm.related_inspection_id || undefined,
-              new_scheduled_date: cancelForm.new_scheduled_date || undefined,
-              date_is_unknown: cancelForm.date_is_unknown,
-              new_scopes:
-                cancelForm.new_scopes.length > 0
-                  ? cancelForm.new_scopes
-                  : undefined,
               cancellation_notes: cancelForm.cancellation_notes || undefined,
             }
           : i,
@@ -285,17 +288,14 @@ export function InspectorAssignmentSection({
     setShowCancelModal(false);
 
     try {
-      await inspectionAppService.cancelInspection(
+      await inspectionAppService.cancelAssignment(
         inspectionToCancel.id,
+        category,
         user?.id || "",
         cancelForm.reason,
-        cancelForm.related_inspection_id || undefined,
-        cancelForm.new_scheduled_date || undefined,
-        cancelForm.date_is_unknown,
-        cancelForm.new_scopes.length > 0 ? cancelForm.new_scopes : undefined,
         cancelForm.cancellation_notes || undefined,
       );
-      showToast("success", "Cancelled", "Inspection cancelled successfully");
+      showToast("success", "Cancelled", "Assignment cancelled successfully");
       await loadData();
     } catch (err: any) {
       setInspections(previousInspections);
@@ -307,10 +307,10 @@ export function InspectorAssignmentSection({
     setLoadingDetails(true);
     setShowDetailsModal(true);
     try {
-      const details =
-        await inspectionAppService.getInspectionWithDetails(
-          relatedInspectionId,
-        );
+      const details = await inspectionAppService.getInspectionWithDetails(
+        relatedInspectionId,
+        category,
+      );
       setRelatedInspectionDetails(details);
     } catch (err: any) {
       showToast("error", "Failed to load details", err.message);
@@ -330,51 +330,47 @@ export function InspectorAssignmentSection({
 
     setAssigning(true);
     const dbDate = assignForm.execution_date.replace(/\//g, "-");
-    const newInspectionId = `temp_${crypto.randomUUID()}`;
-    const previousInspections = [...inspections];
 
-    const newInspection: Inspection = {
-      id: newInspectionId,
-      inspection_request_id: requestId,
+    const tempAssignmentId = `temp_${crypto.randomUUID()}`;
+    const newAssignment: any = {
+      id: tempAssignmentId,
+      tpi_request_id: requestId,
       inspector_id: targetInspector.inspector.id,
       assigned_by: user?.id || "",
       assigned_at: new Date().toISOString(),
       execution_date: dbDate,
       location: assignForm.location,
       vendor_site: assignForm.vendor_site,
-      status: "SCHEDULED",
+      status: "ASSIGNED",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    let updatedList = [...inspections, newInspection];
-    if (removeConflicts) {
-      const conflictIds = targetInspector.conflictingInspections.map(
-        (c) => c.id,
-      );
-      updatedList = updatedList.filter((i) => !conflictIds.includes(i.id));
-    }
-
-    setInspections(updatedList);
+    setInspections((prev) => [...prev, newAssignment]);
     showToast("success", "Processing", "Assigning inspector...");
 
     try {
-      const created = await inspectionAppService.create({
-        inspection_request_id: requestId,
-        inspector_id: targetInspector.inspector.id,
-        assigned_by: user?.id || "",
-        execution_date: dbDate,
-        location: assignForm.location,
-        vendor_site: assignForm.vendor_site,
-      });
+      const created = await inspectionAppService.assignInspector(
+        requestId,
+        category,
+        targetInspector.inspector.id,
+        user?.id || "",
+        dbDate,
+        assignForm.location,
+        assignForm.vendor_site,
+      );
 
-      if (removeConflicts) {
+      if (
+        removeConflicts &&
+        targetInspector.conflictingInspections.length > 0
+      ) {
         for (const conflict of targetInspector.conflictingInspections) {
-          await inspectionAppService.cancelInspection(
+          await inspectionAppService.cancelAssignment(
             conflict.id,
+            category,
             user?.id || "",
             "REASSIGNED",
-            created.id,
+            `Reassigned to new inspector. New assignment ID: ${created.id}`,
           );
         }
       }
@@ -387,9 +383,10 @@ export function InspectorAssignmentSection({
         location: "",
         vendor_site: "",
       });
+
       await loadData();
     } catch (err: any) {
-      setInspections(previousInspections);
+      await loadData();
       showToast("error", "Assignment Failed", err.message);
     } finally {
       setAssigning(false);
@@ -457,11 +454,19 @@ export function InspectorAssignmentSection({
       ) : (
         <div className="space-y-3">
           {sortedInspections.map((inspection) => {
-            const statusConfig =
-              INSPECTION_EXECUTION_STATUS_CONFIG[inspection.status];
+            const statusConfig = INSPECTION_EXECUTION_STATUS_CONFIG[
+              inspection.status as keyof typeof INSPECTION_EXECUTION_STATUS_CONFIG
+            ] || {
+              label: inspection.status || "Unknown",
+              color: "slate",
+              icon: "❓",
+            };
+
             const isCancelled = inspection.status === "CANCELLED";
             const reasonConfig = inspection.cancellation_reason
-              ? TPI_CANCELLATION_REASON_CONFIG[inspection.cancellation_reason]
+              ? TPI_CANCELLATION_REASON_CONFIG[
+                  inspection.cancellation_reason as keyof typeof TPI_CANCELLATION_REASON_CONFIG
+                ]
               : null;
 
             return (
@@ -532,11 +537,11 @@ export function InspectorAssignmentSection({
                         )}
 
                         {inspection.cancellation_reason === "REASSIGNED" &&
-                          inspection.related_inspection_id && (
+                          inspection.related_assignment_id && (
                             <button
                               onClick={() =>
                                 handleViewRelatedInspection(
-                                  inspection.related_inspection_id!,
+                                  inspection.related_assignment_id!,
                                 )
                               }
                               className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${isDark ? "bg-indigo-900/30 text-indigo-300 hover:bg-indigo-900/50" : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"}`}
@@ -569,12 +574,12 @@ export function InspectorAssignmentSection({
                           )}
 
                         {inspection.cancellation_reason === "SCOPE_CHANGED" &&
-                          inspection.new_scopes &&
-                          inspection.new_scopes.length > 0 && (
+                          inspection.new_scope &&
+                          inspection.new_scope.length > 0 && (
                             <div
                               className={`text-[10px] ${isDark ? "text-purple-300" : "text-purple-700"}`}
                             >
-                              📝 New scopes: {inspection.new_scopes.join(", ")}
+                              📝 New scopes: {inspection.new_scope.join(", ")}
                             </div>
                           )}
 
@@ -595,15 +600,17 @@ export function InspectorAssignmentSection({
                   </div>
 
                   <div className="flex gap-2 shrink-0">
-                    {!isCancelled && inspection.status === "SCHEDULED" && (
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={() => handleOpenCancelModal(inspection)}
-                      >
-                        Cancel
-                      </Button>
-                    )}
+                    {!isCancelled &&
+                      (inspection.status === "ASSIGNED" ||
+                        inspection.status === "IN_PROGRESS") && (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => handleOpenCancelModal(inspection)}
+                        >
+                          Cancel
+                        </Button>
+                      )}
                   </div>
                 </div>
               </div>
@@ -660,10 +667,8 @@ export function InspectorAssignmentSection({
                 <p
                   className={`text-[10px] mt-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}
                 >
-                  {
-                    TPI_CANCELLATION_REASON_CONFIG[cancelForm.reason]
-                      .description
-                  }
+                  {(TPI_CANCELLATION_REASON_CONFIG[cancelForm.reason] as any)
+                    ?.description || ""}
                 </p>
               </div>
 
@@ -772,7 +777,6 @@ export function InspectorAssignmentSection({
                 </div>
               )}
 
-              {/* ✅ بخش اصلاح‌شده: استفاده از disciplineOptions به جای TPI_DISCIPLINE_OPTIONS */}
               {cancelForm.reason === "SCOPE_CHANGED" && (
                 <div>
                   <label
@@ -1028,22 +1032,21 @@ export function InspectorAssignmentSection({
                         </span>
                         <Badge
                           tone={
-                            INSPECTION_EXECUTION_STATUS_CONFIG[
-                              relatedInspectionDetails.inspection?.status
-                            ]?.color as any
+                            (INSPECTION_EXECUTION_STATUS_CONFIG[
+                              relatedInspectionDetails.inspection
+                                ?.status as keyof typeof INSPECTION_EXECUTION_STATUS_CONFIG
+                            ]?.color as any) || "slate"
                           }
                           className="text-[10px]"
                         >
-                          {
-                            INSPECTION_EXECUTION_STATUS_CONFIG[
-                              relatedInspectionDetails.inspection?.status
-                            ]?.icon
-                          }{" "}
-                          {
-                            INSPECTION_EXECUTION_STATUS_CONFIG[
-                              relatedInspectionDetails.inspection?.status
-                            ]?.label
-                          }
+                          {INSPECTION_EXECUTION_STATUS_CONFIG[
+                            relatedInspectionDetails.inspection
+                              ?.status as keyof typeof INSPECTION_EXECUTION_STATUS_CONFIG
+                          ]?.icon || "❓"}{" "}
+                          {INSPECTION_EXECUTION_STATUS_CONFIG[
+                            relatedInspectionDetails.inspection
+                              ?.status as keyof typeof INSPECTION_EXECUTION_STATUS_CONFIG
+                          ]?.label || "Unknown"}
                         </Badge>
                       </div>
                     </div>
@@ -1169,8 +1172,7 @@ export function InspectorAssignmentSection({
                                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-400">
                                   {item.conflictingInspections.map((c) => (
                                     <li key={c.id}>
-                                      Req:{" "}
-                                      {c.inspection_request_id.substring(0, 8)}
+                                      Req: {c.tpi_request_id.substring(0, 8)}
                                       ...
                                     </li>
                                   ))}

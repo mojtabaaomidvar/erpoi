@@ -124,6 +124,16 @@ export class SupabaseTPIRequestRepository implements SupabaseTPIRequestRepositor
     if (error) throw new Error(`Failed to save source files: ${error.message}`);
   }
 
+  async deleteInspectionItems(requestId: string): Promise<void> {
+    const { error } = await supabase
+      .schema("tpi")
+      .from("tpi_inspection_items")
+      .delete()
+      .eq("tpi_request_id", requestId);
+
+    if (error) throw new Error(`Failed to delete old items: ${error.message}`);
+  }
+
   async getInspectionItems(requestId: string): Promise<any[]> {
     const { data, error } = await supabase
       .schema("tpi")

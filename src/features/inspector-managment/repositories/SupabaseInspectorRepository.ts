@@ -264,42 +264,39 @@ export class SupabaseInspectorRepository implements IInspectorRepository {
   }
 
   async delete(id: string): Promise<void> {
-    // ✅ ۱. بررسی تمام inspectionهای متصل (بدون فیلتر status)
-    const { data: relatedInspections, error: checkError } = await supabase
-      .schema("inspection")
-      .from("inspections")
-      .select("id, status, execution_date")
-      .eq("inspector_id", id);
+    // ✅ ۱. بررسی بازرسی‌های فعال در TPI
+    const { data: tpiInspections, error: tpiError } = await supabase
+      .schema("tpi")
+      .from("tpi_requests")
+      .select("id, status")
+      .eq("inspector_id", id)
+      .in("status", ["INSPECTOR_ASSIGNED", "IN_PROGRESS", "SCHEDULED"]); // فقط وضعیت‌های فعال
 
-    if (checkError) {
-      console.error("Error checking related inspections:", checkError);
-      throw new Error("Failed to check related inspections");
+    if (tpiError) throw new Error("Failed to check TPI assignments");
+
+    // ✅ ۲. (اختیاری) بررسی بازرسی‌های فعال در MWS (اگر جدول MWS دارید)
+    // const { data: mwsInspections, error: mwsError } = await supabase
+    //   .schema("mws")
+    //   .from("mws_requests")
+    //   .select("id, status")
+    //   .eq("inspector_id", id)
+    //   .in("status", ["INSPECTOR_ASSIGNED", "IN_PROGRESS", "SCHEDULED"]);
+
+    const activeTPI = tpiInspections?.length || 0;
+    // const activeMWS = mwsInspections?.length || 0;
+    const totalActive = activeTPI; // + activeMWS;
+
+    if (totalActive > 0) {
+      throw new Error(
+        `This inspector is assigned to ${totalActive} active inspection(s). Please cancel or reassign them before deleting.`,
+      );
     }
 
-    // ✅ ۲. اگر هر inspection متصلی وجود دارد، خطای واضح بده
-    if (relatedInspections && relatedInspections.length > 0) {
-      const count = relatedInspections.length;
-      const activeCount = relatedInspections.filter(
-        (i) => i.status !== "CANCELLED",
-      ).length;
-
-      let message: string;
-      if (count === 1) {
-        message = `This inspector is assigned to 1 inspection. Please cancel or reassign it before deleting.`;
-      } else {
-        message = `This inspector is assigned to ${count} inspections (${activeCount} active). Please cancel or reassign them before deleting.`;
-      }
-
-      throw new Error(message);
-    }
-
-    // ✅ ۳. حذف فایل رزومه (اگر وجود دارد)
     const inspector = await this.getById(id);
     if (inspector?.resume_url) {
       await this.deleteResume(inspector.resume_url).catch(() => {});
     }
 
-    // ✅ ۴. حذف بازرس از دیتابیس
     const { error } = await supabase
       .schema("inspection")
       .from("inspectors")
@@ -343,3 +340,5 @@ export class SupabaseInspectorRepository implements IInspectorRepository {
     }));
   }
 }
+
+export const inspectorRepository = new SupabaseInspectorRepository();

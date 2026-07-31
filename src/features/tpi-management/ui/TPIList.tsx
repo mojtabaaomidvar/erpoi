@@ -1,5 +1,5 @@
 // src/features/tpi-management/ui/TPIList.tsx
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Badge, Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
@@ -18,6 +18,162 @@ import {
   formatArrayWithLimit,
 } from "@/shared/utils/formatUtils";
 
+// ==========================================
+// Sub-Component: TPI Request Card
+// ==========================================
+interface TPIRequestCardProps {
+  request: TPIRequest;
+  clientName: string;
+  projectName: string;
+  vendorName: string;
+  onClick: (request: TPIRequest) => void;
+}
+
+function TPIRequestCard({
+  request,
+  clientName,
+  projectName,
+  vendorName,
+  onClick,
+}: TPIRequestCardProps) {
+  const { isDark } = useTheme();
+  const isSpot = request.tpi_mode === "SPOT";
+
+  // Safe type access for status config
+  const statusConfig = (INSPECTION_STATUS_CONFIG as Record<string, any>)[
+    request.status
+  ] ?? {
+    labelFa: request.status || "Unknown",
+    color: "slate",
+    icon: "❓",
+  };
+
+  const firstStage =
+    Array.isArray(request.stages) && request.stages.length > 0
+      ? request.stages[0]
+      : "No Stage";
+  const inspectionTitle = `${clientName} - ${projectName} - ${vendorName} - ${firstStage}`;
+
+  return (
+    <button
+      onClick={() => onClick(request)}
+      className={`group relative text-left rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl cursor-pointer ${
+        isDark
+          ? "bg-slate-800/50 border border-slate-700/50 hover:border-indigo-500/50 hover:shadow-indigo-500/10"
+          : "bg-white border border-slate-200/70 hover:border-indigo-300 hover:shadow-indigo-500/10"
+      }`}
+    >
+      <div
+        className={`h-1 bg-gradient-to-r ${isSpot ? "from-indigo-500 to-violet-600" : "from-emerald-500 to-green-600"}`}
+      />
+
+      <div className="p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1 min-w-0">
+            <h3
+              className={`text-sm font-bold truncate mb-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
+              title={inspectionTitle}
+            >
+              {inspectionTitle}
+            </h3>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                tone={statusConfig.color}
+                className="text-[9px] font-medium"
+              >
+                {statusConfig.icon} {statusConfig.labelFa}
+              </Badge>
+              <Badge
+                tone={isSpot ? "indigo" : "emerald"}
+                className="text-[9px]"
+              >
+                {isSpot ? "📍 Spot" : "🏢 Resident"}
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        <div
+          className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"} space-y-1.5`}
+        >
+          <div className="flex items-start gap-2">
+            <span className="shrink-0 mt-0.5">📅</span>
+            <span>{formatJalaliDate(request.inspection_date)}</span>
+          </div>
+
+          <div className="flex items-start gap-2">
+            <span className="shrink-0 mt-0.5">🎯</span>
+            <span
+              className="truncate"
+              title={formatArrayField(request.disciplines)}
+            >
+              {formatArrayWithLimit(request.disciplines, 2)}
+            </span>
+          </div>
+
+          <div className="flex items-start gap-2">
+            <span className="shrink-0 mt-0.5">🔧</span>
+            <span
+              className="truncate text-[10px] opacity-80"
+              title={formatArrayField(request.methods)}
+            >
+              {formatArrayWithLimit(request.methods, 2)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ==========================================
+// Sub-Component: Skeleton Card for List
+// ==========================================
+function TPIRequestCardSkeleton({ isDark }: { isDark: boolean }) {
+  return (
+    <div
+      className={`relative rounded-2xl overflow-hidden border animate-pulse ${
+        isDark
+          ? "bg-slate-800/50 border-slate-700/50"
+          : "bg-white border-slate-200/70"
+      }`}
+    >
+      <div className={`h-1 ${isDark ? "bg-slate-700" : "bg-slate-200"}`} />
+      <div className="p-4 space-y-3">
+        {/* Title Placeholder */}
+        <div
+          className={`h-5 rounded w-3/4 ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+        />
+        {/* Badges Placeholder */}
+        <div className="flex gap-2">
+          <div
+            className={`h-4 w-16 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+          />
+          <div
+            className={`h-4 w-20 rounded ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+          />
+        </div>
+        {/* Info Rows Placeholder */}
+        <div className="space-y-2 pt-2">
+          <div
+            className={`h-3 rounded w-1/2 ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+          />
+          <div
+            className={`h-3 rounded w-2/3 ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+          />
+          <div
+            className={`h-3 rounded w-1/3 ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// Main Component: TPI List
+// ==========================================
 interface TPIListProps {
   tpiRequests: TPIRequest[];
   searchQuery: string;
@@ -41,6 +197,7 @@ export function TPIList({
 }: TPIListProps) {
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
+
   const canViewList = canAccessElement("tpi_list_item_view");
   const canAdd = canAccessElement("tpi_btn_add");
   const canSearch = canAccessElement("tpi_search_box");
@@ -49,9 +206,11 @@ export function TPIList({
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
 
-  //  بارگذاری پروژه‌ها، وندورها و مشتریان
+  const [isRefDataLoading, setIsRefDataLoading] = useState(true);
+
   useEffect(() => {
     const loadData = async () => {
+      setIsRefDataLoading(true);
       try {
         const [projectsData, vendorsData, clientsData] = await Promise.all([
           projectAppService.getAllProjects(),
@@ -62,26 +221,44 @@ export function TPIList({
         setVendors(vendorsData);
         setClients(clientsData);
       } catch (err) {
-        console.error("Failed to load projects, vendors, or clients", err);
+        console.error("Failed to load reference data", err);
+      } finally {
+        setIsRefDataLoading(false);
       }
     };
     loadData();
   }, []);
 
-  const filteredRequests = useMemo(() => {
-    return tpiRequests.filter((request) => {
-      const methodsStr = formatArrayField(request.methods).toLowerCase();
-      const disciplinesStr = formatArrayField(
-        request.disciplines,
-      ).toLowerCase();
-      const idStr = (request.id || "").toLowerCase();
-      const searchLower = searchQuery.toLowerCase();
+  const clientMap = useMemo(() => {
+    const map = new Map<string, string>();
+    clients.forEach((c) =>
+      map.set(c.id, c.name_en || c.name_fa || "Unknown Client"),
+    );
+    return map;
+  }, [clients]);
 
+  const projectMap = useMemo(() => {
+    const map = new Map<string, string>();
+    projects.forEach((p) => map.set(p.id, p.name || "Unknown Project"));
+    return map;
+  }, [projects]);
+
+  const vendorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    vendors.forEach((v) => map.set(v.id, v.name || "No Vendor"));
+    return map;
+  }, [vendors]);
+
+  const filteredRequests = useMemo(() => {
+    const searchLower = searchQuery.toLowerCase();
+    return tpiRequests.filter((request) => {
       const matchesSearch =
         !searchQuery ||
-        methodsStr.includes(searchLower) ||
-        disciplinesStr.includes(searchLower) ||
-        idStr.includes(searchLower);
+        formatArrayField(request.methods).toLowerCase().includes(searchLower) ||
+        formatArrayField(request.disciplines)
+          .toLowerCase()
+          .includes(searchLower) ||
+        (request.id || "").toLowerCase().includes(searchLower);
 
       const matchesMode =
         filterMode === "ALL" || request.tpi_mode === filterMode;
@@ -90,27 +267,23 @@ export function TPIList({
   }, [tpiRequests, searchQuery, filterMode]);
 
   const stats = useMemo(() => {
-    const spot = filteredRequests.filter((r) => r.tpi_mode === "SPOT").length;
-    const resident = filteredRequests.filter(
-      (r) => r.tpi_mode === "RESIDENT",
-    ).length;
-    const pending = filteredRequests.filter(
-      (r) => r.status === "NEW" || r.status === "INSPECTOR_ASSIGNED",
-    ).length;
-    const completed = filteredRequests.filter(
-      (r) =>
-        r.status === "INSPECTION_COMPLETED" ||
-        r.status === "REPORT_ISSUED" ||
-        r.status === "CLOSED",
-    ).length;
+    return filteredRequests.reduce(
+      (acc, r) => {
+        acc.total++;
+        if (r.tpi_mode === "SPOT") acc.spot++;
+        else if (r.tpi_mode === "RESIDENT") acc.resident++;
 
-    return {
-      spot,
-      resident,
-      pending,
-      completed,
-      total: filteredRequests.length,
-    };
+        if (r.status === "NEW" || r.status === "INSPECTOR_ASSIGNED")
+          acc.pending++;
+        else if (
+          ["INSPECTION_COMPLETED", "REPORT_ISSUED", "CLOSED"].includes(r.status)
+        )
+          acc.completed++;
+
+        return acc;
+      },
+      { spot: 0, resident: 0, pending: 0, completed: 0, total: 0 },
+    );
   }, [filteredRequests]);
 
   if (!canViewList) {
@@ -259,14 +432,11 @@ export function TPIList({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <div className="text-4xl mb-2 animate-pulse">⏳</div>
-            <p
-              className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}
-            >
-              Loading TPI requests...
-            </p>
+        {loading || isRefDataLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {[...Array(6)].map((_, i) => (
+              <TPIRequestCardSkeleton key={i} isDark={isDark} />
+            ))}
           </div>
         ) : filteredRequests.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
@@ -288,107 +458,24 @@ export function TPIList({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredRequests.map((request) => {
-              const isSpot = request.tpi_mode === "SPOT";
-
-              const statusConfig = (INSPECTION_STATUS_CONFIG as any)[
-                request.status
-              ] ?? {
-                label: request.status || "Unknown",
-                color: "slate",
-                icon: "❓",
-              };
-
-              const client = clients.find((c) => c.id === request.client_id);
-              const clientName =
-                client?.name_en || client?.name_en || "Unknown Client";
-
-              const project = projects.find((p) => p.id === request.project_id);
-              const projectName = project?.name || "Unknown Project";
-
-              const vendor = vendors.find((v) => v.id === request.vendor_id);
-              const vendorName = vendor?.name || "No Vendor";
-
-              const firstStage =
-                Array.isArray(request.stages) && request.stages.length > 0
-                  ? request.stages[0]
-                  : "No Stage";
-
-              const inspectionTitle = `${clientName} - ${projectName} - ${vendorName} - ${firstStage}`;
-
-              return (
-                <button
-                  key={request.id}
-                  onClick={() => onRequestClick(request)}
-                  className={`group relative text-left rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl cursor-pointer ${
-                    isDark
-                      ? "bg-slate-800/50 border border-slate-700/50 hover:border-indigo-500/50 hover:shadow-indigo-500/10"
-                      : "bg-white border border-slate-200/70 hover:border-indigo-300 hover:shadow-indigo-500/10"
-                  }`}
-                >
-                  <div
-                    className={`h-1 bg-gradient-to-r ${isSpot ? "from-indigo-500 to-violet-600" : "from-emerald-500 to-green-600"}`}
-                  />
-
-                  <div className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1 min-w-0">
-                        <h3
-                          className={`text-sm font-bold truncate mb-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
-                          title={inspectionTitle}
-                        >
-                          {inspectionTitle}
-                        </h3>
-
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge
-                            tone={statusConfig.color as any}
-                            className="text-[9px] font-medium"
-                          >
-                            {statusConfig.icon} {statusConfig.labelFa}
-                          </Badge>
-                          <Badge
-                            tone={isSpot ? "indigo" : "emerald"}
-                            className="text-[9px]"
-                          >
-                            {isSpot ? "📍 Spot" : "🏢 Resident"}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div
-                      className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"} space-y-1.5`}
-                    >
-                      <div className="flex items-start gap-2">
-                        <span className="shrink-0 mt-0.5">📅</span>
-                        <span>{formatJalaliDate(request.inspection_date)}</span>
-                      </div>
-
-                      <div className="flex items-start gap-2">
-                        <span className="shrink-0 mt-0.5">🎯</span>
-                        <span
-                          className="truncate"
-                          title={formatArrayField(request.disciplines)}
-                        >
-                          {formatArrayWithLimit(request.disciplines, 2)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-start gap-2">
-                        <span className="shrink-0 mt-0.5">🔧</span>
-                        <span
-                          className="truncate text-[10px] opacity-80"
-                          title={formatArrayField(request.methods)}
-                        >
-                          {formatArrayWithLimit(request.methods, 2)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            {filteredRequests.map((request) => (
+              <TPIRequestCard
+                key={request.id}
+                request={request}
+                clientName={
+                  clientMap.get(request.client_id) || "Unknown Client"
+                }
+                projectName={
+                  projectMap.get(request.project_id) || "Unknown Project"
+                }
+                vendorName={
+                  request.vendor_id
+                    ? vendorMap.get(request.vendor_id) || "No Vendor"
+                    : "No Vendor"
+                }
+                onClick={onRequestClick}
+              />
+            ))}
           </div>
         )}
       </div>

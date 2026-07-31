@@ -534,3 +534,98 @@ input[type="number"] {
 .animate-shimmer {
   animation: shimmer 2.5s infinite;
 }
+
+/* استایل‌های سفارشی برای شبیه‌سازی Outlook در FullCalendar */
+.fc-theme-custom {
+  font-family: inherit;
+  background: transparent;
+}
+
+.fc-theme-custom .fc-toolbar-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.fc-theme-custom .fc-button {
+  background-color: transparent;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 0.875rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.375rem;
+  text-transform: capitalize;
+}
+
+.fc-theme-custom .fc-button:hover {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.fc-theme-custom .fc-button-primary:not(:disabled).fc-button-active,
+.fc-theme-custom .fc-button-primary:not(:disabled):active {
+  background-color: #6366f1;
+  border-color: #6366f1;
+  color: white;
+}
+
+.fc-theme-custom .fc-col-header-cell {
+  background-color: #f8fafc;
+  padding: 0.5rem;
+  font-weight: 600;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+.fc-theme-custom .fc-daygrid-day {
+  border-color: #e2e8f0;
+}
+
+.fc-theme-custom .fc-daygrid-day-number {
+  padding: 0.5rem;
+  color: #334155;
+  font-weight: 500;
+}
+
+/* حالت Dark Mode */
+.fc-theme-custom.fc-dark .fc-col-header-cell {
+  background-color: #1e293b;
+  color: #94a3b8;
+  border-color: #334155;
+}
+
+.fc-theme-custom.fc-dark .fc-daygrid-day {
+  border-color: #334155;
+  background-color: #0f172a;
+}
+
+.fc-theme-custom.fc-dark .fc-daygrid-day-number {
+  color: #cbd5e1;
+}
+
+.fc-theme-custom.fc-dark .fc-button {
+  border-color: #475569;
+  color: #cbd5e1;
+}
+
+.fc-theme-custom.fc-dark .fc-button:hover {
+  background-color: #334155;
+}
+
+.fc-theme-custom.fc-dark .fc-button-primary:not(:disabled).fc-button-active {
+  background-color: #6366f1;
+  border-color: #6366f1;
+}
+
+/* استایل رویدادها (Events) */
+.fc-event {
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border: none !important;
+  margin-bottom: 2px;
+}
+
+.fc-event:hover {
+  opacity: 0.9;
+}

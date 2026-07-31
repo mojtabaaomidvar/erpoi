@@ -1,4 +1,6 @@
 // src/features/inspector-managment/ui/InspectorList.tsx
+
+import { useState } from "react";
 import { Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import type { Inspector, InspectorType, InspectorStatus } from "../domain";
@@ -7,6 +9,8 @@ import { InspectorElements } from "@shared/authorization/ui/elements/InspectorEl
 import { usePermissionMapping } from "@/shared/authorization";
 import { formatJalaliDate } from "@/shared/utils/dateUtils";
 import { processOtherValue } from "@/shared/utils/formatUtils";
+
+import { InspectorScheduleModal } from "./InspectorScheduleModal";
 
 const STATUS_COLORS: Record<
   InspectorStatus,
@@ -45,6 +49,7 @@ interface InspectorListProps {
   loading?: boolean;
   upcomingAssignments?: Record<string, Inspection[]>;
   onInspectionClick?: (inspection: Inspection) => void;
+  allAssignments?: any[];
 }
 
 function StatCard({
@@ -94,7 +99,9 @@ function UpcomingAssignmentsBadge({
   isDark: boolean;
   onInspectionClick?: (inspection: Inspection) => void;
 }) {
-  const sorted = [...assignments].sort((a, b) => {
+  const activeAssignments = assignments.filter((a) => a.status === "ASSIGNED");
+
+  const sorted = [...activeAssignments].sort((a, b) => {
     if (!a.execution_date) return 1;
     if (!b.execution_date) return -1;
     return a.execution_date.localeCompare(b.execution_date);
@@ -156,6 +163,7 @@ function InspectorRow({
   canClick,
   upcomingAssignments,
   onInspectionClick,
+  onViewSchedule,
 }: {
   inspector: Inspector;
   isDark: boolean;
@@ -163,8 +171,13 @@ function InspectorRow({
   canClick: boolean;
   upcomingAssignments?: Inspection[];
   onInspectionClick?: (inspection: Inspection) => void;
+  onViewSchedule: () => void;
 }) {
-  const hasUpcoming = upcomingAssignments && upcomingAssignments.length > 0;
+  const activeUpcoming = (upcomingAssignments || []).filter(
+    (a) => a.status === "ASSIGNED",
+  );
+
+  const hasUpcoming = activeUpcoming.length > 0;
 
   return (
     <div
@@ -189,6 +202,19 @@ function InspectorRow({
             >
               {inspector.name_en}
             </h3>
+
+            {/* ✅ دکمه مشاهده برنامه بازرس */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewSchedule();
+              }}
+              className={`p-1 rounded transition-colors text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50`}
+              title="View Inspector Schedule"
+            >
+              📅
+            </button>
+
             <Badge
               tone={
                 inspector.inspector_type === "ICS_MEMBER" ? "indigo" : "amber"
@@ -260,18 +286,20 @@ function InspectorRow({
 
           {hasUpcoming && (
             <UpcomingAssignmentsBadge
-              assignments={upcomingAssignments!}
+              assignments={activeUpcoming}
               isDark={isDark}
               onInspectionClick={onInspectionClick}
             />
           )}
         </div>
       </div>
+
       {hasUpcoming && (
         <Badge tone="indigo" className="text-[9px]">
-          📋 {upcomingAssignments.length} scheduled
+          📋 {activeUpcoming.length} scheduled
         </Badge>
       )}
+
       {!hasUpcoming && inspector.status === "AVAILABLE" && (
         <Badge
           tone="emerald"
@@ -305,9 +333,24 @@ export function InspectorList({
   loading = false,
   upcomingAssignments = {},
   onInspectionClick,
+  allAssignments = [],
 }: InspectorListProps) {
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
+
+  // ✅ Stateهای مودال تقویم
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [selectedInspectorForSchedule, setSelectedInspectorForSchedule] =
+    useState<{ id: string; name: string } | null>(null);
+
+  const handleViewSchedule = (inspector: Inspector) => {
+    setSelectedInspectorForSchedule({
+      id: inspector.id,
+      name: inspector.name_en,
+    });
+    setScheduleModalOpen(true);
+  };
+
   const canSearch = canAccessElement(
     InspectorElements.InspectorList.search_box.id,
   );
@@ -414,11 +457,25 @@ export function InspectorList({
                 canClick={canClickItem}
                 upcomingAssignments={upcomingAssignments[insp.id]}
                 onInspectionClick={onInspectionClick}
+                onViewSchedule={() => handleViewSchedule(insp)}
               />
             ))}
           </div>
         )}
       </div>
+
+      {selectedInspectorForSchedule && (
+        <InspectorScheduleModal
+          isOpen={scheduleModalOpen}
+          onClose={() => {
+            setScheduleModalOpen(false);
+            setSelectedInspectorForSchedule(null);
+          }}
+          inspectorId={selectedInspectorForSchedule.id}
+          inspectorName={selectedInspectorForSchedule.name}
+          allAssignments={allAssignments || []}
+        />
+      )}
     </div>
   );
 }

@@ -32,7 +32,7 @@ export function Inspectors() {
   const handleInspectionClick = async (inspection: Inspection) => {
     try {
       const requestDetails = await tpiRequestAppService.getById(
-        inspection.inspection_request_id,
+        inspection.tpi_request_id,
       );
 
       if (requestDetails) {
@@ -51,14 +51,19 @@ export function Inspectors() {
   >({});
 
   useEffect(() => {
-    const loadAssignments = async () => {
+    const loadUpcomingAssignments = async () => {
       try {
-        const allInspections = await inspectionAppService.getAll();
+        // ۱. دریافت تمام انتصابات از جدول صحیح
+        const allAssignments =
+          await inspectionAppService.getAllAssignments("TPI");
 
-        const grouped = allInspections.reduce<Record<string, Inspection[]>>(
-          (acc, curr) => {
-            if (curr.status === "SCHEDULED" && curr.execution_date) {
-              if (!acc[curr.inspector_id]) acc[curr.inspector_id] = [];
+        // ۲. گروه‌بندی انتصابات بر اساس inspector_id و فیلتر کردن فقط وضعیت ASSIGNED
+        const upcomingMap = allAssignments.reduce(
+          (acc: Record<string, any[]>, curr: any) => {
+            if (curr.inspector_id && curr.status === "ASSIGNED") {
+              if (!acc[curr.inspector_id]) {
+                acc[curr.inspector_id] = [];
+              }
               acc[curr.inspector_id].push(curr);
             }
             return acc;
@@ -66,12 +71,12 @@ export function Inspectors() {
           {},
         );
 
-        setUpcomingAssignments(grouped);
+        setUpcomingAssignments(upcomingMap);
       } catch (err) {
-        console.error("Failed to load upcoming assignments:", err);
+        console.error("Failed to load upcoming assignments", err);
       }
     };
-    loadAssignments();
+    loadUpcomingAssignments();
   }, []);
 
   const {
@@ -98,6 +103,8 @@ export function Inspectors() {
   );
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
+  const [allAssignments, setAllAssignments] = useState<any[]>([]);
+
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
   // 🔐 دسترسی‌ها با استفاده از Registry
@@ -111,6 +118,30 @@ export function Inspectors() {
   const canDelete = canAccessElement(
     InspectorElements.InspectorList.btn_delete.id,
   );
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const assignments = await inspectionAppService.getAllAssignments("TPI");
+        setAllAssignments(assignments);
+      } catch (err) {
+        console.error("Failed to load data", err);
+      }
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    const loadAllAssignments = async () => {
+      try {
+        const assignments = await inspectionAppService.getAllAssignments("TPI");
+        setAllAssignments(assignments);
+      } catch (err) {
+        console.error("Failed to load assignments", err);
+      }
+    };
+    loadAllAssignments();
+  }, []);
 
   const handleSaveInspector = async (formData: any, isEdit: boolean) => {
     setIsAddModalOpen(false);
@@ -266,6 +297,9 @@ export function Inspectors() {
 
   return (
     <>
+      console.log("🔍 [Inspectors Page] allAssignments state:",
+      allAssignments?.length || 0); console.log("🔍 [Inspectors Page] First
+      assignment:", allAssignments?.[0]);
       <InspectorList
         inspectors={inspectors}
         filteredInspectors={filteredInspectors}
@@ -284,8 +318,8 @@ export function Inspectors() {
         loading={loading}
         upcomingAssignments={upcomingAssignments}
         onInspectionClick={handleInspectionClick}
+        allAssignments={allAssignments}
       />
-
       {/* مودال جزئیات */}
       <InspectorDetailsModal
         isOpen={isDetailsOpen}
@@ -297,7 +331,6 @@ export function Inspectors() {
         onEdit={handleEditFromDetails}
         onDelete={handleDeleteInspector}
       />
-
       {/* مودال افزودن/ویرایش */}
       <InspectorAddForm
         isOpen={isAddModalOpen}
@@ -309,7 +342,6 @@ export function Inspectors() {
         initialData={editingInspector}
         isAdmin={isAdmin}
       />
-
       {isInspectionModalOpen && selectedInspectionRequest && (
         <>
           <TPIDetailsModal

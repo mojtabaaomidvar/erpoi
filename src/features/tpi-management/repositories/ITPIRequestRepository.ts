@@ -14,4 +14,5 @@ export interface ITPIRequestRepository {
   createSourceFiles(requestId: string, files: any[]): Promise<void>;
   getInspectionItems(requestId: string): Promise<any[]>;
   getSourceFiles(requestId: string): Promise<any[]>;
+  deleteInspectionItems(requestId: string): Promise<void>;
 }

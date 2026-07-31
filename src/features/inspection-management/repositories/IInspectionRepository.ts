@@ -1,33 +1,71 @@
 // src/features/inspection-management/repositories/IInspectionRepository.ts
 
-import type { Inspection } from "../domain/types";
-import type { TPICancellationReason } from "@/features/tpi-management";
+import type { InspectorAssignment } from "./SupabaseInspectionRepository";
 
 export interface IInspectionRepository {
-  getAll(): Promise<Inspection[]>;
-  getById(id: string): Promise<Inspection | null>;
-  getByInspectionRequest(requestId: string): Promise<Inspection[]>;
-  create(
-    data: Omit<Inspection, "id" | "created_at" | "updated_at">,
-  ): Promise<Inspection>;
-  update(id: string, data: Partial<Inspection>): Promise<Inspection>;
-  delete(id: string): Promise<void>;
+  assignInspector(
+    requestId: string,
+    category: "TPI" | "MWS",
+    inspectorId: string,
+    assignedBy: string,
+    executionDate?: string,
+    location?: string,
+    vendorSite?: string,
+  ): Promise<InspectorAssignment>;
 
-  getInspectionsByInspectorAndDate(
+  getAssignmentsByRequest(
+    requestId: string,
+    category?: "TPI" | "MWS",
+  ): Promise<InspectorAssignment[]>;
+
+  updateAssignment(
+    assignmentId: string,
+    category: "TPI" | "MWS",
+    updateData: Partial<InspectorAssignment>,
+  ): Promise<InspectorAssignment>;
+
+  cancelAssignment(
+    assignmentId: string,
+    category: "TPI" | "MWS",
+    cancelledBy: string,
+    reason?: string,
+    cancellationNotes?: string,
+  ): Promise<InspectorAssignment>;
+
+  getAssignmentsByInspectorAndDate(
     inspectorId: string,
     executionDate: string,
-  ): Promise<Inspection[]>;
+    category?: "TPI" | "MWS",
+  ): Promise<InspectorAssignment[]>;
 
+  getAll(category?: "TPI" | "MWS"): Promise<any[]>;
+  getById(id: string, category?: "TPI" | "MWS"): Promise<any | null>;
+  getByInspectionRequest(
+    requestId: string,
+    category?: "TPI" | "MWS",
+  ): Promise<any[]>;
+  create(data: any, category?: "TPI" | "MWS"): Promise<any>;
+  update(id: string, data: any, category?: "TPI" | "MWS"): Promise<any>;
+  delete(id: string, category?: "TPI" | "MWS"): Promise<void>;
+  updateExecution(
+    requestId: string,
+    category: "TPI" | "MWS",
+    updateData: any,
+  ): Promise<any>;
   cancelInspection(
-    id: string,
+    requestId: string,
+    category: "TPI" | "MWS",
     cancelledBy: string,
-    reason?: TPICancellationReason,
+    reason?: string,
     relatedInspectionId?: string,
     newScheduledDate?: string,
     dateIsUnknown?: boolean,
     newScopes?: string[],
     cancellationNotes?: string,
-  ): Promise<Inspection>;
-
-  getInspectionWithDetails(id: string): Promise<any>;
+  ): Promise<any>;
+  getInspectionWithDetails(
+    requestId: string,
+    category: "TPI" | "MWS",
+  ): Promise<any>;
+  getAllAssignments(category?: "TPI" | "MWS"): Promise<InspectorAssignment[]>;
 }

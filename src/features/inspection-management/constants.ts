@@ -12,7 +12,8 @@ import type {
 // 🔍 Shared Inspection Configs
 // ═══════════════════════════════════════
 
-export const INSPECTION_STATUS_CONFIG: Record<
+// کانفیگ وضعیت‌های درخواست اصلی (TPI Request)
+const REQUEST_STATUS_CONFIG: Record<
   InspectionStatus,
   { label: string; color: string; icon: string }
 > = {
@@ -22,53 +23,30 @@ export const INSPECTION_STATUS_CONFIG: Record<
     color: "blue",
     icon: "👷",
   },
+  IN_PROGRESS: { label: "In Progress", color: "indigo", icon: "🔄" },
   INSPECTION_COMPLETED: {
     label: "Inspection Completed",
-    color: "indigo",
+    color: "emerald",
     icon: "✅",
   },
-  REPORT_ISSUED: {
-    label: "Report Issued",
-    color: "emerald",
-    icon: "📄",
-  },
-  FOLLOW_UP: {
-    label: "Follow Up",
-    color: "amber",
-    icon: "⏳",
-  },
+  REPORT_ISSUED: { label: "Report Issued", color: "cyan", icon: "📄" },
+  FOLLOW_UP: { label: "Follow Up", color: "amber", icon: "⏳" },
   CLOSED: { label: "Closed", color: "slate", icon: "🔒" },
   REJECTED: { label: "Rejected", color: "rose", icon: "❌" },
+  CANCELLED: { label: "Cancelled", color: "rose", icon: "🚫" },
 };
+
+export const INSPECTION_STATUS_CONFIG = REQUEST_STATUS_CONFIG;
+export const TPI_REQUEST_STATUS_CONFIG = REQUEST_STATUS_CONFIG;
 
 export const INSPECTION_EXECUTION_STATUS_CONFIG: Record<
   InspectionExecutionStatus,
   { label: string; color: string; icon: string }
 > = {
-  SCHEDULED: { label: "Scheduled", color: "blue", icon: "📅" },
+  ASSIGNED: { label: "Assigned", color: "blue", icon: "👷" }, // ✅ اضافه شد
   IN_PROGRESS: { label: "In Progress", color: "indigo", icon: "🔄" },
-  COMPLETED: { label: "Completed", color: "emerald", icon: "✓" },
-  CANCELLED: { label: "Cancelled", color: "slate", icon: "⊘" },
-};
-
-export const TPI_REQUEST_STATUS_CONFIG: Record<
-  string,
-  { label: string; color: string; icon: string }
-> = {
-  NEW: { label: "New", color: "slate", icon: "🆕" },
-  INSPECTOR_ASSIGNED: {
-    label: "Inspector Assigned",
-    color: "blue",
-    icon: "👷",
-  },
-  INSPECTION_COMPLETED: {
-    label: "Inspection Completed",
-    color: "indigo",
-    icon: "✅",
-  },
-  REPORT_ISSUED: { label: "Report Issued", color: "emerald", icon: "📄" },
-  FOLLOW_UP: { label: "Follow Up", color: "amber", icon: "⏳" },
-  COMPLETED: { label: "Completed", color: "indigo", icon: "✅" },
+  COMPLETED: { label: "Completed", color: "emerald", icon: "✅" },
+  CANCELLED: { label: "Cancelled", color: "rose", icon: "🚫" },
 };
 
 export const REVIEW_STATUS_CONFIG: Record<

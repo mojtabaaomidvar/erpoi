@@ -369,23 +369,44 @@ export function TPIRequestForm({
         inspection_date: formData.planned_inspection_date,
         priority: formData.priority,
         notes: formData.notes || undefined,
+        department: user?.department || "GENERAL", // ✅ اطمینان از ارسال دپارتمان
       };
 
+      // ✅ تبدیل آرایه رشته‌ای به آبجکت (مشابه حالت ایجاد جدید)
+      const itemsPayload = formData.item_types.map((itemName, index) => ({
+        item_name: itemName,
+        tag_number: null,
+        description: null,
+        quantity: 1,
+        unit: "EA",
+        manufacturer: null,
+        source_type: "MANUAL",
+        row_index: index,
+      }));
+
+      const filePayloads = sourceFiles.map((f) => ({
+        file: f.file,
+        file_name: f.file_name,
+        file_type: f.file_type,
+        file_size: f.file_size,
+      }));
+
       if (initialData) {
-        await tpiRequestAppService.update(initialData.id, command);
+        await tpiRequestAppService.updateWithDetails(
+          initialData.id,
+          command,
+          itemsPayload,
+          user?.id || "unknown",
+          user?.department,
+        );
         showToast("success", "Updated", "TPI request updated successfully");
       } else {
-        const filePayloads = sourceFiles.map((f) => ({
-          file: f.file,
-          file_name: f.file_name,
-          file_type: f.file_type,
-          file_size: f.file_size,
-        }));
         await tpiRequestAppService.createWithDetails(
           command,
-          [],
+          itemsPayload,
           filePayloads,
           user?.id || "unknown",
+          user?.department,
         );
         showToast("success", "Created", "TPI request created successfully");
       }

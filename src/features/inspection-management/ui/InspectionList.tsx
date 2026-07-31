@@ -82,11 +82,13 @@ export function InspectionList({
     const groups: Record<InspectionStatus, TPIRequest[]> = {
       NEW: [],
       INSPECTOR_ASSIGNED: [],
+      IN_PROGRESS: [],
       INSPECTION_COMPLETED: [],
       REPORT_ISSUED: [],
       FOLLOW_UP: [],
       CLOSED: [],
       REJECTED: [],
+      CANCELLED: [],
     };
     filteredRequests.forEach((r) => {
       if (groups[r.status]) groups[r.status].push(r);

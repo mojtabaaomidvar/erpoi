@@ -1,6 +1,7 @@
 // src/features/inspector-management/application/InspectorApplicationService.ts
 
 import type { Inspector, IInspectorRepository } from "./../domain";
+import { inspectorRepository } from "../repositories/SupabaseInspectorRepository";
 
 export class InspectorApplicationService {
   constructor(private inspectorRepository: IInspectorRepository) {}
@@ -44,6 +45,23 @@ export class InspectorApplicationService {
     );
   }
 
+  async getSuitableInspectors(disciplines: string[]) {
+    const allInspectors = await this.inspectorRepository.getAll();
+
+    return allInspectors.filter((inspector: any) => {
+      if (!inspector.specialties || inspector.specialties.length === 0)
+        return false;
+
+      return inspector.specialties.some((specialty: string) =>
+        disciplines.some(
+          (discipline) =>
+            specialty.toLowerCase().includes(discipline.toLowerCase()) ||
+            discipline.toLowerCase().includes(specialty.toLowerCase()),
+        ),
+      );
+    });
+  }
+
   async syncInspectors(
     currentInspectors: Inspector[],
     newInspectors: Inspector[],
@@ -69,3 +87,7 @@ export class InspectorApplicationService {
     }
   }
 }
+
+export const inspectorAppService = new InspectorApplicationService(
+  inspectorRepository,
+);

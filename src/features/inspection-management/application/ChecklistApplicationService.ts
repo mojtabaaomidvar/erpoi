@@ -1,25 +1,31 @@
 //src/features/inspection-management/application/ChecklistApplicationService.ts
 
-import { checklistRepository } from "../repositories/SupabaseChecklistRepository";
-import type { InspectionChecklist, ChecklistItem } from "../domain/types";
+import { checklistRepository } from "../repositories/ChecklistRepository";
+import type {
+  ChecklistData,
+  ChecklistTemplate,
+} from "../domain/checklistTypes";
 
-class ChecklistApplicationService {
-  async getByInspectionId(
-    inspectionId: string,
-  ): Promise<InspectionChecklist | null> {
-    return await checklistRepository.getByInspectionId(inspectionId);
+export class ChecklistApplicationService {
+  /**
+   * دریافت چک‌لیست بر اساس equipment_id
+   */
+  async getChecklistByEquipment(equipmentId: string): Promise<ChecklistData> {
+    return checklistRepository.getChecklistByEquipmentId(equipmentId);
   }
 
-  async saveChecklist(
-    inspectionId: string,
-    inspectorId: string,
-    items: Omit<ChecklistItem, "id" | "checklist_id">[],
-  ): Promise<InspectionChecklist> {
-    return await checklistRepository.upsertChecklist(
-      inspectionId,
-      inspectorId,
-      items,
-    );
+  /**
+   * دریافت چک‌لیست بر اساس template_id
+   */
+  async getChecklistByTemplate(templateId: string): Promise<ChecklistData> {
+    return checklistRepository.getChecklistByTemplateId(templateId);
+  }
+
+  /**
+   * دریافت تمام template‌ها
+   */
+  async getAllTemplates(): Promise<ChecklistTemplate[]> {
+    return checklistRepository.getAllTemplates();
   }
 }
 

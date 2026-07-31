@@ -11,17 +11,21 @@ export type Priority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type ChecklistResult = "PASS" | "FAIL" | "NA" | "PENDING";
 export type ChecklistStatus = "DRAFT" | "SUBMITTED" | "APPROVED";
 
+// ✅ وضعیت‌های جدول اصلی درخواست (TPI Request)
 export type InspectionStatus =
   | "NEW"
   | "INSPECTOR_ASSIGNED"
+  | "IN_PROGRESS"
   | "INSPECTION_COMPLETED"
   | "REPORT_ISSUED"
   | "FOLLOW_UP"
   | "CLOSED"
-  | "REJECTED";
+  | "REJECTED"
+  | "CANCELLED";
 
+// ✅ وضعیت‌های جدول انتصابات بازرس (Inspector Assignments) - کاملاً جداگانه!
 export type InspectionExecutionStatus =
-  | "SCHEDULED"
+  | "ASSIGNED"
   | "IN_PROGRESS"
   | "COMPLETED"
   | "CANCELLED";
@@ -54,16 +58,17 @@ export interface BaseInspectionRequest {
   updated_at: string;
 }
 
+// ✅ این اینترفیس دقیقاً منطبق بر جدول tpi_inspector_assignments است
 export interface Inspection {
   id: string;
-  inspection_request_id: string;
+  tpi_request_id: string; // ✅ نام صحیح ستون
   inspector_id: string;
   assigned_by: string;
   assigned_at: string;
   execution_date?: string;
   location?: string;
   vendor_site?: string;
-  status: InspectionExecutionStatus;
+  status: InspectionExecutionStatus; // ✅ از تایپ جداگانه استفاده می‌کند
   actual_start_time?: string;
   actual_end_time?: string;
   weather_conditions?: string;
@@ -72,10 +77,10 @@ export interface Inspection {
   cancelled_at?: string;
   cancelled_by?: string;
   cancellation_reason?: CancellationReason;
-  related_inspection_id?: string;
+  related_assignment_id?: string; // ✅ اصلاح شد (به جای related_inspection_id)
   new_scheduled_date?: string;
   date_is_unknown?: boolean;
-  new_scopes?: string[];
+  new_scope?: string[]; // ✅ اصلاح شد (به جای new_scopes)
   cancellation_notes?: string;
 
   created_at: string;

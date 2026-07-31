@@ -15,24 +15,15 @@ class InspectionItemApplicationService {
   }
 
   async getItemsByDisciplines(disciplines: string[]): Promise<EquipmentItem[]> {
-    console.log("🔍 Filtering items for disciplines:", disciplines);
-
     const allItems = await this.getAllItems();
-    console.log("📦 Total items loaded:", allItems.length);
 
     if (disciplines.length === 0) {
-      console.log("️ No disciplines selected, returning all items");
       return allItems;
     }
 
     const allowedCategories = getCategoriesForDisciplines(disciplines);
-    console.log("🎯 Allowed categories:", allowedCategories);
 
-    // ✅ اگر هیچ mappingای پیدا نشد، خالی برگردان (نه fallback)
     if (allowedCategories.length === 0) {
-      console.warn(
-        "❌ No mapping found for disciplines, returning empty array",
-      );
       return [];
     }
 
@@ -66,7 +57,6 @@ class InspectionItemApplicationService {
 
     allowedCategoryItems.forEach((category) => collectAllDescendants(category));
 
-    console.log("✅ Filtered items count:", Array.from(allowedItems).length);
     return Array.from(allowedItems);
   }
 

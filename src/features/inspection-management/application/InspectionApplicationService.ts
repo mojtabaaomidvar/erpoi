@@ -1,78 +1,110 @@
 // src/features/inspection-management/application/InspectionApplicationService.ts
 
 import type { IInspectionRepository } from "../repositories/IInspectionRepository";
-import type { Inspection, EnrichedInspector } from "../domain/types";
-import { inspectorAppService } from "@/features/inspector-managment/application";
-import type { Inspector } from "@/features/inspector-managment/domain";
-
-import {
-  CreateInspectionSchema,
-  type CreateInspectionCommand,
-} from "./dto/InspectionCommand";
-
 import { inspectionRepository } from "../repositories/SupabaseInspectionRepository";
+import type { TPICancellationReason } from "@/features/tpi-management";
 
-class InspectionApplicationService {
+export class InspectionApplicationService {
   constructor(private repository: IInspectionRepository) {}
 
-  async getAll(): Promise<Inspection[]> {
-    return await this.repository.getAll();
+  async getById(id: string, category: "TPI" | "MWS" = "TPI") {
+    return await this.repository.getById(id, category);
   }
 
-  async getById(id: string): Promise<Inspection | null> {
-    return await this.repository.getById(id);
+  async getByInspectionRequest(
+    requestId: string,
+    category: "TPI" | "MWS" = "TPI",
+  ) {
+    return await this.repository.getByInspectionRequest(requestId, category);
   }
 
-  async getByInspectionRequest(requestId: string): Promise<Inspection[]> {
-    return await this.repository.getByInspectionRequest(requestId);
+  async create(data: any, category: "TPI" | "MWS" = "TPI") {
+    return await this.repository.create(data, category);
   }
 
-  async create(command: CreateInspectionCommand): Promise<Inspection> {
-    const validatedData = CreateInspectionSchema.parse(command);
-    return await this.repository.create({
-      ...validatedData,
-      assigned_at: new Date().toISOString(),
-      status: "SCHEDULED",
-    });
+  async update(id: string, data: any, category: "TPI" | "MWS" = "TPI") {
+    return await this.repository.update(id, data, category);
   }
 
-  async update(id: string, data: Partial<Inspection>): Promise<Inspection> {
-    return await this.repository.update(id, data);
+  async delete(id: string, category: "TPI" | "MWS" = "TPI") {
+    return await this.repository.delete(id, category);
   }
 
-  async delete(id: string): Promise<void> {
-    await this.repository.delete(id);
+  async getAll(category: "TPI" | "MWS" = "TPI") {
+    return await this.repository.getAll(category);
   }
 
-  async startInspection(id: string): Promise<Inspection> {
-    return await this.repository.update(id, {
-      status: "IN_PROGRESS",
-      actual_start_time: new Date().toISOString(),
-    });
+  async assignInspector(
+    requestId: string,
+    category: "TPI" | "MWS",
+    inspectorId: string,
+    assignedBy: string,
+    executionDate?: string,
+    location?: string,
+    vendorSite?: string,
+  ) {
+    return await this.repository.assignInspector(
+      requestId,
+      category,
+      inspectorId,
+      assignedBy,
+      executionDate,
+      location,
+      vendorSite,
+    );
   }
 
-  async completeInspection(id: string, remarks?: string): Promise<Inspection> {
-    return await this.repository.update(id, {
-      status: "COMPLETED",
-      actual_end_time: new Date().toISOString(),
-      general_remarks: remarks,
-    });
+  async getAssignmentsByRequest(
+    requestId: string,
+    category: "TPI" | "MWS" = "TPI",
+  ) {
+    return await this.repository.getAssignmentsByRequest(requestId, category);
+  }
+
+  async cancelAssignment(
+    assignmentId: string,
+    category: "TPI" | "MWS",
+    cancelledBy: string,
+    reason?: string,
+    cancellationNotes?: string,
+  ) {
+    return await this.repository.cancelAssignment(
+      assignmentId,
+      category,
+      cancelledBy,
+      reason,
+      cancellationNotes,
+    );
+  }
+
+  async updateExecution(
+    requestId: string,
+    category: "TPI" | "MWS",
+    updateData: any,
+  ) {
+    return await this.repository.updateExecution(
+      requestId,
+      category,
+      updateData,
+    );
   }
 
   async cancelInspection(
-    id: string,
+    requestId: string,
+    category: "TPI" | "MWS",
     cancelledBy: string,
-    reason?: string,
+    reason?: TPICancellationReason,
     relatedInspectionId?: string,
     newScheduledDate?: string,
     dateIsUnknown?: boolean,
     newScopes?: string[],
     cancellationNotes?: string,
-  ): Promise<Inspection> {
+  ) {
     return await this.repository.cancelInspection(
-      id,
+      requestId,
+      category,
       cancelledBy,
-      reason as any,
+      reason,
       relatedInspectionId,
       newScheduledDate,
       dateIsUnknown,
@@ -81,58 +113,27 @@ class InspectionApplicationService {
     );
   }
 
-  async getInspectionWithDetails(id: string): Promise<any> {
-    return await this.repository.getInspectionWithDetails(id);
+  async getInspectionWithDetails(id: string, category: "TPI" | "MWS" = "TPI") {
+    return await this.repository.getInspectionWithDetails(id, category);
   }
 
-  async getSuitableInspectors(
-    requiredDisciplines: string[],
-    targetDate: string,
-  ): Promise<EnrichedInspector[]> {
-    const allInspectors: Inspector[] = await inspectorAppService.getAll();
-    const allInspections: Inspection[] = await this.repository.getAll();
-
-    const normalizedRequired = requiredDisciplines.map((d) =>
-      d.trim().toLowerCase(),
+  async getAssignmentsByInspectorAndDate(
+    inspectorId: string,
+    executionDate: string,
+    category: "TPI" | "MWS" = "TPI",
+  ) {
+    return await this.repository.getAssignmentsByInspectorAndDate(
+      inspectorId,
+      executionDate,
+      category,
     );
+  }
 
-    const scheduledInspectionsOnDate = allInspections.filter(
-      (insp) =>
-        insp.execution_date === targetDate && insp.status !== "CANCELLED",
-    );
-
-    const suitableInspectors: EnrichedInspector[] = [];
-
-    for (const inspector of allInspectors) {
-      const hasMatchingSpecialty = inspector.specialties.some(
-        (specialty: string) =>
-          normalizedRequired.includes(specialty.trim().toLowerCase()),
-      );
-
-      if (hasMatchingSpecialty) {
-        const conflicts = scheduledInspectionsOnDate.filter(
-          (insp) => insp.inspector_id === inspector.id,
-        );
-
-        suitableInspectors.push({
-          inspector,
-          isMatch: true,
-          isAvailable: conflicts.length === 0,
-          conflictingInspections: conflicts,
-        });
-      }
-    }
-
-    return suitableInspectors.sort((a, b) => {
-      if (a.isAvailable && !b.isAvailable) return -1;
-      if (!a.isAvailable && b.isAvailable) return 1;
-      return 0;
-    });
+  async getAllAssignments(category: "TPI" | "MWS" = "TPI") {
+    return await this.repository.getAllAssignments(category);
   }
 }
 
 export const inspectionAppService = new InspectionApplicationService(
   inspectionRepository,
 );
-
-export { InspectionApplicationService };
