@@ -8,7 +8,7 @@ import type { EquipmentItem } from "../../repositories/EquipmentMasterDataReposi
 
 interface GroupedEquipmentSelectProps {
   value: string[];
-  onChange: (values: string[]) => void;
+  onChange: (values: string[], selectedEquipmentId?: string) => void;
   disciplineGroups: DisciplineGroup[];
   isLoading: boolean;
   error?: string;
@@ -45,7 +45,18 @@ export function GroupedEquipmentSelect({
   // ✅ آیا چند دیسیپلین انتخاب شده؟
   const showDisciplineHeaders = disciplineGroups.length > 1;
 
-  // مقداردهی اولیه: همه باز باشند
+  const handleToggleItem = (item: EquipmentItem) => {
+    const isSelected = value.includes(item.name);
+    const newValues = isSelected
+      ? value.filter((v) => v !== item.name)
+      : [...value, item.name];
+
+    // ✅ ارسال شناسه سیستمی (item.id یا item.equipment_id)
+    const selectedEquipmentId = !isSelected ? item.id : undefined;
+
+    onChange(newValues, selectedEquipmentId);
+  };
+
   useEffect(() => {
     if (disciplineGroups.length > 0) {
       setExpandedDisciplines((prev) => {

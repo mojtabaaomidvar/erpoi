@@ -58,6 +58,7 @@ interface TPIFormData {
   site_representative_id: string;
   disciplines: string[];
   item_types: string[];
+  equipment_type_id: string[];
   stages: string[];
   methods: string[];
   planned_inspection_date: string;
@@ -74,6 +75,7 @@ const defaultFormData: TPIFormData = {
   site_representative_id: "",
   disciplines: [],
   item_types: [],
+  equipment_type_id: [],
   stages: [],
   methods: [],
   planned_inspection_date: getTodayJalali(),
@@ -231,6 +233,11 @@ export function TPIRequestForm({
           item_types: Array.isArray((initialData as any).item_types)
             ? (initialData as any).item_types
             : [],
+          equipment_type_id: Array.isArray(
+            (initialData as any).equipment_type_id,
+          )
+            ? (initialData as any).equipment_type_id
+            : [],
           stages: Array.isArray((initialData as any).stages)
             ? (initialData as any).stages
             : [],
@@ -364,15 +371,15 @@ export function TPIRequestForm({
         site_representative_id: formData.site_representative_id || undefined,
         disciplines: formData.disciplines,
         item_types: formData.item_types,
+        equipment_type_id: formData.equipment_type_id,
         stages: formData.stages,
         methods: formData.methods,
         inspection_date: formData.planned_inspection_date,
         priority: formData.priority,
         notes: formData.notes || undefined,
-        department: user?.department || "GENERAL", // ✅ اطمینان از ارسال دپارتمان
+        department: user?.department || "GENERAL",
       };
 
-      // ✅ تبدیل آرایه رشته‌ای به آبجکت (مشابه حالت ایجاد جدید)
       const itemsPayload = formData.item_types.map((itemName, index) => ({
         item_name: itemName,
         tag_number: null,
@@ -647,12 +654,35 @@ export function TPIRequestForm({
                 </p>
 
                 {formData.disciplines.length === 0 ? (
-                  /* ✅ حالت ۱: بدون دیسیپلین → جستجوی آزاد */
                   <EquipmentFreeSearch
                     value={formData.item_types}
-                    onChange={(values, detectedDiscipline) => {
-                      updateFormData({ item_types: values });
-                      // ✅ ست کردن خودکار دیسیپلین
+                    onChange={(
+                      values: string[],
+                      detectedDiscipline?: string,
+                    ) => {
+                      const newEquipmentIds = values.map((itemName) => {
+                        for (const group of disciplineGroups) {
+                          for (const category of group.categories) {
+                            const foundItem = (category.items as any[]).find(
+                              (item) => item.name === itemName,
+                            );
+                            if (foundItem) {
+                              return (
+                                foundItem.id ||
+                                foundItem.equipment_id ||
+                                itemName
+                              );
+                            }
+                          }
+                        }
+                        return itemName;
+                      });
+
+                      updateFormData({
+                        item_types: values,
+                        equipment_type_id: newEquipmentIds,
+                      });
+
                       if (
                         detectedDiscipline &&
                         !formData.disciplines.includes(detectedDiscipline)
@@ -672,13 +702,33 @@ export function TPIRequestForm({
                     disciplineGroups={disciplineGroups}
                     isLoading={loadingEquipment}
                     value={formData.item_types}
-                    onChange={(values: string[]) =>
-                      updateFormData({ item_types: values })
-                    }
+                    onChange={(values: string[]) => {
+                      const newEquipmentId = values.map((itemName) => {
+                        for (const group of disciplineGroups) {
+                          for (const category of group.categories) {
+                            const foundItem = (category.items as any[]).find(
+                              (item) => item.name === itemName,
+                            );
+                            if (foundItem) {
+                              return (
+                                foundItem.id ||
+                                foundItem.equipment_id ||
+                                itemName
+                              );
+                            }
+                          }
+                        }
+                        return itemName;
+                      });
+
+                      updateFormData({
+                        item_types: values,
+                        equipment_type_id: newEquipmentId,
+                      });
+                    }}
                     error={errors.item_types}
                   />
                 )}
-
                 {errors.item_types && (
                   <p className="text-[11px] text-rose-600 mt-1.5">
                     ✕ {errors.item_types}

@@ -432,24 +432,30 @@ export function DocumentReviewSection({
       {/* Header & Action Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            id="select-all-docs"
-            checked={isAllSelected}
-            ref={(el) => {
-              if (el) el.indeterminate = isSomeSelected;
-            }}
-            onChange={(e) => (e.target.checked ? selectAll() : deselectAll())}
-            disabled={documents.length === 0}
-            className="w-4 h-4 rounded cursor-pointer accent-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <div className="flex items-center gap-2">
-            <span
-              className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
-            >
-              Total Documents ({documents.length})
-            </span>
-          </div>
+          {uploadFiles.length > 0 && (
+            <>
+              <input
+                type="checkbox"
+                id="select-all-docs"
+                checked={isAllSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = isSomeSelected;
+                }}
+                onChange={(e) =>
+                  e.target.checked ? selectAll() : deselectAll()
+                }
+                disabled={documents.length === 0}
+                className="w-4 h-4 rounded cursor-pointer accent-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                >
+                  Total Documents ({documents.length})
+                </span>
+              </div>
+            </>
+          )}
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-300 dark:border-slate-700">
               <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium mr-1">

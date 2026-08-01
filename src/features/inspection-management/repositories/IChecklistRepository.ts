@@ -1,12 +1,12 @@
 // src/features/inspection-management/repositories/IChecklistRepository.ts
 
-import type { InspectionChecklist, ChecklistItem } from "../domain/types";
+import type {
+  ChecklistData,
+  ChecklistTemplate,
+} from "../domain/checklistTypes";
 
 export interface IChecklistRepository {
-  getByInspectionId(inspectionId: string): Promise<InspectionChecklist | null>;
-  upsertChecklist(
-    inspectionId: string,
-    inspectorId: string,
-    items: Omit<ChecklistItem, "id" | "checklist_id">[]
-  ): Promise<InspectionChecklist>;
+  getChecklistByEquipmentId(equipmentId: string): Promise<ChecklistData>;
+
+  getAllTemplates(): Promise<ChecklistTemplate[]>;
 }

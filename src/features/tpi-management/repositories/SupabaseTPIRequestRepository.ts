@@ -74,7 +74,10 @@ export class SupabaseTPIRequestRepository implements SupabaseTPIRequestRepositor
     const { data: updatedRecord, error } = await supabase
       .schema("tpi")
       .from("tpi_requests")
-      .update({ ...data, updated_at: new Date().toISOString() })
+      .update({
+        ...data,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", id)
       .select()
       .single();

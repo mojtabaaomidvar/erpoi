@@ -161,9 +161,9 @@ export function TPIDetailsModal({
       isOpen={isOpen}
       onClose={onClose}
       title="TPI Request Details"
-      size="xl"
+      size="7xl"
     >
-      <div className="flex flex-col" style={{ height: "calc(90vh - 120px)" }}>
+      <div className="flex flex-col" style={{ height: "calc(95vh - 80px)" }}>
         {/* Header Info */}
         <div
           className={`flex-shrink-0 px-6 py-4 border-b ${isDark ? "border-slate-700 bg-slate-900/50" : "border-slate-200 bg-slate-50"}`}
@@ -567,21 +567,17 @@ export function TPIDetailsModal({
                 />
               )}
 
-              {/* ✅ اصلاح شده: نگاشت صحیح فیلدها بر اساس اسکیمای جدید */}
               {activeTab === "checklist" && request && (
                 <ChecklistSection
+                  requestId={request.id}
                   equipmentId={
-                    request.equipment_type_id ||
-                    (request.item_types && request.item_types.length > 0
-                      ? request.item_types[0]
-                      : "GENERIC_ITEM")
+                    (request as any).equipment_type_id &&
+                    (request as any).equipment_type_id.length > 0
+                      ? (request as any).equipment_type_id
+                      : ["GENERIC_ITEM"]
                   }
-                  inspectionStages={request.stages || []}
-                  inspectionMethods={
-                    request.methods && request.methods.length > 0
-                      ? request.methods[0]
-                      : undefined
-                  }
+                  stages={request.stages || []}
+                  methods={request.methods || []}
                 />
               )}
 

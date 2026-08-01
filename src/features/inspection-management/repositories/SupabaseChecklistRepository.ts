@@ -1,108 +1,109 @@
 // src/features/inspection-management/repositories/SupabaseChecklistRepository.ts
 
 import { supabase } from "@shared/database/supabase";
-import type { IChecklistRepository } from "./IChecklistRepository";
-import type { InspectionChecklist, ChecklistItem } from "../domain/types";
+import type {
+  ChecklistData,
+  ChecklistTemplate,
+  ChecklistItem,
+  ChecklistGroup,
+} from "../domain/checklistTypes";
 
-export class SupabaseChecklistRepository implements IChecklistRepository {
-  
-  async getByInspectionId(inspectionId: string): Promise<InspectionChecklist | null> {
-    // ۱. دریافت خود چک‌لیست
-    const { data: checklistData, error: checklistError } = await supabase
-      .schema("inspection")
-      .from("checklists")
-      .select("*")
-      .eq("inspection_id", inspectionId)
-      .single();
+export interface ChecklistFilter {
+  equipmentId: string[];
+  stages?: string[];
+  methods?: string[];
+}
 
-    if (checklistError || !checklistData) return null;
+export class SupabaseChecklistRepository {
+  async getChecklist(filters: ChecklistFilter): Promise<ChecklistData> {
+    console.log(`🔍 Fetching checklist with filters:`, filters);
 
-    // ۲. دریافت آیتم‌های مرتبط با آن چک‌لیست
-    const { data: itemsData, error: itemsError } = await supabase
-      .schema("inspection")
-      .from("checklist_items")
-      .select("*")
-      .eq("checklist_id", checklistData.id);
+    let query = supabase
+      .schema("equipment")
+      .from("checklist")
+      .select(
+        "equipment_id, template_id, inspection_method, sequence, checklist_text, is_active",
+      )
+      .in("equipment_id", filters.equipmentId)
+      .eq("is_active", true);
 
-    if (itemsError) throw new Error(itemsError.message);
+    const targetMethods = [
+      ...(filters.stages || []),
+      ...(filters.methods || []),
+    ];
 
-    return {
-      ...checklistData,
-      items: itemsData || [],
-    } as InspectionChecklist;
+    if (targetMethods.length > 0) {
+      query = query.in("inspection_method", targetMethods);
+    }
+
+    const { data: items, error } = await query.order("sequence", {
+      ascending: true,
+    });
+
+    if (error) {
+      console.error("❌ Error fetching checklist:", error);
+      return { template: null, groups: [] };
+    }
+
+    if (!items || items.length === 0) {
+      return { template: null, groups: [] };
+    }
+
+    const templateId = items[0].template_id;
+    let templateName = "Inspection Checklist";
+
+    try {
+      const { data: templateData } = await supabase
+        .schema("inspection")
+        .from("checklist_templates")
+        .select("name")
+        .eq("id", templateId)
+        .single();
+
+      if (templateData?.name) {
+        templateName = templateData.name;
+      }
+    } catch (e) {}
+
+    const template: ChecklistTemplate = {
+      id: templateId,
+      name: templateName,
+      description: `Checklist filtered by selected stages and methods.`,
+      is_active: true,
+    };
+
+    const groupsMap = new Map<string, ChecklistItem[]>();
+    items.forEach((item: any) => {
+      if (!groupsMap.has(item.inspection_method)) {
+        groupsMap.set(item.inspection_method, []);
+      }
+      groupsMap.get(item.inspection_method)!.push({
+        id: `${item.equipment_id}_${item.inspection_method}_${item.sequence}`,
+        template_id: item.template_id,
+        inspection_method: item.inspection_method,
+        sequence: Number(item.sequence),
+        checklist_text: item.checklist_text,
+        is_active: item.is_active,
+      });
+    });
+
+    const groups: ChecklistGroup[] = Array.from(groupsMap.entries()).map(
+      ([method, itemList]) => ({ method, items: itemList }),
+    );
+
+    return { template, groups };
   }
 
-  async upsertChecklist(
-    inspectionId: string,
-    inspectorId: string,
-    items: Omit<ChecklistItem, "id" | "checklist_id">[]
-  ): Promise<InspectionChecklist> {
-    
-    // ۱. بررسی وجود چک‌لیست قبلی
-    const { data: existingChecklist } = await supabase
+  async getAllTemplates(): Promise<ChecklistTemplate[]> {
+    const { data, error } = await supabase
       .schema("inspection")
-      .from("checklists")
-      .select("id")
-      .eq("inspection_id", inspectionId)
-      .single();
+      .from("checklist_templates")
+      .select("*")
+      .eq("is_active", true)
+      .order("name");
 
-    let checklistId = existingChecklist?.id;
-
-    if (!checklistId) {
-      // اگر وجود نداشت، جدید بساز
-      checklistId = `chk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const { error: createError } = await supabase
-        .schema("inspection")
-        .from("checklists")
-        .insert({
-          id: checklistId,
-          inspection_id: inspectionId,
-          inspector_id: inspectorId,
-          status: "DRAFT",
-        });
-      
-      if (createError) throw new Error(createError.message);
-    } else {
-      // اگر وجود داشت، وضعیت را به DRAFT برگردان و زمان آپدیت را به‌روز کن
-      await supabase
-        .schema("inspection")
-        .from("checklists")
-        .update({ updated_at: new Date().toISOString(), status: "DRAFT" })
-        .eq("id", checklistId);
-    }
-
-    // ۲. حذف تمام آیتم‌های قدیمی چک‌لیست (برای جایگزینی با لیست جدید)
-    await supabase
-      .schema("inspection")
-      .from("checklist_items")
-      .delete()
-      .eq("checklist_id", checklistId);
-
-    // ۳. درج آیتم‌های جدید
-    if (items.length > 0) {
-      const itemsToInsert = items.map((item, index) => ({
-        id: `chki_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 6)}`,
-        checklist_id: checklistId,
-        category: item.category,
-        description: item.description,
-        result: item.result,
-        remarks: item.remarks || null,
-        photo_urls: item.photo_urls || [],
-      }));
-
-      const { error: insertError } = await supabase
-        .schema("inspection")
-        .from("checklist_items")
-        .insert(itemsToInsert);
-      
-      if (insertError) throw new Error(insertError.message);
-    }
-
-    // ۴. بازگرداندن چک‌لیست به‌روزرسانی‌شده به صورت کامل
-    const updatedChecklist = await this.getByInspectionId(inspectionId);
-    if (!updatedChecklist) throw new Error("Failed to retrieve updated checklist");
-    
-    return updatedChecklist;
+    if (error) return [];
+    return (data || []) as ChecklistTemplate[];
   }
 }
 
