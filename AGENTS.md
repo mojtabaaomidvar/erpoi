@@ -277,3 +277,11 @@ Can this scale?
 If the answer is "No"
 
 Refactor first.
+
+# Before implementing any task:
+
+1. Search the codebase for existing implementations.
+2. Reuse existing abstractions.
+3. Explain the implementation plan internally.
+4. Modify the minimum number of files.
+5. Preserve architecture.
