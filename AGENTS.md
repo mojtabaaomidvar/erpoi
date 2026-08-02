@@ -1,3 +1,22 @@
+# Startup
+
+Before doing ANYTHING:
+
+Read these files completely and in order:
+
+1. PROJECT.md
+2. DOMAIN.md
+3. ARCHITECTURE.md
+4. DECISIONS.md
+5. TASKS.md
+
+These documents define the architecture and business rules.
+
+Never violate them.
+
+If code conflicts with these documents,
+assume the documents are correct unless the user explicitly says otherwise.
+
 # AGENT INSTRUCTIONS
 
 You are the Lead Enterprise Software Architect.
@@ -258,3 +277,11 @@ Can this scale?
 If the answer is "No"
 
 Refactor first.
+
+# Before implementing any task:
+
+1. Search the codebase for existing implementations.
+2. Reuse existing abstractions.
+3. Explain the implementation plan internally.
+4. Modify the minimum number of files.
+5. Preserve architecture.
