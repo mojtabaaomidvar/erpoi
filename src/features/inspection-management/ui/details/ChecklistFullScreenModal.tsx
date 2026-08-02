@@ -1,6 +1,6 @@
 // src/features/inspection-management/ui/details/ChecklistFullScreenModal.tsx
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Modal, Button, Badge } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
@@ -13,6 +13,19 @@ import type {
   ChecklistItemResult,
   ChecklistItemStatus,
 } from "../../domain/checklistTypes";
+import type { NonConformityReport } from "../../repositories/NonConformityRepository";
+import type { InspectionPhoto } from "../../repositories/InspectionPhotoRepository";
+
+interface ChecklistFullScreenModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  requestId: string;
+  equipmentId: string[];
+  stages?: string[];
+  methods?: string[];
+}
+
+type NonConformitySeverity = "MINOR" | "MAJOR" | "OBSERVATION" | "HOLD POINT";
 
 interface ChecklistFullScreenModalProps {
   isOpen: boolean;
@@ -35,16 +48,37 @@ export function ChecklistFullScreenModal({
   const { user } = useAuth();
 
   const [allData, setAllData] = useState<
-    { eqId: string; data: ChecklistData }[]
+    { eqId: string; eqName: string; data: ChecklistData }[]
   >([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<Map<string, ChecklistItemResult>>(
     new Map(),
   );
-  const [activeMethod, setActiveMethod] = useState<string>("ALL");
+  const [activeTab, setActiveTab] = useState<"ALL" | string>("ALL");
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [activeComment, setActiveComment] = useState("");
+  const [NonConformitySeverity, setNonConformitySeverity] = useState<
+    Map<string, NonConformitySeverity>
+  >(new Map());
+  const [NonConformitySubmitting, setNonConformitySubmitting] = useState<
+    Set<string>
+  >(new Set());
+  const [photosByItem, setPhotosByItem] = useState<
+    Map<string, InspectionPhoto[]>
+  >(new Map());
+  const [uploadingPhotos, setUploadingPhotos] = useState<Set<string>>(
+    new Set(),
+  );
+  const fileInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+
+  // ✅ لیست تمام equipmentها برای تب‌ها
+  const equipmentList = useMemo(() => {
+    return allData.map(({ eqId, eqName }) => ({
+      eqId,
+      eqName,
+    }));
+  }, [allData]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -55,7 +89,7 @@ export function ChecklistFullScreenModal({
           stages,
           methods,
         });
-        return { eqId, data };
+        return { eqId, eqName: eqId, data };
       });
       const loaded = await Promise.all(promises);
       const valid = loaded.filter(
@@ -99,7 +133,6 @@ export function ChecklistFullScreenModal({
     return null;
   })();
 
-  // ✅ استفاده از flatMap برای ساختار تابعی و سازگار با React Compiler
   const flatItemList = useMemo(() => {
     return allData.flatMap(({ eqId, data }) =>
       data.groups.flatMap((group) =>
@@ -162,6 +195,144 @@ export function ChecklistFullScreenModal({
     }, 100);
   };
 
+  const handleNonConformitySubmit = async (itemId: string) => {
+    const result = results.get(itemId);
+    if (!result || result.status !== "REJECT") return;
+
+    const severity = NonConformitySeverity.get(itemId) || "MINOR";
+    const comment = activeComment.trim();
+
+    if (!comment) {
+      showToast(
+        "warning",
+        "Description of Non-Conformity is Required",
+        "Please add a description for Non-Conformity",
+      );
+      return;
+    }
+
+    setNonConformitySubmitting((prev) => new Set(prev).add(itemId));
+
+    try {
+      await checklistAppService.createNonConformityFromReject(
+        { ...result, request_id: requestId },
+        `Non-Conformity - ${result.inspection_method}`,
+        comment,
+        severity,
+        result.inspection_method,
+        user?.id || "unknown",
+      );
+
+      showToast(
+        "success",
+        "Non-Conformity Created",
+        `Non-Conformity reported with severity: ${severity}`,
+      );
+
+      // Clear severity after successful submission
+      setNonConformitySeverity((prev) => {
+        const next = new Map(prev);
+        next.delete(itemId);
+        return next;
+      });
+    } catch (err: any) {
+      showToast(
+        "error",
+        "Non-Conformity Failed",
+        err.message || "Could not create Non-Conformity",
+      );
+    } finally {
+      setNonConformitySubmitting((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
+  };
+
+  const handleObservationAutoSave = async (itemId: string, comment: string) => {
+    const result = results.get(itemId);
+    if (!result || result.status !== "NOTE") return;
+
+    try {
+      await checklistAppService.createObservationFromNote(
+        { ...result, request_id: requestId },
+        comment,
+        result.inspection_method,
+        user?.id || "unknown",
+      );
+      showToast(
+        "success",
+        "Observation Saved",
+        "Observation recorded automatically",
+      );
+    } catch (err: any) {
+      console.error("Failed to save observation:", err);
+    }
+  };
+
+  const handlePhotoUpload = async (
+    itemId: string,
+    eqId: string,
+    method: string,
+    file: File,
+  ) => {
+    const result = results.get(itemId);
+    const status = result?.status || "PENDING";
+
+    // Map N/A to PENDING for photo status
+    const photoStatus =
+      status === "N/A"
+        ? "PENDING"
+        : (status as "PENDING" | "PASS" | "REJECT" | "NOTE" | "HOLD");
+
+    setUploadingPhotos((prev) => new Set(prev).add(itemId));
+
+    try {
+      const photo = await checklistAppService.uploadInspectionPhoto({
+        requestId,
+        equipmentId: eqId,
+        checklistItemId: itemId,
+        file,
+        status: photoStatus,
+        description: result?.comment || `${method} - ${status}`,
+        uploadedBy: user?.id || "unknown",
+      });
+
+      // Update photos list
+      setPhotosByItem((prev) => {
+        const next = new Map(prev);
+        const current = next.get(itemId) || [];
+        next.set(itemId, [...current, photo]);
+        return next;
+      });
+
+      showToast("success", "Photo Uploaded", "Photo saved successfully");
+    } catch (err: any) {
+      console.error("Failed to upload photo:", err);
+      showToast(
+        "error",
+        "Upload Failed",
+        err.message || "Could not upload photo",
+      );
+    } finally {
+      setUploadingPhotos((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
+  };
+
+  const loadPhotosForItem = async (itemId: string) => {
+    try {
+      const photos = await checklistAppService.getPhotosByChecklistItem(itemId);
+      setPhotosByItem((prev) => new Map(prev).set(itemId, photos));
+    } catch (err: any) {
+      console.error("Failed to load photos:", err);
+    }
+  };
+
   const handleSubmit = async () => {
     const completedCount = Array.from(results.values()).filter(
       (r) => r.status !== "PENDING",
@@ -221,13 +392,18 @@ export function ChecklistFullScreenModal({
     }[] = [];
     allData.forEach(({ eqId, data }) => {
       data.groups.forEach((group) => {
-        if (activeMethod === "ALL" || group.method === activeMethod) {
+        // فیلتر بر اساس equipment فعال در تب‌ها
+        if (activeTab === "ALL") {
+          groups.push({ eqId, groupName: group.method, items: group.items });
+        } else if (activeTab === eqId) {
+          // activeTab حالا eqId است، پس تمام آیتم‌های آن equipment را نشان بده
           groups.push({ eqId, groupName: group.method, items: group.items });
         }
+        // اگر activeTab با eqId مطابقت نداشته باشد، چیزی اضافه نمی‌شود
       });
     });
     return groups;
-  }, [allData, activeMethod]);
+  }, [allData, activeTab]);
 
   const totalItems = useMemo(
     () =>
@@ -350,22 +526,23 @@ export function ChecklistFullScreenModal({
           className={`px-4 py-2 border-t overflow-x-auto no-scrollbar ${isDark ? "bg-slate-900/50 border-slate-800" : "bg-slate-50 border-slate-200"}`}
         >
           <div className="flex gap-2 min-w-max">
-            {[
-              "ALL",
-              ...Array.from(
-                new Set(
-                  allData.flatMap(({ data }) =>
-                    data.groups.map((g) => g.method),
-                  ),
-                ),
-              ),
-            ].map((method) => {
-              const isActive = activeMethod === method;
-              const meta = method !== "ALL" ? getMethodMetadata(method) : null;
+            {["ALL", ...equipmentList.map((eq) => eq.eqId)].map((tabId) => {
+              const isActive = activeTab === tabId;
+              const eqData =
+                tabId !== "ALL"
+                  ? equipmentList.find((e) => e.eqId === tabId)
+                  : null;
+
               return (
                 <button
-                  key={method}
-                  onClick={() => setActiveMethod(method)}
+                  key={tabId}
+                  onClick={() => {
+                    setActiveTab(tabId);
+                    if (tabId !== "ALL") {
+                      // When switching to an equipment tab, show all items for that equipment
+                      setActiveItemId(null);
+                    }
+                  }}
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${
                     isActive
                       ? "bg-indigo-600 text-white shadow-md"
@@ -374,8 +551,16 @@ export function ChecklistFullScreenModal({
                         : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
                   }`}
                 >
-                  {meta && <span>{meta.icon}</span>}
-                  {method === "ALL" ? "All Items" : method}
+                  {tabId === "ALL" ? (
+                    <>📋 All Equipment</>
+                  ) : (
+                    <>
+                      <span>🔧</span>
+                      <span className="max-w-[200px] truncate">
+                        {eqData?.eqName || eqData?.eqId}
+                      </span>
+                    </>
+                  )}
                 </button>
               );
             })}
@@ -501,7 +686,7 @@ export function ChecklistFullScreenModal({
                       }
                     }
                   }}
-                  placeholder="Add observation, NCR detail, or note here... (Auto-saves on blur or Enter)"
+                  placeholder="Add observation, Non-Conformity detail, or note here... (Auto-saves on blur or Enter)"
                   className={`w-full text-xs px-3 py-2 rounded-lg border ${isDark ? "bg-slate-900 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-2 focus:ring-indigo-500`}
                   autoFocus
                 />
@@ -537,7 +722,7 @@ export function ChecklistFullScreenModal({
                   key={idx}
                   className={`rounded-xl border overflow-hidden ${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}
                 >
-                  {activeMethod === "ALL" && (
+                  {activeTab === "ALL" && (
                     <div
                       className={`px-4 py-2 border-b flex items-center justify-between ${isDark ? "bg-slate-800/50 border-slate-800" : "bg-slate-50 border-slate-200"}`}
                     >
@@ -553,12 +738,33 @@ export function ChecklistFullScreenModal({
                     </div>
                   )}
 
+                  {activeTab !== "ALL" && (
+                    <div
+                      className={`px-4 py-2 border-b flex items-center justify-between ${isDark ? "bg-indigo-900/30 border-indigo-800" : "bg-indigo-50 border-indigo-200"}`}
+                    >
+                      <h3
+                        className={`text-xs font-bold uppercase tracking-wider ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
+                      >
+                        📦 Equipment: {activeTab}
+                      </h3>
+                      <Badge tone="indigo" className="text-[10px]">
+                        {groupCompleted}/{group.items.length} completed
+                      </Badge>
+                    </div>
+                  )}
+
                   <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {group.items.map((item) => {
                       const result = results.get(item.id);
                       const status = result?.status || "PENDING";
                       const config = getStatusMetadata(status);
                       const isActive = activeItemId === item.id;
+                      const isReject = status === "REJECT";
+                      const isNote = status === "NOTE";
+                      const itemNonConformitySeverity =
+                        NonConformitySeverity.get(item.id) || "MINOR";
+                      const isNonConformitySubmitting =
+                        NonConformitySubmitting.has(item.id);
 
                       return (
                         <div
@@ -602,6 +808,252 @@ export function ChecklistFullScreenModal({
                                     💬 {result.comment}
                                   </p>
                                 )}
+
+                              {/* Non-Conformity Box for REJECT status */}
+                              {isReject && (
+                                <div
+                                  className={`mt-2 p-2 rounded-lg border ${isDark ? "bg-red-900/20 border-red-800" : "bg-red-50 border-red-200"}`}
+                                >
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span
+                                      className={`text-xs font-bold ${isDark ? "text-red-400" : "text-red-700"}`}
+                                    >
+                                      ⚠️ Non-Conformity Report
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <label
+                                      className={`text-[10px] font-semibold ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                    >
+                                      Severity:
+                                    </label>
+                                    <select
+                                      value={itemNonConformitySeverity}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        setNonConformitySeverity((prev) =>
+                                          new Map(prev).set(
+                                            item.id,
+                                            e.target
+                                              .value as NonConformitySeverity,
+                                          ),
+                                        );
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className={`text-xs px-2 py-1 rounded border ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-red-500`}
+                                    >
+                                      <option value="MINOR">Minor</option>
+                                      <option value="MAJOR">Major</option>
+                                      <option value="OBSERVATION">
+                                        Observation
+                                      </option>
+                                      <option value="HOLD POINT">
+                                        Hold Point
+                                      </option>
+                                    </select>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={result?.comment || ""}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      handleStatusChange(
+                                        item.id,
+                                        group.eqId,
+                                        group.groupName,
+                                        status,
+                                        e.target.value,
+                                      );
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.stopPropagation();
+                                        handleNonConformitySubmit(item.id);
+                                      }
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    placeholder="Enter NonConformity description..."
+                                    className={`w-full text-xs px-3 py-2 rounded-lg border mb-2 ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-red-500`}
+                                  />
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleNonConformitySubmit(item.id);
+                                    }}
+                                    disabled={
+                                      isNonConformitySubmitting ||
+                                      !result?.comment
+                                    }
+                                    className="w-full text-xs bg-red-600 hover:bg-red-700 text-white font-bold"
+                                  >
+                                    {isNonConformitySubmitting
+                                      ? "Submitting Non-Conformity..."
+                                      : "📝 Submit Non-Conformity Report"}
+                                  </Button>
+                                </div>
+                              )}
+
+                              {/* Observation auto-save indicator for NOTE status */}
+                              {isNote && (
+                                <div
+                                  className={`mt-2 p-2 rounded-lg border ${isDark ? "bg-blue-900/20 border-blue-800" : "bg-blue-50 border-blue-200"}`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`text-xs font-semibold ${isDark ? "text-blue-400" : "text-blue-700"}`}
+                                    >
+                                      ℹ️ Observation (Auto-saved as NOTE)
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={result?.comment || ""}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      handleStatusChange(
+                                        item.id,
+                                        group.eqId,
+                                        group.groupName,
+                                        status,
+                                        e.target.value,
+                                      );
+                                    }}
+                                    onBlur={(e) => {
+                                      e.stopPropagation();
+                                      if (e.target.value.trim()) {
+                                        handleObservationAutoSave(
+                                          item.id,
+                                          e.target.value.trim(),
+                                        );
+                                      }
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.stopPropagation();
+                                        const val = (
+                                          e.target as HTMLInputElement
+                                        ).value.trim();
+                                        if (val) {
+                                          handleObservationAutoSave(
+                                            item.id,
+                                            val,
+                                          );
+                                        }
+                                      }
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    placeholder="Enter observation details (auto-saved on blur/Enter)..."
+                                    className={`w-full text-xs px-3 py-2 rounded-lg border mt-1 ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                  />
+                                </div>
+                              )}
+
+                              {/* Photo Upload Section */}
+                              <div className="mt-2">
+                                <div
+                                  className={`flex items-center gap-2 mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                                >
+                                  <span className="text-[10px] font-semibold">
+                                    📷 Photos:
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      fileInputRefs.current
+                                        .get(item.id)
+                                        ?.click();
+                                    }}
+                                    disabled={uploadingPhotos.has(item.id)}
+                                    className={`text-[10px] px-2 py-1 rounded border transition-all ${
+                                      uploadingPhotos.has(item.id)
+                                        ? isDark
+                                          ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+                                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                        : isDark
+                                          ? "bg-indigo-900/30 border-indigo-700 text-indigo-400 hover:bg-indigo-900/50"
+                                          : "bg-indigo-50 border-indigo-200 text-indigo-600 hover:bg-indigo-100"
+                                    }`}
+                                  >
+                                    {uploadingPhotos.has(item.id)
+                                      ? "⏳ Uploading..."
+                                      : "➕ Upload Photo"}
+                                  </button>
+                                  <input
+                                    ref={(el) => {
+                                      if (el)
+                                        fileInputRefs.current.set(item.id, el);
+                                    }}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        handlePhotoUpload(
+                                          item.id,
+                                          group.eqId,
+                                          group.groupName,
+                                          file,
+                                        );
+                                      }
+                                      e.target.value = "";
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="hidden"
+                                  />
+                                </div>
+
+                                {/* Display uploaded photos */}
+                                {photosByItem.get(item.id) &&
+                                  photosByItem.get(item.id)!.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                      {photosByItem
+                                        .get(item.id)!
+                                        .map((photo) => (
+                                          <div
+                                            key={photo.id}
+                                            className={`relative group w-16 h-16 rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                                              photo.status === "PASS"
+                                                ? "border-emerald-500"
+                                                : photo.status === "REJECT"
+                                                  ? "border-red-500"
+                                                  : photo.status === "NOTE"
+                                                    ? "border-blue-500"
+                                                    : "border-slate-300"
+                                            } ${isDark ? "hover:opacity-80" : "hover:opacity-75"}`}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              window.open(
+                                                photo.file_path,
+                                                "_blank",
+                                              );
+                                            }}
+                                          >
+                                            <img
+                                              src={photo.file_path}
+                                              alt={photo.file_name}
+                                              className="w-full h-full object-cover"
+                                            />
+                                            <div
+                                              className={`absolute bottom-0 left-0 right-0 px-1 py-0.5 text-[8px] truncate ${
+                                                photo.status === "PASS"
+                                                  ? "bg-emerald-600"
+                                                  : photo.status === "REJECT"
+                                                    ? "bg-red-600"
+                                                    : photo.status === "NOTE"
+                                                      ? "bg-blue-600"
+                                                      : "bg-slate-600"
+                                              } text-white`}
+                                            >
+                                              {photo.status}
+                                            </div>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  )}
+                              </div>
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0">

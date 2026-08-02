@@ -2,14 +2,24 @@
 
 import { checklistRepository } from "../repositories/SupabaseChecklistRepository";
 import { checklistResultRepository } from "../repositories/ChecklistResultRepository";
-import { ncrRepository } from "../repositories/NcrRepository";
+import { NonConformityRepository } from "../repositories/NonConformityRepository";
 import type {
   ChecklistData,
   ChecklistTemplate,
   ChecklistItemResult,
   ChecklistSession,
 } from "../domain/checklistTypes";
-import type { NcrReport, Observation } from "../repositories/NcrRepository";
+import type {
+  NonConformityReport,
+  Observation,
+} from "../repositories/NonConformityRepository";
+import type {
+  InspectionPhoto,
+  UploadPhotoParams,
+} from "../repositories/InspectionPhotoRepository";
+import { inspectionPhotoRepository } from "../repositories/InspectionPhotoRepository";
+
+const nonConformityRepo = new NonConformityRepository();
 
 export class ChecklistApplicationService {
   async getChecklist(filters: {
@@ -32,16 +42,16 @@ export class ChecklistApplicationService {
     return checklistResultRepository.getResultsByRequestId(requestId);
   }
 
-  // ✅ متدهای جدید برای NCR و Observation
-  async createNcrFromReject(
+  // ✅ استفاده از instance به جای static call
+  async createNonConformityFromReject(
     result: ChecklistItemResult,
     title: string,
     description: string,
     severity: "MINOR" | "MAJOR" | "OBSERVATION" | "HOLD POINT",
     category: string,
     createdBy: string,
-  ): Promise<NcrReport> {
-    return ncrRepository.createNcrFromReject(
+  ): Promise<NonConformityReport> {
+    return nonConformityRepo.createNonConformityFromReject(
       result,
       title,
       description,
@@ -57,7 +67,7 @@ export class ChecklistApplicationService {
     category: string,
     createdBy: string,
   ): Promise<Observation> {
-    return ncrRepository.createObservationFromNote(
+    return nonConformityRepo.createObservationFromNote(
       result,
       observationText,
       category,
@@ -65,12 +75,45 @@ export class ChecklistApplicationService {
     );
   }
 
-  async getNcrsByRequestId(requestId: string): Promise<NcrReport[]> {
-    return ncrRepository.getNcrsByRequestId(requestId);
+  async getNonConformitysByRequestId(
+    requestId: string,
+  ): Promise<NonConformityReport[]> {
+    return nonConformityRepo.getNonConformitysByRequestId(requestId);
   }
 
   async getObservationsByRequestId(requestId: string): Promise<Observation[]> {
-    return ncrRepository.getObservationsByRequestId(requestId);
+    return nonConformityRepo.getObservationsByRequestId(requestId);
+  }
+
+  // ✅ Photo upload methods
+  async uploadInspectionPhoto(
+    params: UploadPhotoParams,
+  ): Promise<InspectionPhoto> {
+    return inspectionPhotoRepository.uploadPhoto(params);
+  }
+
+  async getPhotosByChecklistItem(
+    checklistItemId: string,
+  ): Promise<InspectionPhoto[]> {
+    return inspectionPhotoRepository.getPhotosByChecklistItem(checklistItemId);
+  }
+
+  async getPhotosByRequestId(requestId: string): Promise<InspectionPhoto[]> {
+    return inspectionPhotoRepository.getPhotosByRequestId(requestId);
+  }
+
+  async deletePhoto(photoId: string): Promise<void> {
+    return inspectionPhotoRepository.deletePhoto(photoId);
+  }
+
+  async updatePhotoDescription(
+    photoId: string,
+    description: string,
+  ): Promise<void> {
+    return inspectionPhotoRepository.updatePhotoDescription(
+      photoId,
+      description,
+    );
   }
 }
 

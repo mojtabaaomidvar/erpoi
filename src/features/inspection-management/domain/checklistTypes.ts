@@ -25,8 +25,6 @@ export interface ChecklistData {
   template: ChecklistTemplate | null;
   groups: ChecklistGroup[];
 }
-
-// ✅ وضعیت‌های چک‌لیست
 export type ChecklistItemStatus =
   | "PENDING"
   | "PASS"
@@ -34,7 +32,6 @@ export type ChecklistItemStatus =
   | "NOTE"
   | "N/A";
 
-// ✅ متادیتای رنگی برای هر وضعیت
 export interface StatusMetadata {
   label: string;
   icon: string;
@@ -44,7 +41,6 @@ export interface StatusMetadata {
   borderColor: string;
 }
 
-// ✅ نتیجه هر آیتم چک‌لیست
 export interface ChecklistItemResult {
   item_id: string;
   request_id?: string;
@@ -58,7 +54,6 @@ export interface ChecklistItemResult {
   photo_urls?: string[];
 }
 
-// ✅ Session چک‌لیست برای ذخیره در دیتابیس
 export interface ChecklistSession {
   id: string;
   request_id: string;
@@ -73,7 +68,6 @@ export interface ChecklistSession {
   updated_at: string;
 }
 
-// ✅ آیتم مشترک بین چند تجهیز
 export interface SharedChecklistItem {
   checklist_text: string;
   equipment_ids: string[];
@@ -81,7 +75,6 @@ export interface SharedChecklistItem {
   count: number;
 }
 
-// ✅ متادیتای رنگی برای هر متد بازرسی
 export interface MethodMetadata {
   method: string;
   icon: string;

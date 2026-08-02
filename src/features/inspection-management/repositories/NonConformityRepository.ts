@@ -1,11 +1,11 @@
-// src/features/inspection-management/repositories/NcrRepository.ts
+// src/features/inspection-management/repositories/NonConformityRepository.ts
 
 import { supabase } from "@shared/database/supabase";
 import type { ChecklistItemResult } from "../domain/checklistTypes";
 
-export interface NcrReport {
+export interface NonConformityReport {
   id: string;
-  ncr_number: string;
+  NonConformity_number: string;
   request_id: string;
   equipment_id: string;
   inspection_method: string;
@@ -39,19 +39,19 @@ export interface Observation {
   created_at: string;
 }
 
-export class NcrRepository {
+export class NonConformityRepository {
   /**
-   * تولید شماره NCR یکتا
+   * تولید شماره Non-Conformity یکتا
    */
-  async generateNcrNumber(): Promise<string> {
+  async generateNonConformityNumber(): Promise<string> {
     const year = new Date().getFullYear();
 
-    // دریافت آخرین شماره NCR در سال جاری
+    // دریافت آخرین شماره Non-Conformity در سال جاری
     const { data } = await supabase
       .schema("inspection")
       .from("ncr_reports")
       .select("ncr_number")
-      .like("ncr_number", `NCR-${year}-%`)
+      .like("ncr_number", `ncr-${year}-%`)
       .order("ncr_number", { ascending: false })
       .limit(1)
       .single();
@@ -62,26 +62,26 @@ export class NcrRepository {
       sequence = lastNumber + 1;
     }
 
-    return `NCR-${year}-${sequence.toString().padStart(4, "0")}`;
+    return `ncr-${year}-${sequence.toString().padStart(4, "0")}`;
   }
 
   /**
-   * ایجاد NCR از آیتم REJECT
+   * ایجاد Non-Conformity از آیتم REJECT
    */
-  async createNcrFromReject(
+  async createNonConformityFromReject(
     result: ChecklistItemResult,
     title: string,
     description: string,
     severity: "MINOR" | "MAJOR" | "OBSERVATION" | "HOLD POINT",
     category: string,
     createdBy: string,
-  ): Promise<NcrReport> {
-    const ncrNumber = await this.generateNcrNumber();
+  ): Promise<NonConformityReport> {
+    const NonConformityNumber = await this.generateNonConformityNumber();
     const id = `ncr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    const ncr: Partial<NcrReport> = {
+    const NonConformity: Partial<NonConformityReport> = {
       id,
-      ncr_number: ncrNumber,
+      NonConformity_number: NonConformityNumber,
       request_id: result.request_id || "",
       equipment_id: result.equipment_id,
       inspection_method: result.inspection_method,
@@ -98,12 +98,12 @@ export class NcrRepository {
     const { data, error } = await supabase
       .schema("inspection")
       .from("ncr_reports")
-      .insert(ncr)
+      .insert(NonConformity)
       .select()
       .single();
 
     if (error) throw new Error(error.message);
-    return data as NcrReport;
+    return data as NonConformityReport;
   }
 
   /**
@@ -141,9 +141,11 @@ export class NcrRepository {
   }
 
   /**
-   * دریافت تمام NCRهای یک درخواست
+   * دریافت تمام Non-Conformityهای یک درخواست
    */
-  async getNcrsByRequestId(requestId: string): Promise<NcrReport[]> {
+  async getNonConformitysByRequestId(
+    requestId: string,
+  ): Promise<NonConformityReport[]> {
     const { data, error } = await supabase
       .schema("inspection")
       .from("ncr_reports")
@@ -152,7 +154,7 @@ export class NcrRepository {
       .order("created_at", { ascending: false });
 
     if (error) throw new Error(error.message);
-    return (data || []) as NcrReport[];
+    return (data || []) as NonConformityReport[];
   }
 
   /**
@@ -171,10 +173,10 @@ export class NcrRepository {
   }
 
   /**
-   * به‌روزرسانی وضعیت NCR
+   * به‌روزرسانی وضعیت Non-Conformity
    */
-  async updateNcrStatus(
-    ncrId: string,
+  async updateNonConformityStatus(
+    NonConformityId: string,
     status: "OPEN" | "IN_PROGRESS" | "CLOSED" | "REJECTED",
     closedBy?: string,
   ): Promise<void> {
@@ -192,10 +194,8 @@ export class NcrRepository {
       .schema("inspection")
       .from("ncr_reports")
       .update(updateData)
-      .eq("id", ncrId);
+      .eq("id", NonConformityId);
 
     if (error) throw new Error(error.message);
   }
 }
-
-export const ncrRepository = new NcrRepository();
