@@ -840,7 +840,7 @@ export function ChecklistFullScreenModal({
                                         );
                                       }}
                                       onClick={(e) => e.stopPropagation()}
-                                      className={`text-xs px-2 py-1 rounded border ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-red-500`}
+                                      className={`text-xs px-2 py-2 rounded border ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-red-500`}
                                     >
                                       <option value="MINOR">Minor</option>
                                       <option value="MAJOR">Major</option>
@@ -851,47 +851,47 @@ export function ChecklistFullScreenModal({
                                         Hold Point
                                       </option>
                                     </select>
-                                  </div>
-                                  <input
-                                    type="text"
-                                    value={result?.comment || ""}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      handleStatusChange(
-                                        item.id,
-                                        group.eqId,
-                                        group.groupName,
-                                        status,
-                                        e.target.value,
-                                      );
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") {
+                                    <input
+                                      type="text"
+                                      value={result?.comment || ""}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        handleStatusChange(
+                                          item.id,
+                                          group.eqId,
+                                          group.groupName,
+                                          status,
+                                          e.target.value,
+                                        );
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.stopPropagation();
+                                          handleNonConformitySubmit(item.id);
+                                        }
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      placeholder="Enter NonConformity description..."
+                                      className={`w-full text-xs px-3 py-2 rounded-lg border mb-0 ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-red-500`}
+                                    />
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={(e) => {
                                         e.stopPropagation();
                                         handleNonConformitySubmit(item.id);
+                                      }}
+                                      disabled={
+                                        isNonConformitySubmitting ||
+                                        !result?.comment
                                       }
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    placeholder="Enter NonConformity description..."
-                                    className={`w-full text-xs px-3 py-2 rounded-lg border mb-2 ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-red-500`}
-                                  />
-                                  <Button
-                                    variant="primary"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleNonConformitySubmit(item.id);
-                                    }}
-                                    disabled={
-                                      isNonConformitySubmitting ||
-                                      !result?.comment
-                                    }
-                                    className="w-full text-xs bg-red-600 hover:bg-red-700 text-white font-bold"
-                                  >
-                                    {isNonConformitySubmitting
-                                      ? "Submitting Non-Conformity..."
-                                      : "📝 Submit Non-Conformity Report"}
-                                  </Button>
+                                      className="w-[200px] text-xs px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-bold"
+                                    >
+                                      {isNonConformitySubmitting
+                                        ? "Submitting..."
+                                        : "📝 Submit"}
+                                    </Button>
+                                  </div>
                                 </div>
                               )}
 
