@@ -1,6 +1,7 @@
 // src/features/tpi-management/ui/TPIList.tsx
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Badge, Button } from "@design-system";
+import { Clock3, LockKeyhole } from "lucide-react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
@@ -26,6 +27,7 @@ interface TPIRequestCardProps {
   clientName: string;
   projectName: string;
   vendorName: string;
+  isDeletionPending: boolean;
   onClick: (request: TPIRequest) => void;
 }
 
@@ -34,6 +36,7 @@ function TPIRequestCard({
   clientName,
   projectName,
   vendorName,
+  isDeletionPending,
   onClick,
 }: TPIRequestCardProps) {
   const { isDark } = useTheme();
@@ -57,6 +60,11 @@ function TPIRequestCard({
   return (
     <button
       onClick={() => onClick(request)}
+      aria-label={
+        isDeletionPending
+          ? `${inspectionTitle}. Deletion request pending; package locked.`
+          : inspectionTitle
+      }
       className={`group relative text-left rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl cursor-pointer ${
         isDark
           ? "bg-slate-800/50 border border-slate-700/50 hover:border-indigo-500/50 hover:shadow-indigo-500/10"
@@ -78,6 +86,12 @@ function TPIRequestCard({
             </h3>
 
             <div className="flex flex-wrap items-center gap-2">
+              {isDeletionPending && (
+                <Badge tone="amber" className="text-[9px] font-medium">
+                  <LockKeyhole className="h-3 w-3" aria-hidden="true" />
+                  Deletion Pending
+                </Badge>
+              )}
               <Badge
                 tone={statusConfig.color}
                 className="text-[9px] font-medium"
@@ -121,6 +135,13 @@ function TPIRequestCard({
               {formatArrayWithLimit(request.methods, 2)}
             </span>
           </div>
+
+          {isDeletionPending && (
+            <div className="mt-3 flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[10px] font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+              <Clock3 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              Locked pending manager decision
+            </div>
+          )}
         </div>
       </div>
     </button>
@@ -176,6 +197,7 @@ function TPIRequestCardSkeleton({ isDark }: { isDark: boolean }) {
 // ==========================================
 interface TPIListProps {
   tpiRequests: TPIRequest[];
+  pendingDeletionPackageIds: ReadonlySet<string>;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   filterMode: TPIMode | "ALL";
@@ -187,6 +209,7 @@ interface TPIListProps {
 
 export function TPIList({
   tpiRequests,
+  pendingDeletionPackageIds,
   searchQuery,
   setSearchQuery,
   filterMode,
@@ -473,6 +496,7 @@ export function TPIList({
                     ? vendorMap.get(request.vendor_id) || "No Vendor"
                     : "No Vendor"
                 }
+                isDeletionPending={pendingDeletionPackageIds.has(request.id)}
                 onClick={onRequestClick}
               />
             ))}

@@ -31,6 +31,151 @@
   --shadow-3d-hover:
     0 20px 40px -12px rgba(0, 0, 0, 0.2), 0 8px 16px -6px rgba(0, 0, 0, 0.12);
   --shadow-inset-light: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  /* Accent gradient variables controlled by ThemeProvider */
+  --accent-from: #6366f1;
+  --accent-to: #8b5cf6;
+  --accent-text: #ffffff;
+  /* header height used by layout */
+  --header-height: 4rem;
+  /* base radius */
+  --radius-base: 12px;
+
+  /* Canonical design-system variables (map to legacy names for now).
+     New components should prefer --color-* and --spacing-* variables.
+     Engine will override these at runtime. */
+  --color-background: var(--bg-app);
+  --color-surface: var(--bg-card);
+  --color-header: var(--bg-header);
+  --color-sidebar: var(--bg-sidebar);
+  --color-input: var(--bg-input);
+  --color-surface-hover: var(--bg-hover);
+  --color-muted: var(--bg-muted);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  --color-border: var(--border-color);
+
+  --color-accent-from: var(--accent-from);
+  --color-accent-to: var(--accent-to);
+  --color-accent-text: var(--accent-text);
+  /* Additional canonical tokens with safe defaults so CSS remains usable before JS loads */
+  --color-primary: #6366f1;
+  --color-secondary: #818cf8;
+  --color-card: var(--bg-card);
+  --color-footer: var(--bg-header);
+  --color-divider: var(--border-color);
+  --color-disabled: #cbd5e1;
+  --color-overlay: rgba(0, 0, 0, 0.35);
+  --color-selection: rgba(99, 102, 241, 0.12);
+  --color-focus: rgba(99, 102, 241, 0.24);
+
+  /* Accent derived fallbacks */
+  --color-accent-hover: var(--color-accent-from);
+  --color-accent-active: var(--color-accent-from);
+
+  /* Typography tokens */
+  --font-family: "Inter", system-ui, -apple-system, sans-serif;
+  --font-size-base: 1rem;
+  --heading-scale: 1.25;
+
+  /* Accessibility / motion */
+  --pref-reduce-motion: 0;
+  --pref-motion-speed: normal;
+
+  /* Default spacing tokens - engine will overwrite based on density */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+
+  /* Density component tokens (scaled by engine) */
+  --density-table: 0.625rem;
+  --density-form: 0.75rem;
+  --density-card: 1rem;
+  --density-toolbar: 0.625rem;
+  --density-button: 0.5rem;
+  --density-input: 0.5rem;
+  --density-list: 0.5rem;
+
+  /* Component radii (engine overrides from prefs.radii / componentStyles) */
+  --radius-button: 0.375rem;
+  --radius-input: 0.25rem;
+  --radius-card: 0.5rem;
+  --radius-dialog: 0.75rem;
+  --radius-table: 0.375rem;
+
+  /* Extended typography tokens */
+  --font-weight-base: 400;
+  --letter-spacing: normal;
+  --line-height: 1.5;
+
+  /* Motion */
+  --motion-duration: 0.2s;
+  --motion-speed-hint: 1;
+
+  /* Effects */
+  --effect-glass-blur: 8px;
+  --effect-glass-opacity: 0.6;
+  --effect-transparency: 1;
+
+  /* Accessibility tokens */
+  --pref-colorblind-mode: off;
+  --pref-high-contrast: 0;
+  --pref-focus-highlight: 1;
+  --pref-large-cursor: 0;
+
+  /* Wallpaper tokens (engine sets these; CSS consumes them on body::before) */
+  --wallpaper-image: none;
+  --wallpaper-gradient: none;
+  --wallpaper-pattern: none;
+  --wallpaper-opacity: 1;
+  --wallpaper-size: cover;
+}
+
+/* ============ ACCESSIBILITY HELPERS (reactive to classes added by ThemeProvider) ============ */
+/* Reduced motion: respect user opt-out and pref-reduce-motion class. */
+html.pref-reduce-motion,
+html.pref-reduce-motion *,
+html.pref-reduce-motion *::before,
+html.pref-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* High contrast: increase contrast via a few conservative overrides. */
+html.pref-high-contrast {
+  filter: none;
+  /* raise some color deltas to improve legibility */
+  --color-text-primary: #0b0b0b;
+  --color-background: #ffffff;
+  --color-accent-from: #0b3d91;
+  --color-accent-to: #084298;
+  --color-border: #0b0b0b;
+}
+
+/* Focus highlight: when disabled add no-focus-highlight to remove outlines.
+   By default focus outlines remain; disabling is intentional for some users. */
+:focus-visible {
+  /* Use a semantic token for focus ring so it reacts to theme changes */
+  outline: 2px solid var(--color-focus, rgba(99, 102, 241, 0.6));
+  outline-offset: 2px;
+}
+/* When the user explicitly disables focus highlights remove both focus and focus-visible styles */
+html.no-focus-highlight :focus,
+html.no-focus-highlight :focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Large cursor: increase pointer size for accessibility-aware users */
+html.pref-large-cursor,
+html.pref-large-cursor * {
+  cursor: pointer;
 }
 
 .dark {
@@ -63,6 +208,23 @@
     0 20px 40px -12px rgba(0, 0, 0, 0.5), 0 8px 16px -6px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   --shadow-inset-light: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  /* Canonical vars for dark mode mapping */
+  --color-background: var(--bg-app);
+  --color-surface: var(--bg-card);
+  --color-header: var(--bg-header);
+  --color-sidebar: var(--bg-sidebar);
+  --color-input: var(--bg-input);
+  --color-surface-hover: var(--bg-hover);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  --color-border: var(--border-color);
+  --color-accent-from: var(--accent-from);
+  --color-accent-to: var(--accent-to);
+  --color-accent-text: var(--accent-text);
 }
 
 /* ============ UTILITY CLASSES ============ */
@@ -115,17 +277,105 @@
 }
 
 /* ============ GLOBAL STYLES ============ */
+/* The app background lives on <html> so the wallpaper layer on body::before
+   can render behind all content with its own opacity. */
+html {
+  background-color: var(--color-background, var(--bg-app));
+}
+
 body {
   margin: 0;
-  font-family:
+  font-family: var(
+    --font-family,
     "Inter",
     system-ui,
     -apple-system,
-    sans-serif;
+    sans-serif
+  );
+  font-size: var(--font-size-base, 1rem);
+  font-weight: var(--font-weight-base, 400);
+  letter-spacing: var(--letter-spacing, normal);
+  line-height: var(--line-height, 1.5);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--bg-app);
+  background-color: transparent;
   color: var(--text-primary);
+}
+
+/* Wallpaper layer: image / gradient / pattern rendered behind content with a
+   configurable opacity. All three layers default to none when no wallpaper is
+   active so the layer is invisible by default. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    var(--wallpaper-image, none), var(--wallpaper-gradient, none),
+    var(--wallpaper-pattern, none);
+  background-size: var(--wallpaper-size, cover), cover, auto;
+  background-position:
+    center,
+    center,
+    0 0;
+  background-repeat: no-repeat, no-repeat, repeat;
+  opacity: var(--wallpaper-opacity, 1);
+}
+
+/* ============ COLOR BLIND SIMULATION (CSS filter approximations) ============ */
+/* These approximate the main CVD variants; filters react to the root class
+   toggled by the ThemeProvider (data-driven via --pref-colorblind-mode). */
+html.pref-colorblind-protanopia {
+  filter: sepia(0.35) saturate(1.4) hue-rotate(-12deg);
+}
+html.pref-colorblind-deuteranopia {
+  filter: sepia(0.3) saturate(1.5) hue-rotate(8deg);
+}
+html.pref-colorblind-tritanopia {
+  filter: sepia(0.4) saturate(0.9) hue-rotate(45deg);
+}
+html.pref-colorblind-achromatopsia {
+  filter: grayscale(1) contrast(1.05);
+}
+
+/* ============ MOTION (reactive to the motion-level token) ============ */
+html:not(.pref-reduce-motion) {
+  /* components read --motion-duration for their transitions */
+  --motion-duration: var(--motion-duration, 0.2s);
+}
+
+/* Respect the OS-level reduce motion preference regardless of theme setting */
+@media (prefers-reduced-motion: reduce) {
+  html:not(.pref-reduce-motion) *,
+  html:not(.pref-reduce-motion) *::before,
+  html:not(.pref-reduce-motion) *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============ SCROLLBAR (component style token) ============ */
+html[style*="--scrollbar-style: thin"] ::-webkit-scrollbar,
+html[data-scrollbar="thin"] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+html[style*="--scrollbar-style: auto"] ::-webkit-scrollbar,
+html[data-scrollbar="auto"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+/* ============ SURFACE TRANSPARENCY (effect token) ============ */
+.bg-surface-transparent {
+  background-color: color-mix(
+    in srgb,
+    var(--color-surface, #ffffff) calc(var(--effect-transparency, 1) * 100%),
+    transparent
+  );
 }
 
 /* ============ SCROLLBAR ============ */
@@ -175,9 +425,9 @@ body {
 }
 
 .input-themed:focus {
-  border-color: #6366f1;
+  border-color: var(--color-accent-from, #6366f1);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  box-shadow: 0 0 0 3px var(--color-selection, rgba(99, 102, 241, 0.15));
 }
 
 /* ============ FILTER GROUP THEMED ============ */
@@ -192,10 +442,25 @@ body {
 
 /* ============ ACCENT COLORS (روشن‌تر در تم تاریک) ============ */
 .text-accent-indigo {
-  color: var(--text-primary);
+  color: var(--accent-from);
 }
 .dark .text-accent-indigo {
-  color: #818cf8;
+  color: var(--accent-to);
+}
+
+/* helper gradient class that uses theme variables */
+.gradient-accent {
+  background: linear-gradient(
+    135deg,
+    var(--color-accent-from, var(--accent-from)),
+    var(--color-accent-to, var(--accent-to))
+  );
+  color: var(--color-accent-text, var(--accent-text));
+}
+
+/* use header height var in a helper */
+.header-height {
+  height: var(--header-height);
 }
 
 .text-accent-emerald {
@@ -342,14 +607,14 @@ body {
 
 /* افکت شیشه‌ای */
 .glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, calc(var(--effect-glass-opacity, 0.7)));
+  backdrop-filter: blur(var(--effect-glass-blur, 20px));
+  -webkit-backdrop-filter: blur(var(--effect-glass-blur, 20px));
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .dark .glass {
-  background: rgba(30, 41, 59, 0.7);
+  background: rgba(30, 41, 59, calc(var(--effect-glass-opacity, 0.7)));
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 

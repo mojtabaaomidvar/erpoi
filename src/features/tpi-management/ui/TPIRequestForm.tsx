@@ -10,6 +10,7 @@ import { showToast } from "@shared/ui/ToastContainer";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
 import { compareJalaliDates, getTodayJalali } from "@/shared/utils/dateUtils";
 import { tpiRequestAppService } from "../application";
+import { inspectionSessionAppService } from "@/features/inspection-management/application/InspectionSessionApplicationService";
 import { projectAppService } from "@/features/project-management";
 import { clientAppService } from "@/features/client-management/application";
 import { contractAppService } from "@/features/contract-management/application";
@@ -408,14 +409,40 @@ export function TPIRequestForm({
         );
         showToast("success", "Updated", "TPI request updated successfully");
       } else {
-        await tpiRequestAppService.createWithDetails(
+        const created = await tpiRequestAppService.createWithDetails(
           command,
           itemsPayload,
           filePayloads,
           user?.id || "unknown",
           user?.department,
         );
-        showToast("success", "Created", "TPI request created successfully");
+
+        // ✨ Auto-create Session 1 so the user can start inspecting right away
+        try {
+          await inspectionSessionAppService.createSession({
+            tpi_request_id: created.id,
+            session_date: (created.inspection_date || getTodayJalali()).replace(
+              /\//g,
+              "-",
+            ),
+            stages: created.stages || [],
+            methods: created.methods || [],
+            equipment_ids: (created as any).equipment_type_id || [],
+          });
+          showToast(
+            "success",
+            "Created",
+            "TPI request created — Session 1 is ready",
+          );
+        } catch (sessionErr: any) {
+          showToast(
+            "warning",
+            "Created",
+            sessionErr?.message
+              ? `Request created, but Session 1 failed: ${sessionErr.message}`
+              : "Request created, but Session 1 could not be auto-created",
+          );
+        }
       }
       onSuccess();
       onClose();

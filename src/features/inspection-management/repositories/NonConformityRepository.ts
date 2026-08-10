@@ -41,12 +41,37 @@ export interface Observation {
 
 export class NonConformityRepository {
   /**
-   * تولید شماره Non-Conformity یکتا
+   * Generate a unique Non-Conformity number.
+   * When projectCode is provided: {projectCode}NC{sequence} (e.g., ICOIxxxNC01)
+   * Otherwise falls back to: ncr-{year}-{sequence} (e.g., ncr-2025-0001)
    */
-  async generateNonConformityNumber(): Promise<string> {
+  async generateNonConformityNumber(projectCode?: string): Promise<string> {
     const year = new Date().getFullYear();
 
-    // دریافت آخرین شماره Non-Conformity در سال جاری
+    if (projectCode) {
+      // Project-based numbering: ICOIxxxNC01
+      const prefix = `${projectCode}NC`;
+      const { data } = await supabase
+        .schema("inspection")
+        .from("ncr_reports")
+        .select("ncr_number")
+        .like("ncr_number", `${prefix}%`)
+        .order("ncr_number", { ascending: false })
+        .limit(1)
+        .single();
+
+      let sequence = 1;
+      if (data?.ncr_number) {
+        // Extract numeric part after the prefix
+        const numPart = data.ncr_number.replace(prefix, "");
+        const parsed = parseInt(numPart, 10);
+        if (!isNaN(parsed)) sequence = parsed + 1;
+      }
+
+      return `${prefix}${sequence.toString().padStart(2, "0")}`;
+    }
+
+    // Fallback: year-based numbering
     const { data } = await supabase
       .schema("inspection")
       .from("ncr_reports")
@@ -59,7 +84,7 @@ export class NonConformityRepository {
     let sequence = 1;
     if (data?.ncr_number) {
       const lastNumber = parseInt(data.ncr_number.split("-")[2]);
-      sequence = lastNumber + 1;
+      if (!isNaN(lastNumber)) sequence = lastNumber + 1;
     }
 
     return `ncr-${year}-${sequence.toString().padStart(4, "0")}`;
@@ -75,8 +100,10 @@ export class NonConformityRepository {
     severity: "MINOR" | "MAJOR" | "OBSERVATION" | "HOLD POINT",
     category: string,
     createdBy: string,
+    projectCode?: string,
   ): Promise<NonConformityReport> {
-    const NonConformityNumber = await this.generateNonConformityNumber();
+    const NonConformityNumber =
+      await this.generateNonConformityNumber(projectCode);
     const id = `ncr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     const NonConformity: Partial<NonConformityReport> = {

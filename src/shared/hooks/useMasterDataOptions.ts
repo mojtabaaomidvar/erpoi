@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@shared/database/supabase";
+import { masterDataRepository } from "@shared/repositories/MasterDataRepository";
 import { sortSpecialties } from "../utils/formatUtils";
 
 export function useMasterDataOptions(category: string) {
@@ -12,6 +13,25 @@ export function useMasterDataOptions(category: string) {
     const fetchOptions = async () => {
       setLoading(true);
       try {
+        // Prefer repository over direct supabase access from UI hook
+        try {
+          const data =
+            await masterDataRepository.getSystemListByCategory(category);
+          let result = data ? data.map((item: any) => item.value) : [];
+
+          if (category === "INSPECTOR_SPECIALTY") {
+            result = sortSpecialties(result);
+          }
+
+          setOptions(result);
+          return;
+        } catch (repoErr) {
+          console.warn(
+            "[useMasterDataOptions] masterDataRepository failed, falling back to supabase:",
+            repoErr,
+          );
+        }
+
         const { data, error } = await supabase
           .schema("master_data")
           .from("system_lists")
@@ -23,10 +43,6 @@ export function useMasterDataOptions(category: string) {
         if (error) throw error;
 
         let result = data ? data.map((item: any) => item.value) : [];
-
-        if (category === "INSPECTOR_SPECIALTY") {
-          result = sortSpecialties(result);
-        }
 
         setOptions(result);
       } catch (err) {

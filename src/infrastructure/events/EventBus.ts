@@ -1,10 +1,10 @@
 // src/infrastructure/events/EventBus.ts
 
-import { DomainEvent, EventHandler, IEventBus } from'./types';
+import { DomainEvent, EventHandler, IEventBus } from "./types";
 
 /**
  * Event Bus مرکزی با الگوی Singleton
- * 
+ *
  * ویژگی‌ها:
  * - Thread-safe (در محیط browser)
  * - Error isolation (یک handler خراب بقیه رو متوقف نمی‌کنه)
@@ -14,7 +14,7 @@ import { DomainEvent, EventHandler, IEventBus } from'./types';
 class EventBus implements IEventBus {
   private static instance: EventBus;
   private handlers: Map<string, Set<EventHandler>> = new Map();
-  private isDevelopment = process.env.NODE_ENV ==='development';
+  private isDevelopment = process.env.NODE_ENV === "development";
 
   private constructor() {}
 
@@ -37,20 +37,29 @@ class EventBus implements IEventBus {
     }
 
     const subscribers = this.handlers.get(event.type);
-    if (!subscribers || subscribers.size === 0) {
+    const wildcardSubscribers = this.handlers.get("*");
+    if (
+      (!subscribers || subscribers.size === 0) &&
+      (!wildcardSubscribers || wildcardSubscribers.size === 0)
+    ) {
       if (this.isDevelopment) {
         console.warn(`⚠️ [EventBus] No subscribers for event: ${event.type}`);
       }
       return;
     }
 
-    subscribers.forEach((handler) => {
+    const handlers = new Set<EventHandler>([
+      ...(subscribers || []),
+      ...(wildcardSubscribers || []),
+    ]);
+
+    handlers.forEach((handler) => {
       try {
         handler(event);
       } catch (error) {
         console.error(
           `❌ [EventBus] Error in handler for ${event.type}:`,
-          error
+          error,
         );
       }
     });
@@ -101,7 +110,7 @@ class EventBus implements IEventBus {
     return {
       totalSubscribers: Array.from(this.handlers.values()).reduce(
         (sum, set) => sum + set.size,
-        0
+        0,
       ),
       eventTypes: Array.from(this.handlers.keys()),
     };

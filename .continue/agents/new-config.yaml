@@ -1,0 +1,30 @@
+name: My Bluesminds
+version: "1.0.0"
+schema: v1
+
+models:
+  - name: GPT-5 Mini
+    provider: openai
+    model: gpt-5-mini
+    apiBase: https://api.bluesminds.com/v1
+    apiKey: "sk-Sd5jpy1TLqJITdLoFqiUziALwTVSoHNQ232qcOw1JNnunORU"
+    roles:
+      - chat
+      - edit
+      - apply
+      - autocomplete
+    capabilities:
+      - tool_use
+    defaultCompletionOptions:
+      maxTokens: 1500
+
+context:
+  - provider: diff
+  - provider: problems
+  - provider: folder
+
+tabAutocompleteOptions:
+  maxPromptTokens: 512
+  debounceDelay: 350
+  onlyMyCode: true
+  useCache: true

@@ -37,8 +37,11 @@ export class TPIRequestApplicationService {
     return this.repository.update(id, data);
   }
 
-  async delete(id: string) {
-    return this.repository.delete(id);
+  async softDelete(
+    id: string,
+    command: { deletedBy: string; reason: string; approvalId?: string },
+  ) {
+    return this.repository.softDelete(id, command);
   }
 
   async getTPIRequestDetails(requestId: string): Promise<TPIRequestDetailsDTO> {

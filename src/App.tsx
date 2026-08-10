@@ -23,6 +23,7 @@ import { amendmentAppService } from "./features/contract-management/application"
 
 // ✅ ۱. ایمپورت کامپوننت جدید
 import { ApprovalDashboard } from "@/features/master-data/ui/ApprovalDashboard";
+import { useAuditLogger } from "@/features/audit-log/hooks/useAuditLogger";
 
 const meta: Record<ViewKey, { title: string; subtitle: string }> = {
   dashboard: {
@@ -54,8 +55,8 @@ const meta: Record<ViewKey, { title: string; subtitle: string }> = {
     subtitle: "Spot and Resident inspection management for quality control",
   },
   approvals: {
-    title: "Master Data Approvals",
-    subtitle: "Review and approve new custom values (Other) requested by users",
+    title: "Approvals",
+    subtitle: "Review master data and controlled entity deletion requests",
   },
   billing: {
     title: "Billing & Invoices",
@@ -80,7 +81,8 @@ const meta: Record<ViewKey, { title: string; subtitle: string }> = {
 };
 
 function AppContent() {
-  const { isDark } = useTheme();
+  useAuditLogger();
+  const { isDark, themePreferences } = useTheme();
   const { isAuthenticated, logout } = useAuth();
   const [view, setView] = useState<ViewKey>("dashboard");
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
@@ -136,8 +138,15 @@ function AppContent() {
       <main
         className="transition-all duration-300"
         style={{
-          marginLeft: sidebarExpanded ? "16rem" : "5rem",
-          paddingTop: "4rem",
+          // When sidebar is in 'floating' mode we let it overlay the content
+          // so keep a small left margin; otherwise reserve full sidebar width.
+          marginLeft: sidebarExpanded
+            ? themePreferences?.sidebarStyle === "floating"
+              ? "5rem"
+              : "16rem"
+            : "5rem",
+          // Use header height CSS variable so theme can adjust it
+          paddingTop: "var(--header-height)",
         }}
       >
         <div className="p-1.5 lg:p-2">

@@ -9,6 +9,8 @@ interface InspectionMethodSelectorProps {
   options: SystemListItem[];
   isLoading: boolean;
   error?: string;
+  /** Smaller tiles (used inside New Inspection Session) */
+  compact?: boolean;
 }
 
 // آیکون‌های مرتبط با روش‌های بازرسی
@@ -34,6 +36,7 @@ export function InspectionMethodSelector({
   options,
   isLoading,
   error,
+  compact = false,
 }: InspectionMethodSelectorProps) {
   const { isDark } = useTheme();
 
@@ -61,7 +64,13 @@ export function InspectionMethodSelector({
 
   return (
     <div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div
+        className={`grid ${
+          compact
+            ? "grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2"
+            : "grid-cols-2 md:grid-cols-3 gap-3"
+        }`}
+      >
         {options.map((method) => {
           const isSelected = value.includes(method.value);
           const icon = getIcon(method.value);
@@ -71,7 +80,9 @@ export function InspectionMethodSelector({
               key={method.id}
               type="button"
               onClick={() => handleToggle(method.value)}
-              className={`relative p-4 rounded-lg border-2 transition-all text-left ${
+              className={`relative ${
+                compact ? "p-2 rounded-md border" : "p-4 rounded-lg border-2"
+              } transition-all text-left ${
                 isSelected
                   ? isDark
                     ? "border-indigo-500 bg-indigo-900/30 shadow-lg"
@@ -81,12 +92,10 @@ export function InspectionMethodSelector({
                     : "border-slate-200 bg-white hover:border-slate-300"
               }`}
             >
-              {/* آیکون */}
-              <div className="text-2xl mb-2">{icon}</div>
-
-              {/* نام متد */}
               <div
-                className={`text-sm font-semibold mb-1 ${
+                className={`${
+                  compact ? "text-[11px]" : "text-sm"
+                } font-semibold mb-1 ${
                   isSelected
                     ? isDark
                       ? "text-indigo-200"
@@ -96,33 +105,8 @@ export function InspectionMethodSelector({
                       : "text-slate-700"
                 }`}
               >
-                {method.value}
+                 {icon} {method.value}
               </div>
-
-              {/* تیک انتخاب */}
-              {isSelected && (
-                <div className="absolute top-2 right-2">
-                  <div
-                    className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                      isDark ? "bg-indigo-500" : "bg-indigo-600"
-                    }`}
-                  >
-                    <svg
-                      className="w-3 h-3 text-white"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={3}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
-              )}
             </button>
           );
         })}

@@ -11,6 +11,8 @@ export interface IInspectionRepository {
     executionDate?: string,
     location?: string,
     vendorSite?: string,
+    /** Inspection session this assignment belongs to (NULL = legacy date-linked row). */
+    sessionId?: string,
   ): Promise<InspectorAssignment>;
 
   getAssignmentsByRequest(

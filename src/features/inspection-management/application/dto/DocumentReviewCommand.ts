@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export const CreateDocumentReviewSchema = z.object({
   inspection_request_id: z.string().min(1, "Inspection request ID is required"),
+  session_id: z.string().min(1, "Inspection session ID is required").optional(),
   document_type: z.enum([
     "ITP",
     "PROCEDURE",

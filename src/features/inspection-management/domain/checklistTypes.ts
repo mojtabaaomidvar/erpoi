@@ -44,6 +44,8 @@ export interface StatusMetadata {
 export interface ChecklistItemResult {
   item_id: string;
   request_id?: string;
+  /** Inspection session this result belongs to (undefined = legacy request-level row) */
+  session_id?: string;
   equipment_id: string;
   inspection_method: string;
   checklist_text?: string;
@@ -57,6 +59,8 @@ export interface ChecklistItemResult {
 export interface ChecklistSession {
   id: string;
   request_id: string;
+  /** Inspection session id that owns these results (undefined = legacy request-level) */
+  session_id?: string;
   equipment_id: string;
   inspection_method: string;
   results: ChecklistItemResult[];
@@ -67,6 +71,25 @@ export interface ChecklistSession {
   created_at: string;
   updated_at: string;
 }
+
+/**
+ * A result inherited from a previous session (same item + method + stage).
+ */
+export interface InheritedChecklistResult {
+  result: ChecklistItemResult;
+  sourceSessionNumber: number;
+  locked: boolean;
+}
+export interface SessionChecklistContext {
+  currentResults: ChecklistItemResult[];
+  inherited: InheritedChecklistResult[];
+}
+
+export type ChecklistTransitionDecision =
+  | { kind: "ALLOW" }
+  | { kind: "LOCKED"; reason: string }
+  | { kind: "REQUIRES_RESOLUTION"; findingType: "NCR" | "OBSERVATION" }
+  | { kind: "BLOCKED"; reason: string };
 
 export interface SharedChecklistItem {
   checklist_text: string;

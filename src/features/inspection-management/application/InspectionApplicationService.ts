@@ -42,6 +42,7 @@ export class InspectionApplicationService {
     executionDate?: string,
     location?: string,
     vendorSite?: string,
+    sessionId?: string,
   ) {
     return await this.repository.assignInspector(
       requestId,
@@ -51,6 +52,7 @@ export class InspectionApplicationService {
       executionDate,
       location,
       vendorSite,
+      sessionId,
     );
   }
 

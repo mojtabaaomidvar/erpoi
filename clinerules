@@ -1,0 +1,847 @@
+# .clinerules — ICS Offshore & Energy ERP Project
+
+## 1. Project Context
+
+This is an internal ERP and inspection-management system for the Offshore & Energy Department of Iranian Classification Society (ICS).
+
+The system manages workflows including:
+
+* Third-Party Inspection (TPI)
+* Marine Warranty Survey (MWS)
+* Third-Party Engineering Review (TPER)
+* Contracts
+* Projects
+* Inspections
+* Inspectors
+* Checklists
+* Equipment records
+* Certification
+* Related operational and administrative workflows
+
+This is an enterprise application. Architecture, domain integrity, maintainability, and backward compatibility are more important than quick shortcuts.
+
+---
+
+# 2. Technology Stack
+
+* Frontend: React + TypeScript
+* Architecture: Feature-Sliced Design (FSD)
+* Local persistence: Dexie / IndexedDB
+* Sync compatibility: in-memory cache where required
+* Backend: FastAPI
+* ORM: async SQLAlchemy
+* Database migrations: Alembic
+* Data source: Supabase for equipment taxonomy
+* UI architecture: Design System + centralized Theme Engine
+
+Inspection checklist system currently contains fixed inspection methods including:
+
+* Pre-Inspection Meeting
+* Document Review
+* Visual Inspection
+* Dimensional Inspection
+* Marking / ID Verification
+* Functional Verification
+* Performance Verification
+* Quantity
+* Sampling
+* NDT
+* PMI
+* Laboratory Test
+* Hydrostatic Test
+
+Do not modify the domain meaning of these workflows unless explicitly requested.
+
+---
+
+# 3. Authoritative Project Instructions
+
+At the beginning of a new task, read `AGENTS.md` and follow its instructions for the entire task.
+
+If `AGENTS.md` explicitly requires other documents such as:
+
+* `PROJECT.md`
+* `DOMAIN.md`
+* `ARCHITECTURE.md`
+* `DATABASE_SCHEMA.md`
+* `AUTHORIZATION.md`
+
+read only the documents required for the current task.
+
+Do not automatically reread all project documentation for every implementation step.
+
+## Documentation Read Policy
+
+During the same task:
+
+* Read a required document once.
+* Treat that read as valid context for the remainder of the task.
+* Do not reread the same documentation unless:
+
+  1. The document was modified.
+  2. A concrete blocker requires a specific section to be checked.
+  3. A validation or runtime error points to that document.
+  4. The earlier read was incomplete.
+  5. The information is no longer available in the current context.
+
+Do not repeatedly reread:
+
+* `AGENTS.md`
+* `PROJECT.md`
+* `DOMAIN.md`
+* `ARCHITECTURE.md`
+* `DATABASE_SCHEMA.md`
+* `package.json`
+
+without a concrete reason.
+
+---
+
+# 4. Mandatory Task Execution Protocol
+
+Every task must follow this workflow:
+
+## Phase A — Targeted Discovery
+
+Before modifying code:
+
+1. Identify the exact feature, module, or behavior requested.
+2. Read only the files directly relevant to that task.
+3. Search narrowly for:
+
+   * existing implementation
+   * related consumers
+   * duplicate logic
+   * relevant imports/usages
+4. Inspect only immediate dependencies when necessary.
+
+Do not perform a full repository audit unless the user explicitly requests one.
+
+Do not read unrelated files "just in case".
+
+### Important
+
+Once the relevant implementation has been identified, stop broad exploration.
+
+Do not restart discovery after every patch.
+
+---
+
+## Phase B — Decision
+
+Decide internally:
+
+* Reuse
+* Refactor
+* Extend
+* Replace
+* Remove
+
+Do not create a duplicate implementation if an authoritative implementation already exists.
+
+If the task is clear and implementation was explicitly requested, do not stop and ask for confirmation again.
+
+Proceed directly to implementation.
+
+---
+
+## Phase C — Implementation
+
+After implementation begins:
+
+* Apply targeted patches.
+* Keep changes cohesive.
+* Modify only files required for the requested feature.
+* Do not restart repository exploration.
+* Do not repeatedly reread already inspected files.
+* Do not produce a new architecture plan after every patch.
+* Do not repeatedly search the entire project.
+
+Preferred execution loop:
+
+```text
+Inspect once
+→ Decide
+→ Patch
+→ Validate
+→ Fix
+→ Continue
+→ Final validation
+```
+
+Do NOT use this loop repeatedly:
+
+```text
+Read
+→ Analyze
+→ Plan
+→ Read again
+→ Analyze again
+→ Plan again
+→ Ask for confirmation
+```
+
+---
+
+# 5. File Reading Discipline
+
+Maintain awareness of files already inspected during the current task.
+
+Before reading a file again, ask internally:
+
+> Do I need new information from this file that I do not already have?
+
+If the answer is no, do not reread it.
+
+## Large Files
+
+For large files:
+
+* Read only the relevant sections when possible.
+* Do not repeatedly reread the entire file.
+* After editing, inspect the changed region only unless broader verification is required.
+* Prefer searching for symbols before reading large unrelated ranges.
+
+Example:
+
+If `ThemeSettingsModal.tsx` has already been fully inspected, do not repeatedly reread lines 1–889.
+
+Instead:
+
+* patch the relevant section
+* inspect the changed section
+* run typecheck
+* fix the resulting issue if any
+
+---
+
+# 6. Search Discipline
+
+Search narrowly.
+
+Before performing a search, define the exact question being answered.
+
+Good:
+
+* Find usages of `ThemeProvider`
+* Find consumers of `getThemeProfiles`
+* Find CSS variables starting with `--shadow-`
+* Find imports of `ProfilePreferencesService`
+
+Avoid repeated broad searches such as:
+
+* search all theme files again
+* search all providers again
+* search the entire repository for already known concepts
+
+Do not repeat a search unless:
+
+* files changed materially
+* the previous search was insufficient
+* a new dependency or error requires it
+
+---
+
+# 7. Implementation Mode
+
+When the user says any equivalent of:
+
+* implement this
+* apply the changes
+* proceed
+* act mode
+* go ahead
+* make the changes
+* fix it
+* continue implementation
+
+you are in Implementation Mode.
+
+In Implementation Mode:
+
+* Do not ask for another approval unless there is a genuine blocker.
+* Do not produce another large plan.
+* Do not restart analysis.
+* Do not reread already inspected documentation.
+* Begin applying patches immediately.
+
+Ask the user only if one of these occurs:
+
+1. The requested change is ambiguous in a way that materially affects implementation.
+2. The change is destructive.
+3. Multiple incompatible architectural choices exist.
+4. A required dependency or secret is unavailable.
+5. A backend or database contract may be broken.
+6. The task conflicts with project rules.
+
+Otherwise, continue autonomously.
+
+---
+
+# 8. Architecture Rules
+
+Follow Feature-Sliced Design boundaries.
+
+Primary structure:
+
+```text
+app
+pages
+widgets
+features
+entities
+shared
+```
+
+Do not introduce cross-layer imports that violate FSD.
+
+General direction:
+
+```text
+app
+  ↓
+application / orchestration
+  ↓
+domain
+  ↓
+repositories
+  ↓
+infrastructure
+```
+
+Do not place domain business logic in UI components.
+
+Do not access Supabase or database infrastructure directly from arbitrary UI or feature code.
+
+Use appropriate abstractions:
+
+* Domain models
+* Application services
+* Repository pattern
+* CQRS where appropriate
+* Factory pattern where appropriate
+* Strategy pattern where appropriate
+* Event-driven communication where appropriate
+
+Avoid:
+
+* circular dependencies
+* God objects
+* duplicated business logic
+* feature-to-feature direct coupling
+* UI-driven domain logic
+
+---
+
+# 9. Existing Architecture Must Be Reused
+
+Before creating:
+
+* a provider
+* context
+* store
+* repository
+* service
+* state container
+* theme engine
+* API client
+* domain model
+
+search for an existing authoritative implementation.
+
+If one exists:
+
+* extend it
+* refactor it
+* reuse it
+
+Do not create a parallel implementation.
+
+Never create a second provider/store merely because an existing implementation is inconvenient.
+
+---
+
+# 10. Theme System Rules
+
+The application must have one authoritative theme pipeline.
+
+Preferred architecture:
+
+```text
+ThemePreferences
+        ↓
+Theme Engine
+        ↓
+ThemeProvider
+        ↓
+CSS Variables
+        ↓
+Application Components
+```
+
+Do not create duplicate:
+
+* ThemeProviders
+* theme stores
+* token registries
+* CSS variable registries
+* preference persistence systems
+
+Existing theme architecture must be reused whenever possible.
+
+When modifying theme functionality:
+
+1. Identify the authoritative `ThemePreferences` model.
+2. Identify the central Theme Engine.
+3. Identify the application-level ThemeProvider.
+4. Identify token registries.
+5. Identify the CSS variable rendering layer.
+6. Extend these components rather than creating parallel systems.
+
+All new theme controls must have a real implementation path:
+
+```text
+UI control
+→ ThemePreferences
+→ Theme Engine
+→ CSS variable/class/runtime behavior
+→ visible application effect
+```
+
+Do not add decorative settings that do nothing.
+
+---
+
+# 11. Design Token Rules
+
+Avoid introducing new hardcoded visual values.
+
+New visual styling should use design tokens or CSS variables for:
+
+* colors
+* typography
+* font sizes
+* font weights
+* spacing
+* radius
+* shadows
+* blur
+* transitions
+* motion
+* layout dimensions
+
+Do not blindly refactor every existing hardcoded style in the application unless requested.
+
+For existing legacy styles:
+
+* preserve compatibility
+* migrate incrementally
+* avoid mass visual rewrites
+
+Backward compatibility is preferred over unnecessary cleanup.
+
+---
+
+# 12. Coding Conventions
+
+Use TypeScript strictly.
+
+Do not introduce new `any` types.
+
+Prefer:
+
+* explicit interfaces
+* discriminated unions
+* typed records
+* typed utility functions
+* strongly typed domain models
+
+Do not create monolithic components.
+
+If a component is becoming substantially larger or harder to maintain, split it into logical units.
+
+As a guideline:
+
+* Around 200–300 lines: consider decomposition.
+* Do not split purely to create unnecessary file fragmentation.
+* Prefer cohesive components over excessive abstraction.
+
+---
+
+# 13. Backend and Data Safety
+
+Do not modify without explicit confirmation:
+
+* equipment taxonomy data
+* checklist templates
+* seed data
+* destructive database migrations
+* Supabase table structure
+* `.env` files
+* secrets
+* credentials
+
+Do not expose secrets in:
+
+* code
+* logs
+* documentation
+* commits
+* console output
+
+If a frontend change may affect:
+
+* FastAPI contracts
+* API payload shapes
+* equipment IDs
+* database schemas
+* synchronization models
+
+inspect the relevant contract before modifying.
+
+Do not assume.
+
+---
+
+# 14. Authorization Rules
+
+Before creating, modifying, or reviewing:
+
+```text
+shared/authorization/ui/elements/
+```
+
+or any permission/access-control logic:
+
+1. Read `AUTHORIZATION.md`.
+2. Follow its rules completely.
+3. Do not create a new permission implementation without verifying the existing canonical approach.
+
+There are currently multiple conflicting `PermissionGuard` implementations.
+
+Before changing permission architecture:
+
+* identify which implementation is canonical
+* do not create another implementation
+* ask the user if canonical ownership is unclear
+
+Do not fragment permissions unnecessarily.
+
+Financial data, destructive actions, and cross-entity visibility may require dedicated permission checks.
+
+Fields and buttons inside an already correctly gated workflow generally should not receive redundant permission wrappers.
+
+---
+
+# 15. Validation Strategy
+
+After implementation:
+
+Run only relevant validations.
+
+Preferred order:
+
+```bash
+npm run typecheck
+```
+
+Then, if available and relevant:
+
+```bash
+npm run lint
+```
+
+Then:
+
+```bash
+npm run build
+```
+
+Do not repeatedly run the full validation suite after every tiny patch unless necessary.
+
+Preferred:
+
+```text
+Implement cohesive changes
+→ Typecheck
+→ Fix
+→ Lint
+→ Fix
+→ Build
+→ Fix
+```
+
+If an error is unrelated to the current changes:
+
+* identify it clearly
+* do not perform unrelated refactors unless necessary
+* report that it pre-existed if evidence supports that conclusion
+
+---
+
+# 16. Patch Discipline
+
+Prefer targeted patches over rewriting entire files.
+
+Do not rewrite a large file when only a few sections need changes.
+
+After applying a patch:
+
+* inspect the changed area if needed
+* do not reread the entire repository
+* continue to the next dependency
+* validate when the cohesive change set is ready
+
+Use the smallest change that correctly implements the requirement.
+
+However, do not artificially split one coherent implementation into many tiny analysis cycles.
+
+---
+
+# 17. Performance Rules
+
+Avoid unnecessary:
+
+* React re-renders
+* Context updates
+* CSS variable writes
+* localStorage writes
+* IndexedDB writes
+* network synchronization
+* expensive recomputations
+
+Memoize expensive calculations when appropriate.
+
+Do not memoize everything blindly.
+
+For CSS variables:
+
+* update only changed values when possible
+* avoid full style resets for small preference changes
+
+For persisted preferences:
+
+* use efficient updates
+* avoid writing identical state repeatedly
+
+---
+
+# 18. Live Development Behavior
+
+When implementing a visible frontend feature:
+
+* apply changes incrementally
+* keep the application in a runnable state whenever possible
+* prefer changes that can be observed immediately
+* avoid spending excessive time on theoretical analysis before producing visible results
+
+For a multi-file feature:
+
+```text
+Core model
+→ Runtime engine
+→ Provider
+→ UI
+→ Validate
+```
+
+Do not repeatedly return to Phase A after Phase C has begun.
+
+---
+
+# 19. No TODO / Temporary Implementations
+
+Do not leave:
+
+* TODO placeholders
+* fake controls
+* dead settings
+* temporary providers
+* duplicate stores
+* dummy implementations
+* unused abstraction layers
+
+Every user-facing setting must either:
+
+1. work now, or
+2. not be added to the UI.
+
+Do not create temporary architecture intended to be "cleaned up later".
+
+---
+
+# 20. Final Reporting
+
+After completing implementation, provide a concise report containing:
+
+1. Files modified
+2. Files created
+3. Files removed
+4. Existing systems reused
+5. Important architectural decisions
+6. Breaking changes
+7. Migration or compatibility notes
+8. Validation commands and results
+9. Known limitations, only if they genuinely remain
+
+Do not provide another implementation plan after the work is already complete.
+
+Do not claim success unless validation was actually run.
+
+---
+
+# 21. Default Execution Philosophy
+
+For every task, follow this principle:
+
+```text
+Read what is necessary once.
+Understand the existing implementation.
+Reuse the authoritative architecture.
+Patch directly.
+Validate.
+Fix errors.
+Finish.
+```
+
+Avoid:
+
+```text
+Read everything.
+Analyze everything.
+Create another plan.
+Reread everything.
+Search everything again.
+Ask for approval again.
+Repeat.
+```
+
+The goal is:
+
+```text
+Maximum architectural correctness
++
+Minimum unnecessary exploration
++
+Minimum duplicate reads
++
+Targeted implementation
++
+Fast feedback
++
+Safe validation
+```
+
+---
+
+# 22. Task-Specific Instructions Override General Workflow
+
+If the user provides a specific implementation plan, explicit file list, previous analysis summary, or instruction such as:
+
+> These files were already inspected.
+
+treat that information as established context.
+
+Do not repeat the same discovery work unless required by a concrete implementation blocker.
+
+If the user explicitly says:
+
+> Do not reanalyze.
+
+or:
+
+> Apply the changes based on the previous analysis.
+
+then:
+
+* use the provided analysis as the source of task context
+* inspect only files that must be modified
+* do not perform broad repository exploration
+* begin implementation immediately
+
+---
+
+# 23. New Task Without Cache
+
+A new task may not contain previous file-reading cache.
+
+In a new task:
+
+1. Read `AGENTS.md`.
+2. Read only mandatory project documents required by it.
+3. Read only the files relevant to the requested task.
+4. Do one targeted search for existing implementations when needed.
+5. Start implementation.
+
+Do NOT treat a new task as a reason to scan the entire repository.
+
+The absence of cache does not justify repeated broad exploration.
+
+Use this process:
+
+```text
+Task request
+→ Mandatory instructions
+→ Targeted relevant files
+→ Narrow dependency search
+→ Implementation
+→ Validation
+```
+
+Not:
+
+```text
+Task request
+→ Read all docs
+→ Search whole project
+→ Read all related files
+→ Re-read docs
+→ Re-read related files
+→ Plan
+→ Ask confirmation
+```
+
+---
+
+# 24. Explicit Stop Conditions
+
+Stop and ask the user only when:
+
+* a destructive operation requires confirmation
+* project architecture is genuinely ambiguous
+* the requested behavior conflicts with existing requirements
+* required credentials or secrets are missing
+* backend/database contract changes are required but unspecified
+* a major irreversible decision must be made
+
+Do not stop merely because:
+
+* several files must be edited
+* the feature is moderately complex
+* a refactor is required
+* a plan could be described
+* an existing implementation needs extension
+
+---
+
+# Final Operating Rule
+
+Once the relevant context is known, execution takes priority over repeated analysis.
+
+Default operating loop:
+
+```text
+TARGETED READ ONCE
+        ↓
+REUSE EXISTING ARCHITECTURE
+        ↓
+IMPLEMENT
+        ↓
+VALIDATE
+        ↓
+FIX
+        ↓
+COMPLETE
+```
+
+Never restart broad exploration without a concrete reason.

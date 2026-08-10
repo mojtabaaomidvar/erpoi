@@ -8,6 +8,7 @@ import { showToast } from "@shared/ui/ToastContainer";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
 import { inspectorAttendanceAppService } from "../application/InspectorAttendanceApplicationService";
 import { supabase } from "@shared/database/supabase";
+import { SupabaseUserRepository } from "@shared/authorization/repositories/SupabaseUserRepository";
 import type { AttendanceStatus } from "../domain/types";
 
 interface AttendanceTrackerProps {
@@ -50,17 +51,28 @@ export function AttendanceTracker({
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .schema("core")
-        .from("users")
-        .select("id, full_name, username, email, role")
-        .in("role", ["inspector", "expert"])
-        .order("full_name", { ascending: true });
-
-      if (error) throw new Error(error.message);
-      setUsers(data || []);
+      // Prefer using repository/application layer
+      const repo = new SupabaseUserRepository();
+      const all = await repo.getAll();
+      const filtered = (all || []).filter((u: any) =>
+        ["inspector", "expert"].includes(u.role),
+      );
+      setUsers(filtered);
     } catch (err: any) {
-      showToast("error", "Load Failed", err.message);
+      console.error("[AttendanceTracker] user repo failed, falling back:", err);
+      try {
+        const { data, error } = await supabase
+          .schema("core")
+          .from("users")
+          .select("id, full_name, username, email, role")
+          .in("role", ["inspector", "expert"])
+          .order("full_name", { ascending: true });
+
+        if (error) throw error;
+        setUsers(data || []);
+      } catch (e: any) {
+        showToast("error", "Load Failed", e.message || String(e));
+      }
     }
   };
 

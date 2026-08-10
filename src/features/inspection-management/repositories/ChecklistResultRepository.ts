@@ -9,6 +9,7 @@ import type {
 export class ChecklistResultRepository {
   /**
    * ذخیره نتایج چک‌لیست (Optimistic UI)
+   * Results are scoped to the inspection session via `session.session_id`.
    */
   async saveResults(session: ChecklistSession): Promise<void> {
     const { error } = await supabase
@@ -16,11 +17,15 @@ export class ChecklistResultRepository {
       .from("checklist_results")
       .upsert(
         session.results.map((result) => ({
-          id: `${session.id}_${result.item_id}`,
+          id: session.session_id
+            ? `${session.session_id}_${result.item_id}`
+            : `${session.id}_${result.item_id}`,
+          session_id: session.session_id || null,
           request_id: session.request_id,
           equipment_id: session.equipment_id,
           inspection_method: session.inspection_method,
           item_id: result.item_id,
+          checklist_text: result.checklist_text || null,
           status: result.status,
           comment: result.comment || null,
           checked_by: result.checked_by || null,
@@ -49,6 +54,32 @@ export class ChecklistResultRepository {
     return (data || []).map((row: any) => ({
       item_id: row.item_id,
       request_id: row.request_id,
+      session_id: row.session_id,
+      equipment_id: row.equipment_id,
+      inspection_method: row.inspection_method,
+      checklist_text: row.checklist_text,
+      status: row.status,
+      comment: row.comment,
+      checked_by: row.checked_by,
+      checked_at: row.checked_at,
+    })) as ChecklistItemResult[];
+  }
+
+  async getResultsBySessionId(
+    sessionId: string,
+  ): Promise<ChecklistItemResult[]> {
+    const { data, error } = await supabase
+      .schema("inspection")
+      .from("checklist_results")
+      .select("*")
+      .eq("session_id", sessionId);
+
+    if (error) throw new Error(error.message);
+
+    return (data || []).map((row: any) => ({
+      item_id: row.item_id,
+      request_id: row.request_id,
+      session_id: row.session_id,
       equipment_id: row.equipment_id,
       inspection_method: row.inspection_method,
       checklist_text: row.checklist_text,

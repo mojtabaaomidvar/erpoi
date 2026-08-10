@@ -17,6 +17,7 @@ import type {
   EnrichedInspector,
 } from "@/features/inspection-management/domain/types";
 import type { Inspector } from "@/features/inspector-managment/domain/models/Inspector";
+import type { InspectionSession } from "../../domain/models/InspectionSession";
 import {
   INSPECTION_EXECUTION_STATUS_CONFIG,
   TPI_CANCELLATION_REASON_CONFIG,
@@ -29,6 +30,8 @@ interface InspectorAssignmentSectionProps {
   plannedDate: string;
   mode: "SPOT" | "RESIDENT";
   category?: "TPI" | "MWS";
+  /** Active inspection session — only assignments of this session are shown. */
+  session?: InspectionSession | null;
 }
 
 type InspectionProjectDetails = {
@@ -45,6 +48,7 @@ export function InspectorAssignmentSection({
   plannedDate,
   mode,
   category = "TPI",
+  session,
 }: InspectorAssignmentSectionProps) {
   const { isDark } = useTheme();
   const { user } = useAuth();
@@ -53,7 +57,14 @@ export function InspectorAssignmentSection({
     useMasterDataOptions("TPI_DISCIPLINE");
 
   const todayString = getTodayJalali();
-  const initialDate = plannedDate ? plannedDate.replace(/-/g, "/") : "";
+  // New assignments default to the active session's date so they belong to
+  // that session. Falls back to the request's planned date when no session
+  // is active.
+  const initialDate = session?.session_date
+    ? session.session_date.replace(/-/g, "/")
+    : plannedDate
+      ? plannedDate.replace(/-/g, "/")
+      : "";
 
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [availableInspectors, setAvailableInspectors] = useState<
@@ -183,6 +194,17 @@ export function InspectorAssignmentSection({
       cancellation_notes: "",
     });
     setShowCancelModal(true);
+  };
+
+  const handleOpenAssignModal = () => {
+    // Default the execution date to the active session's date.
+    setAssignForm({
+      inspector_id: "",
+      execution_date: initialDate,
+      location: "",
+      vendor_site: "",
+    });
+    setShowAssignModal(true);
   };
 
   const validateDate = (
@@ -335,6 +357,7 @@ export function InspectorAssignmentSection({
     const newAssignment: any = {
       id: tempAssignmentId,
       tpi_request_id: requestId,
+      session_id: session?.id || null,
       inspector_id: targetInspector.inspector.id,
       assigned_by: user?.id || "",
       assigned_at: new Date().toISOString(),
@@ -358,6 +381,7 @@ export function InspectorAssignmentSection({
         dbDate,
         assignForm.location,
         assignForm.vendor_site,
+        session?.id,
       );
 
       if (
@@ -394,8 +418,20 @@ export function InspectorAssignmentSection({
     }
   };
 
+  // Assignments are scoped to the active session. New assignments store the
+  // session id directly (session_id column). Legacy rows created before that
+  // column existed fall back to the execution-date link: an assignment belongs
+  // to the session whose session_date matches its execution_date.
+  const sessionInspections = session
+    ? inspections.filter(
+        (i) =>
+          i.session_id === session.id ||
+          (!i.session_id && i.execution_date === session.session_date),
+      )
+    : inspections;
+
   const assignedInspectorIds = new Set(
-    inspections
+    sessionInspections
       .filter((i) => i.status !== "CANCELLED")
       .map((i) => i.inspector_id),
   );
@@ -404,7 +440,7 @@ export function InspectorAssignmentSection({
     (item) => !assignedInspectorIds.has(item.inspector.id),
   );
 
-  const sortedInspections = [...inspections].sort((a, b) => {
+  const sortedInspections = [...sessionInspections].sort((a, b) => {
     const aIsCancelled = a.status === "CANCELLED";
     const bIsCancelled = b.status === "CANCELLED";
     if (aIsCancelled && !bIsCancelled) return 1;
@@ -422,12 +458,15 @@ export function InspectorAssignmentSection({
           className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
         >
           Assigned Inspectors
+          {session && (
+            <span
+              className={`ml-1.5 text-[10px] font-medium ${isDark ? "text-indigo-400" : "text-indigo-600"}`}
+            >
+              — Session #{session.session_number}
+            </span>
+          )}
         </span>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => setShowAssignModal(true)}
-        >
+        <Button variant="primary" size="sm" onClick={handleOpenAssignModal}>
           👷 Assign Inspector
         </Button>
       </div>
@@ -450,6 +489,14 @@ export function InspectorAssignmentSection({
           >
             No inspector assigned yet
           </p>
+          {session && (
+            <p
+              className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}
+            >
+              Only assignments of Session #{session.session_number} are shown
+              here.
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -690,7 +737,7 @@ export function InspectorAssignmentSection({
                     className="w-full rounded-lg px-3 py-2 text-sm input-themed"
                   >
                     <option value="">-- Select Inspection --</option>
-                    {inspections
+                    {sessionInspections
                       .filter(
                         (i) =>
                           i.id !== inspectionToCancel.id &&

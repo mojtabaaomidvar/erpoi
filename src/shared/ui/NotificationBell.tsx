@@ -11,7 +11,6 @@ import type {
   ContractAmendment,
 } from "@/features/contract-management/domain";
 import { AnimatedCollapse } from "@shared/ui/AnimatedCollapse";
-import { supabase } from "@shared/database/supabase";
 import { useEvent, EVENT_TYPES } from "@infra/events";
 import type { DomainEvent } from "@infra/events";
 import { showToast } from "@shared/ui/ToastContainer";
@@ -87,14 +86,22 @@ export function NotificationBell() {
           amendment.approval_status,
         );
 
-        // دریافت contract
-        const { data: contract, error } = await supabase
-          .from("contracts.contracts")
-          .select("*")
-          .eq("id", contractId)
-          .single();
+        // دریافت contract از لایهٔ application (import دینامیک برای جلوگیری از circular deps)
+        let contract = null as any;
+        try {
+          const app =
+            await import("@/features/contract-management/application");
+          if (app && app.contractAppService) {
+            contract = await app.contractAppService.getById(contractId);
+          }
+        } catch (err) {
+          console.error(
+            "[NotificationBell] Failed to load contract via app service:",
+            err,
+          );
+        }
 
-        if (error || !contract) {
+        if (!contract) {
           console.error("[NotificationBell] Contract not found:", contractId);
           showToast("error", "Not Found", "Contract not found");
           return;

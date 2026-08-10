@@ -10,12 +10,15 @@ interface VendorAutocompleteProps {
   value: string;
   onChange: (vendorId: string) => void;
   error?: string;
+  /** Called with the full Vendor object when one is selected or created */
+  onSelectVendor?: (vendor: Vendor) => void;
 }
 
 export function VendorAutocomplete({
   value,
   onChange,
   error,
+  onSelectVendor,
 }: VendorAutocompleteProps) {
   const { isDark } = useTheme();
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -105,10 +108,11 @@ export function VendorAutocomplete({
   const handleSelect = useCallback(
     (vendor: Vendor) => {
       onChange(vendor.id);
+      onSelectVendor?.(vendor);
       setSearchTerm(vendor.name);
       setIsOpen(false);
     },
-    [onChange],
+    [onChange, onSelectVendor],
   );
 
   const handleCreateNew = useCallback(async () => {
@@ -120,6 +124,7 @@ export function VendorAutocomplete({
       });
       setVendors((prev) => [...prev, newVendor]);
       onChange(newVendor.id);
+      onSelectVendor?.(newVendor);
       setSearchTerm(newVendor.name);
       setIsOpen(false);
       showToast(
@@ -132,7 +137,7 @@ export function VendorAutocomplete({
     } finally {
       setIsCreating(false);
     }
-  }, [searchTerm, onChange]);
+  }, [searchTerm, onChange, onSelectVendor]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);

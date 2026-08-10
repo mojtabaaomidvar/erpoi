@@ -19,6 +19,7 @@ import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { supabase } from "@shared/database/supabase";
+import { amendmentAppService } from "@/features/contract-management/application";
 
 export type ViewKey =
   | "dashboard"
@@ -138,7 +139,7 @@ export function Sidebar({
   isExpanded,
   expiringContractsCount,
 }: SidebarProps) {
-  const { isDark } = useTheme();
+  const { isDark, themePreferences } = useTheme();
   const { user } = useAuth();
   const { canAccess, isAdmin } = usePermissionMapping();
 
@@ -149,6 +150,19 @@ export function Sidebar({
 
   const loadPendingAmendmentsCount = async () => {
     try {
+      // Prefer application service instead of direct supabase query in UI
+      try {
+        const pending = await amendmentAppService.getPending();
+        setPendingAmendmentsCount(pending.length);
+        return;
+      } catch (err) {
+        console.warn(
+          "[Sidebar] amendmentAppService.getPending failed, falling back to direct query:",
+          err,
+        );
+      }
+
+      // fallback to direct query if app service is unavailable
       const { count, error } = await supabase
         .schema("contracts")
         .from("contract_amendments")
@@ -181,16 +195,37 @@ export function Sidebar({
     return canAccess(item.entity);
   });
 
+  // Read sidebar style preference from theme preferences
+  const sidebarStyle = themePreferences?.sidebarStyle ?? "floating";
+
+  // Compute variant classes and inline styles so changes are visible immediately
+  const variantClass =
+    sidebarStyle === "floating"
+      ? "rounded-2xl shadow-2xl mx-3 my-3 backdrop-blur bg-opacity-95"
+      : sidebarStyle === "inset"
+        ? "rounded-none shadow-none"
+        : "";
+
+  const topValue =
+    sidebarStyle === "floating"
+      ? "calc(var(--header-height) + 1rem)"
+      : "var(--header-height)";
+  const leftValue = sidebarStyle === "floating" ? "0.5rem" : "0";
+  const heightValue =
+    sidebarStyle === "floating"
+      ? "calc(100vh - var(--header-height) - 1rem)"
+      : "calc(100vh - var(--header-height))";
+
   return (
     <aside
-      className={`fixed left-0 top-16 z-30 flex flex-col transition-all duration-300 ${
+      className={`fixed z-30 flex flex-col transition-all duration-300 ${
         isExpanded ? "w-64" : "w-20"
       } ${
         isDark
           ? "bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-r border-slate-800/50"
           : "bg-gradient-to-b from-white via-slate-50 to-white border-r border-slate-200/70"
-      }`}
-      style={{ height: "calc(100vh - 4rem)" }}
+      } ${variantClass}`}
+      style={{ top: topValue, left: leftValue, height: heightValue }}
     >
       {/* Navigation Items */}
       <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">

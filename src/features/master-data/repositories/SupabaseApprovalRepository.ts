@@ -169,6 +169,11 @@ class SupabaseApprovalRepository {
       .single();
 
     if (fetchError || !approval) throw new Error("Approval record not found");
+    if ((approval as any).request_type === "ENTITY_DELETION") {
+      throw new Error(
+        "Entity deletion approvals must be reviewed through their workflow",
+      );
+    }
 
     const { error: updateError } = await supabase
       .schema("master_data")

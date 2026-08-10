@@ -132,7 +132,13 @@ export const TPIElements: UIModuleElements = {
     },
     btn_delete: {
       id: "tpi_details_btn_delete",
-      label: "Delete TPI Request",
+      label: "Delete TPI Session",
+      type: "button",
+      requires: ["TPIDetails.details_view"],
+    },
+    btn_request_package_deletion: {
+      id: "tpi_details_btn_request_package_deletion",
+      label: "Request TPI Package Deletion",
       type: "button",
       requires: ["TPIDetails.details_view"],
     },

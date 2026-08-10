@@ -50,7 +50,8 @@ Application Services.
 
 Transactions.
 
-Permissions.
+Permissions. See AUTHORIZATION.md for the element-based access model and
+the Gate Principle governing when access must be checked.
 
 Orchestration.
 

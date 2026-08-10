@@ -1,0 +1,30 @@
+name: My Config
+version: "1.0.0"
+schema: v1
+
+models:
+  - name: KIMI
+    provider: OpenAI-compatible
+    model: moonshotai/kimi-k3-free
+    apiBase: https://api.tokenrouter.com/v1
+    apiKey: "sk-CntkJhzBSS0RORXPkoLPBkjU51g1n0ePF2Bfy2Ni7lB0I4zL"
+    roles:
+      - chat
+      - edit
+      - apply
+      - autocomplete
+    capabilities:
+      - tool_use
+    defaultCompletionOptions:
+      maxTokens: 1500
+
+context:
+  - provider: diff
+  - provider: problems
+  - provider: folder
+
+tabAutocompleteOptions:
+  maxPromptTokens: 512
+  debounceDelay: 350
+  onlyMyCode: true
+  useCache: true

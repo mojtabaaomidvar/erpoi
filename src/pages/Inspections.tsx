@@ -9,7 +9,6 @@ import { inspectionRequestAppService } from "@features/inspection-management/app
 import { InspectionList } from "@features/inspection-management/ui/InspectionList";
 import { TPIRequestForm } from "@/features/tpi-management/ui/TPIRequestForm";
 import { InspectionDetailsModal } from "@features/inspection-management/ui/InspectionDetailsModal";
-import { confirmDialog } from "@shared/ui/ConfirmDialog";
 import type {
   InspectionStatus,
   Priority,
@@ -51,9 +50,6 @@ export function Inspections() {
   );
   const canEdit = canAccessElement(
     InspectionElements.InspectionDetails.btn_edit.id,
-  );
-  const canDelete = canAccessElement(
-    InspectionElements.InspectionDetails.btn_delete.id,
   );
 
   // بارگذاری داده‌ها
@@ -124,39 +120,6 @@ export function Inspections() {
     setIsAddModalOpen(true);
   };
 
-  const handleDeleteRequest = async (request: TPIRequest) => {
-    if (!canDelete) {
-      showToast(
-        "error",
-        "Access Denied",
-        "You do not have permission to delete inspection requests",
-      );
-      return;
-    }
-
-    const confirmed = await confirmDialog({
-      title: "Delete Inspection Request",
-      message: `Are you sure you want to delete "${request.methods}"?\n\nThis action cannot be undone.`,
-      confirmText: "Yes, Delete",
-      cancelText: "Cancel",
-      variant: "danger",
-    });
-
-    if (!confirmed) return;
-
-    setIsDetailsOpen(false);
-    setSelectedRequest(null);
-    setInspectionRequests((prev) => prev.filter((r) => r.id !== request.id));
-    showToast("success", "Deleted", "Inspection request has been removed");
-
-    await inspectionRequestAppService
-      .delete(request.id, user?.id || "unknown")
-      .catch((err: any) => {
-        setInspectionRequests((prev) => [request, ...prev]);
-        showToast("error", "Delete Failed", err.message || "Failed to delete");
-      });
-  };
-
   // بررسی دسترسی مشاهده
   if (!canViewItems) {
     return (
@@ -212,7 +175,6 @@ export function Inspections() {
         }}
         inspectionRequest={selectedRequest}
         onEdit={handleEditFromDetails}
-        onDelete={handleDeleteRequest}
       />
 
       <TPIRequestForm

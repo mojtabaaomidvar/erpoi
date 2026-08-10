@@ -8,11 +8,11 @@ import { showToast } from "@shared/ui/ToastContainer";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
 import { getTodayJalali } from "@shared/utils/dateUtils";
-import { documentReviewAppService } from "../../application/DocumentReviewApplicationService";
-import type {
-  DocumentReview,
-  InspectionCategory,
-} from "@/features/inspection-management/domain/types";
+import {
+  documentReviewAppService,
+  type SessionDocumentReviewDTO,
+} from "../../application/DocumentReviewApplicationService";
+import type { InspectionCategory } from "@/features/inspection-management/domain/types";
 import {
   MWS_DOCUMENT_TYPE_CONFIG,
   TPI_DOCUMENT_TYPE_CONFIG,
@@ -21,6 +21,7 @@ import {
 interface DocumentReviewSectionProps {
   requestId: string;
   category: InspectionCategory;
+  sessionId?: string;
 }
 
 type UploadFileItem = {
@@ -46,6 +47,7 @@ type UploadingFileItem = {
 export function DocumentReviewSection({
   requestId,
   category,
+  sessionId,
 }: DocumentReviewSectionProps) {
   const { isDark } = useTheme();
   const { user } = useAuth();
@@ -54,12 +56,13 @@ export function DocumentReviewSection({
     category === "TPI" ? TPI_DOCUMENT_TYPE_CONFIG : MWS_DOCUMENT_TYPE_CONFIG;
   const DOCUMENT_TYPES = Object.keys(DOCUMENT_TYPE_CONFIG);
 
-  const [documents, setDocuments] = useState<DocumentReview[]>([]);
+  const [documents, setDocuments] = useState<SessionDocumentReviewDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showBulkVerifyModal, setShowBulkVerifyModal] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState<DocumentReview | null>(null);
+  const [selectedDoc, setSelectedDoc] =
+    useState<SessionDocumentReviewDTO | null>(null);
 
   const [uploadFiles, setUploadFiles] = useState<UploadFileItem[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFileItem[]>([]);
@@ -103,8 +106,10 @@ export function DocumentReviewSection({
   const loadDocuments = async () => {
     setLoading(true);
     try {
-      const data =
-        await documentReviewAppService.getByInspectionRequest(requestId);
+      const data = await documentReviewAppService.getVisibleForSession(
+        requestId,
+        sessionId,
+      );
       setDocuments(data);
     } catch (err: any) {
       showToast("error", "Load Failed", err.message);
@@ -115,7 +120,7 @@ export function DocumentReviewSection({
 
   useEffect(() => {
     loadDocuments();
-  }, [requestId]);
+  }, [requestId, sessionId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -175,6 +180,7 @@ export function DocumentReviewSection({
 
       await documentReviewAppService.uploadDocuments(
         requestId,
+        sessionId,
         filePayloads,
         user?.id || "unknown",
       );
@@ -219,7 +225,7 @@ export function DocumentReviewSection({
     );
   };
 
-  const handleVerifyClick = (doc: DocumentReview) => {
+  const handleVerifyClick = (doc: SessionDocumentReviewDTO) => {
     setSelectedDoc(doc);
     setVerifyForm({
       letter_number: doc.verification_letter_number || "",
@@ -263,7 +269,7 @@ export function DocumentReviewSection({
     }
   };
 
-  const handleUnverify = async (doc: DocumentReview) => {
+  const handleUnverify = async (doc: SessionDocumentReviewDTO) => {
     if (
       !(await confirmDialog({
         title: "Remove Verification",
@@ -299,7 +305,7 @@ export function DocumentReviewSection({
   };
 
   // ✅ حذف از طریق Application Service
-  const handleDelete = async (doc: DocumentReview) => {
+  const handleDelete = async (doc: SessionDocumentReviewDTO) => {
     if (
       !(await confirmDialog({
         title: "Delete Document",
@@ -635,6 +641,14 @@ export function DocumentReviewSection({
                       >
                         {doc.document_name}
                       </h4>
+                      <Badge
+                        tone={doc.is_legacy_unassigned ? "slate" : "indigo"}
+                        className="text-[9px]"
+                      >
+                        {doc.source_session_number
+                          ? `Session #${doc.source_session_number}`
+                          : "Legacy / Unassigned"}
+                      </Badge>
                       {!doc.verified_by_ics &&
                         doc.review_status === "INITIAL" && (
                           <Badge tone="slate" className="text-[9px]">

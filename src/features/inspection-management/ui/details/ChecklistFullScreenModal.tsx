@@ -12,8 +12,8 @@ import type {
   ChecklistItem,
   ChecklistItemResult,
   ChecklistItemStatus,
+  InheritedChecklistResult,
 } from "../../domain/checklistTypes";
-import type { NonConformityReport } from "../../repositories/NonConformityRepository";
 import type { InspectionPhoto } from "../../repositories/InspectionPhotoRepository";
 
 interface ChecklistFullScreenModalProps {
@@ -23,18 +23,22 @@ interface ChecklistFullScreenModalProps {
   equipmentId: string[];
   stages?: string[];
   methods?: string[];
+  sessionId?: string;
 }
 
 type NonConformitySeverity = "MINOR" | "MAJOR" | "OBSERVATION" | "HOLD POINT";
 
-interface ChecklistFullScreenModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  requestId: string;
-  equipmentId: string[];
-  stages?: string[];
-  methods?: string[];
-}
+type ResolutionFinding = Awaited<
+  ReturnType<typeof checklistAppService.getFindingForChecklistResult>
+>;
+
+type ResolutionGateState = {
+  itemId: string;
+  sourceSessionNumber: number;
+  sourceResult: ChecklistItemResult;
+  finding: ResolutionFinding;
+  loading: boolean;
+};
 
 export function ChecklistFullScreenModal({
   isOpen,
@@ -43,6 +47,7 @@ export function ChecklistFullScreenModal({
   equipmentId = [],
   stages,
   methods,
+  sessionId,
 }: ChecklistFullScreenModalProps) {
   const { isDark } = useTheme();
   const { user } = useAuth();
@@ -55,6 +60,11 @@ export function ChecklistFullScreenModal({
   const [results, setResults] = useState<Map<string, ChecklistItemResult>>(
     new Map(),
   );
+  const [inheritedResults, setInheritedResults] = useState<
+    Map<string, InheritedChecklistResult>
+  >(new Map());
+  const [resolutionGate, setResolutionGate] =
+    useState<ResolutionGateState | null>(null);
   const [activeTab, setActiveTab] = useState<"ALL" | string>("ALL");
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [activeComment, setActiveComment] = useState("");
@@ -67,9 +77,15 @@ export function ChecklistFullScreenModal({
   const [photosByItem, setPhotosByItem] = useState<
     Map<string, InspectionPhoto[]>
   >(new Map());
-  const [uploadingPhotos, setUploadingPhotos] = useState<Set<string>>(
-    new Set(),
-  );
+  const [pendingPhotos, setPendingPhotos] = useState<
+    Map<string, { file: File; previewUrl: string }[]>
+  >(new Map());
+  // In-page photo preview (lightbox) — replaces window.open
+  const [photoPreview, setPhotoPreview] = useState<{
+    url: string;
+    name: string;
+    status?: string;
+  } | null>(null);
   const fileInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
 
   // ✅ لیست تمام equipmentها برای تب‌ها
@@ -104,46 +120,71 @@ export function ChecklistFullScreenModal({
     }
   };
 
-  const loadSavedResults = async () => {
+  const loadSessionContext = async () => {
     try {
-      const saved = await checklistAppService.getSavedResults(requestId);
+      const ctx = await checklistAppService.getChecklistSessionContext({
+        requestId,
+        sessionId,
+        equipmentId,
+        stages,
+        methods,
+      });
+
+      // 1) This session's own results always win.
       const map = new Map<string, ChecklistItemResult>();
-      saved.forEach((r) => map.set(r.item_id, r));
+      ctx.currentResults.forEach((r) => map.set(r.item_id, r));
+
       setResults(map);
+      setInheritedResults(
+        new Map(
+          ctx.inherited
+            .filter(({ result }) => !map.has(result.item_id))
+            .map((inherited) => [inherited.result.item_id, inherited]),
+        ),
+      );
     } catch (err) {
-      console.error("Failed to load saved results:", err);
+      console.error("Failed to load session checklist context:", err);
+    }
+  };
+
+  const loadAllPhotos = async () => {
+    try {
+      const photos = await checklistAppService.getPhotosByRequestId(requestId);
+      const map = new Map<string, InspectionPhoto[]>();
+      photos.forEach((photo) => {
+        const current = map.get(photo.checklist_item_id) || [];
+        current.push(photo);
+        map.set(photo.checklist_item_id, current);
+      });
+      setPhotosByItem(map);
+    } catch (err: any) {
+      console.error("Failed to load all photos:", err);
     }
   };
 
   useEffect(() => {
     if (isOpen) {
       loadAll();
-      loadSavedResults();
+      loadSessionContext();
+      loadAllPhotos();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, requestId, sessionId, equipmentId, stages, methods]);
+
+  // Clear the lightbox when the modal closes
+  useEffect(() => {
+    if (!isOpen) setPhotoPreview(null);
   }, [isOpen]);
 
-  const activeItemData = (() => {
-    if (!activeItemId) return null;
-    for (const { eqId, data } of allData) {
-      for (const group of data.groups) {
-        const item = group.items.find((i) => i.id === activeItemId);
-        if (item) return { item, eqId, method: group.method };
-      }
-    }
-    return null;
-  })();
-
-  const flatItemList = useMemo(() => {
-    return allData.flatMap(({ eqId, data }) =>
-      data.groups.flatMap((group) =>
-        group.items.map((item) => ({
-          id: item.id,
-          eqId,
-          method: group.method,
-        })),
-      ),
-    );
-  }, [allData]);
+  // Close the lightbox with the Escape key
+  useEffect(() => {
+    if (!photoPreview) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPhotoPreview(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [photoPreview]);
 
   const handleStatusChange = (
     itemId: string,
@@ -156,6 +197,8 @@ export function ChecklistFullScreenModal({
       const next = new Map(prev);
       next.set(itemId, {
         item_id: itemId,
+        request_id: requestId,
+        session_id: sessionId,
         equipment_id: eqId,
         inspection_method: method,
         status,
@@ -167,21 +210,63 @@ export function ChecklistFullScreenModal({
     });
   };
 
-  const navigateItem = (direction: "next" | "prev") => {
-    if (!activeItemId || flatItemList.length === 0) return;
-    const currentIndex = flatItemList.findIndex((i) => i.id === activeItemId);
-    if (currentIndex === -1) return;
+  const handleInheritedStatusChange = async (
+    inherited: InheritedChecklistResult,
+    itemId: string,
+    eqId: string,
+    method: string,
+    targetStatus: ChecklistItemStatus,
+  ) => {
+    const decision = checklistAppService.evaluateInheritedTransition(
+      inherited.result.status,
+      targetStatus,
+    );
 
-    const newIndex =
-      direction === "next"
-        ? Math.min(currentIndex + 1, flatItemList.length - 1)
-        : Math.max(currentIndex - 1, 0);
+    if (decision.kind === "LOCKED" || decision.kind === "BLOCKED") {
+      showToast("warning", "Result Locked", decision.reason);
+      return;
+    }
 
-    const nextItem = flatItemList[newIndex];
-    setActiveItemId(nextItem.id);
+    if (decision.kind === "REQUIRES_RESOLUTION") {
+      setResolutionGate({
+        itemId,
+        sourceSessionNumber: inherited.sourceSessionNumber,
+        sourceResult: inherited.result,
+        finding: null,
+        loading: true,
+      });
+      try {
+        const finding = await checklistAppService.getFindingForChecklistResult(
+          requestId,
+          inherited.result,
+        );
+        setResolutionGate((current) =>
+          current?.itemId === itemId
+            ? { ...current, finding, loading: false }
+            : current,
+        );
+      } catch (err: any) {
+        setResolutionGate((current) =>
+          current?.itemId === itemId
+            ? { ...current, finding: null, loading: false }
+            : current,
+        );
+        showToast(
+          "error",
+          "Finding Load Failed",
+          err.message || "Could not load the previous finding",
+        );
+      }
+      return;
+    }
 
-    const existingResult = results.get(nextItem.id);
-    setActiveComment(existingResult?.comment || "");
+    handleStatusChange(
+      itemId,
+      eqId,
+      method,
+      targetStatus,
+      inherited.result.comment,
+    );
   };
 
   const handleItemSelect = (itemId: string) => {
@@ -271,66 +356,18 @@ export function ChecklistFullScreenModal({
     }
   };
 
-  const handlePhotoUpload = async (
-    itemId: string,
-    eqId: string,
-    method: string,
-    file: File,
-  ) => {
-    const result = results.get(itemId);
-    const status = result?.status || "PENDING";
-
-    // Map N/A to PENDING for photo status
-    const photoStatus =
-      status === "N/A"
-        ? "PENDING"
-        : (status as "PENDING" | "PASS" | "REJECT" | "NOTE" | "HOLD");
-
-    setUploadingPhotos((prev) => new Set(prev).add(itemId));
-
-    try {
-      const photo = await checklistAppService.uploadInspectionPhoto({
-        requestId,
-        equipmentId: eqId,
-        checklistItemId: itemId,
-        file,
-        status: photoStatus,
-        description: result?.comment || `${method} - ${status}`,
-        uploadedBy: user?.id || "unknown",
-      });
-
-      // Update photos list
-      setPhotosByItem((prev) => {
-        const next = new Map(prev);
-        const current = next.get(itemId) || [];
-        next.set(itemId, [...current, photo]);
-        return next;
-      });
-
-      showToast("success", "Photo Uploaded", "Photo saved successfully");
-    } catch (err: any) {
-      console.error("Failed to upload photo:", err);
-      showToast(
-        "error",
-        "Upload Failed",
-        err.message || "Could not upload photo",
-      );
-    } finally {
-      setUploadingPhotos((prev) => {
-        const next = new Set(prev);
-        next.delete(itemId);
-        return next;
-      });
-    }
-  };
-
-  const loadPhotosForItem = async (itemId: string) => {
-    try {
-      const photos = await checklistAppService.getPhotosByChecklistItem(itemId);
-      setPhotosByItem((prev) => new Map(prev).set(itemId, photos));
-    } catch (err: any) {
-      console.error("Failed to load photos:", err);
-    }
+  /**
+   * Select a photo for deferred upload.
+   * Only shows a preview in the UI - actual upload happens on Submit.
+   */
+  const handlePhotoSelect = (itemId: string, file: File) => {
+    const previewUrl = URL.createObjectURL(file);
+    setPendingPhotos((prev) => {
+      const next = new Map(prev);
+      const current = next.get(itemId) || [];
+      next.set(itemId, [...current, { file, previewUrl }]);
+      return next;
+    });
   };
 
   const handleSubmit = async () => {
@@ -346,42 +383,117 @@ export function ChecklistFullScreenModal({
       return;
     }
     setSubmitting(true);
-    try {
-      const sessionMap = new Map<string, ChecklistItemResult[]>();
-      results.forEach((result) => {
-        const key = `${result.equipment_id}__${result.inspection_method}`;
-        if (!sessionMap.has(key)) sessionMap.set(key, []);
-        sessionMap.get(key)!.push(result);
-      });
 
-      for (const [key, sessionResults] of sessionMap.entries()) {
-        const [eq_id, insp_method] = key.split("__");
-        await checklistAppService.saveResults({
-          id: `${requestId}_${eq_id}_${insp_method}`,
-          request_id: requestId,
-          equipment_id: eq_id,
-          inspection_method: insp_method,
-          results: sessionResults,
-          total_items: sessionResults.length,
-          completed_items: sessionResults.filter((r) => r.status !== "PENDING")
-            .length,
-          status: "SUBMITTED",
-          created_by: user?.id || "unknown",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+    // استخراج داده‌ها قبل از بستن مودال
+    const sessionResults = new Map(results);
+    const pending = new Map(pendingPhotos);
+    const allDataSnapshot = allData;
+
+    // بستن فوری مودال
+    onClose();
+
+    // انجام عملیات در پس‌زمینه
+    void (async () => {
+      try {
+        // ۱. ذخیره نتایج چک‌لیست
+        const sessionMap = new Map<string, ChecklistItemResult[]>();
+        sessionResults.forEach((result) => {
+          const key = `${result.equipment_id}__${result.inspection_method}`;
+          if (!sessionMap.has(key)) sessionMap.set(key, []);
+          sessionMap.get(key)!.push(result);
         });
+
+        // یافتن eqId و method برای هر item (برای آپلود عکس)
+        const itemMeta = new Map<
+          string,
+          { eqId: string; method: string; checklistText?: string }
+        >();
+        allDataSnapshot.forEach(({ eqId, data }) => {
+          data.groups.forEach((group) => {
+            group.items.forEach((item) => {
+              itemMeta.set(item.id, {
+                eqId,
+                method: group.method,
+                checklistText: item.checklist_text,
+              });
+            });
+          });
+        });
+
+        for (const [key, sessionResultsList] of sessionMap.entries()) {
+          const [eq_id, insp_method] = key.split("__");
+          await checklistAppService.saveResults({
+            id: `${requestId}_${eq_id}_${insp_method}`,
+            session_id: sessionId,
+            request_id: requestId,
+            equipment_id: eq_id,
+            inspection_method: insp_method,
+            results: sessionResultsList.map((r) => ({
+              ...r,
+              checklist_text:
+                itemMeta.get(r.item_id)?.checklistText || r.checklist_text,
+            })),
+            total_items: sessionResultsList.length,
+            completed_items: sessionResultsList.filter(
+              (r) => r.status !== "PENDING",
+            ).length,
+            status: "SUBMITTED",
+            created_by: user?.id || "unknown",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
+
+        // ۲. آپلود عکس‌های pending در پس‌زمینه
+        for (const [itemId, photos] of pending.entries()) {
+          const meta = itemMeta.get(itemId);
+          const result = sessionResults.get(itemId);
+          const status = result?.status || ("PENDING" as ChecklistItemStatus);
+          const photoStatus =
+            status === "N/A"
+              ? "PENDING"
+              : (status as string as
+                  | "PENDING"
+                  | "PASS"
+                  | "REJECT"
+                  | "NOTE"
+                  | "HOLD");
+
+          for (const { file } of photos) {
+            try {
+              await checklistAppService.uploadInspectionPhoto({
+                requestId,
+                equipmentId: meta?.eqId || equipmentId[0],
+                checklistItemId: itemId,
+                file,
+                status: photoStatus,
+                description:
+                  result?.comment ||
+                  `${meta?.method || "Checklist"} - ${status}`,
+                uploadedBy: user?.id || "unknown",
+              });
+            } catch (err: any) {
+              console.error(`Failed to upload photo for item ${itemId}:`, err);
+            }
+          }
+
+          // آزادسازی URLهای پیش‌نمایش
+          photos.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl));
+        }
+
+        showToast("success", "Submitted", "Checklist submitted successfully");
+      } catch (err: any) {
+        console.error("Background submit failed:", err);
+        showToast(
+          "error",
+          "Submit Failed",
+          err.message || "Could not submit checklist",
+        );
+      } finally {
+        setSubmitting(false);
+        setPendingPhotos(new Map());
       }
-      showToast("success", "Submitted", "Checklist submitted successfully");
-      onClose();
-    } catch (err: any) {
-      showToast(
-        "error",
-        "Submit Failed",
-        err.message || "Could not submit checklist",
-      );
-    } finally {
-      setSubmitting(false);
-    }
+    })();
   };
 
   const filteredGroups = useMemo(() => {
@@ -422,10 +534,6 @@ export function ChecklistFullScreenModal({
   );
 
   const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
-
-  const activeResult = activeItemId ? results.get(activeItemId) : undefined;
-  const activeStatus = (activeResult?.status ??
-    "PENDING") as ChecklistItemStatus;
 
   const modalFooter = (
     <div className="flex items-center justify-between w-full">
@@ -566,134 +674,6 @@ export function ChecklistFullScreenModal({
             })}
           </div>
         </div>
-
-        {activeItemData && (
-          <div
-            className={`px-4 py-3 border-t ${isDark ? "border-slate-800 bg-indigo-950/30" : "border-slate-200 bg-indigo-50/50"}`}
-          >
-            <div className="flex flex-col xl:flex-row gap-3 items-start xl:items-center">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <Badge tone="indigo" className="text-[10px]">
-                    {activeItemData.eqId}
-                  </Badge>
-                  <span
-                    className={`text-[10px] uppercase font-bold tracking-wider ${isDark ? "text-indigo-400" : "text-indigo-600"}`}
-                  >
-                    {activeItemData.method}
-                  </span>
-                </div>
-                <p
-                  className={`text-xs font-medium leading-snug ${isDark ? "text-slate-100" : "text-slate-900"}`}
-                >
-                  <span
-                    className={`font-bold ${isDark ? "text-indigo-400" : "text-indigo-600"}`}
-                  >
-                    {activeItemData.item.sequence}.
-                  </span>{" "}
-                  {activeItemData.item.checklist_text}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                {(
-                  ["PASS", "REJECT", "NOTE", "N/A"] as ChecklistItemStatus[]
-                ).map((s) => {
-                  const sMeta = getStatusMetadata(s);
-                  const isActive = activeStatus === s;
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => {
-                        handleStatusChange(
-                          activeItemData.item.id,
-                          activeItemData.eqId,
-                          activeItemData.method,
-                          s,
-                          s === "PASS" ? undefined : activeComment,
-                        );
-                        if (s !== "PASS" && s !== "N/A") {
-                          // فوکوس روی کامنت
-                        } else {
-                          setActiveComment("");
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
-                        isActive
-                          ? `text-white shadow-md scale-105`
-                          : isDark
-                            ? "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                            : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                      }`}
-                      style={isActive ? { backgroundColor: sMeta.color } : {}}
-                    >
-                      <span className="text-sm">{sMeta.icon}</span>{" "}
-                      {sMeta.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div
-                className={`flex items-center gap-1 shrink-0 border-l pl-3 ml-2 ${isDark ? "border-slate-700" : "border-slate-300"}`}
-              >
-                <button
-                  onClick={() => navigateItem("prev")}
-                  className={`p-1.5 rounded ${isDark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-slate-200 text-slate-600"}`}
-                  title="Previous Item"
-                >
-                  ↑
-                </button>
-                <button
-                  onClick={() => navigateItem("next")}
-                  className={`p-1.5 rounded ${isDark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-slate-200 text-slate-600"}`}
-                  title="Next Item"
-                >
-                  ↓
-                </button>
-              </div>
-            </div>
-
-            {activeStatus !== "PASS" && activeStatus !== "N/A" && (
-              <div className="mt-2">
-                <input
-                  type="text"
-                  value={activeComment}
-                  onChange={(e) => setActiveComment(e.target.value)}
-                  onBlur={() => {
-                    const statusStr = activeStatus as string;
-                    if (statusStr !== "PASS" && statusStr !== "N/A") {
-                      handleStatusChange(
-                        activeItemData.item.id,
-                        activeItemData.eqId,
-                        activeItemData.method,
-                        activeStatus,
-                        activeComment,
-                      );
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const statusStr = activeStatus as string;
-                      if (statusStr !== "PASS" && statusStr !== "N/A") {
-                        handleStatusChange(
-                          activeItemData.item.id,
-                          activeItemData.eqId,
-                          activeItemData.method,
-                          activeStatus,
-                          activeComment,
-                        );
-                      }
-                    }
-                  }}
-                  placeholder="Add observation, Non-Conformity detail, or note here... (Auto-saves on blur or Enter)"
-                  className={`w-full text-xs px-3 py-2 rounded-lg border ${isDark ? "bg-slate-900 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                  autoFocus
-                />
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="flex-1 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/50">
@@ -702,11 +682,17 @@ export function ChecklistFullScreenModal({
             <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : filteredGroups.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-center">
+          <div className="flex flex-col items-center justify-center h-64 text-center px-6">
+            <div className="text-3xl mb-2">📭</div>
             <p
-              className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}
+              className={`text-sm font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}
             >
               No items found for this selection.
+            </p>
+            <p
+              className={`text-[10px] mt-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}
+            >
+              Try a different equipment, stage or method.
             </p>
           </div>
         ) : (
@@ -722,40 +708,47 @@ export function ChecklistFullScreenModal({
                   key={idx}
                   className={`rounded-xl border overflow-hidden ${isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}
                 >
-                  {activeTab === "ALL" && (
-                    <div
-                      className={`px-4 py-2 border-b flex items-center justify-between ${isDark ? "bg-slate-800/50 border-slate-800" : "bg-slate-50 border-slate-200"}`}
-                    >
+                  <div
+                    className={`px-4 py-2 border-b flex items-center justify-between ${
+                      activeTab === "ALL"
+                        ? isDark
+                          ? "bg-slate-800/50 border-slate-800"
+                          : "bg-slate-50 border-slate-200"
+                        : isDark
+                          ? "bg-indigo-900/30 border-indigo-800"
+                          : "bg-indigo-50 border-indigo-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
                       <h3
-                        className={`text-xs font-bold uppercase tracking-wider ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                        className={`text-xs font-bold uppercase tracking-wider truncate ${
+                          activeTab === "ALL"
+                            ? isDark
+                              ? "text-slate-300"
+                              : "text-slate-700"
+                            : isDark
+                              ? "text-indigo-300"
+                              : "text-indigo-700"
+                        }`}
                       >
                         {getMethodMetadata(group.groupName).icon}{" "}
                         {group.groupName}
                       </h3>
-                      <Badge tone="slate" className="text-[10px]">
-                        {groupCompleted}/{group.items.length}
-                      </Badge>
                     </div>
-                  )}
-
-                  {activeTab !== "ALL" && (
-                    <div
-                      className={`px-4 py-2 border-b flex items-center justify-between ${isDark ? "bg-indigo-900/30 border-indigo-800" : "bg-indigo-50 border-indigo-200"}`}
+                    <Badge
+                      tone={activeTab === "ALL" ? "slate" : "indigo"}
+                      className="text-[10px] shrink-0"
                     >
-                      <h3
-                        className={`text-xs font-bold uppercase tracking-wider ${isDark ? "text-indigo-300" : "text-indigo-700"}`}
-                      >
-                        📦 Equipment: {activeTab}
-                      </h3>
-                      <Badge tone="indigo" className="text-[10px]">
-                        {groupCompleted}/{group.items.length} completed
-                      </Badge>
-                    </div>
-                  )}
+                      {groupCompleted}/{group.items.length}
+                      {activeTab !== "ALL" ? " completed" : ""}
+                    </Badge>
+                  </div>
 
                   <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {group.items.map((item) => {
-                      const result = results.get(item.id);
+                      const currentResult = results.get(item.id);
+                      const inherited = inheritedResults.get(item.id);
+                      const result = currentResult || inherited?.result;
                       const status = result?.status || "PENDING";
                       const config = getStatusMetadata(status);
                       const isActive = activeItemId === item.id;
@@ -765,6 +758,12 @@ export function ChecklistFullScreenModal({
                         NonConformitySeverity.get(item.id) || "MINOR";
                       const isNonConformitySubmitting =
                         NonConformitySubmitting.has(item.id);
+                      const sourceSession = inherited?.sourceSessionNumber;
+                      const isHistoricalInherited = Boolean(
+                        inherited && !currentResult,
+                      );
+                      const isLockedInherited =
+                        !currentResult && inherited?.locked === true;
 
                       return (
                         <div
@@ -772,13 +771,17 @@ export function ChecklistFullScreenModal({
                           id={`checklist-item-${item.id}`}
                           onClick={() => handleItemSelect(item.id)}
                           className={`p-3 transition-all cursor-pointer ${
-                            isActive
+                            isLockedInherited
                               ? isDark
-                                ? "bg-indigo-900/20 ring-1 ring-indigo-500/50"
-                                : "bg-indigo-50 ring-1 ring-indigo-200"
-                              : isDark
-                                ? "hover:bg-slate-800/50"
-                                : "hover:bg-slate-50"
+                                ? "bg-slate-900/60 opacity-80"
+                                : "bg-slate-50 opacity-80"
+                              : isActive
+                                ? isDark
+                                  ? "bg-indigo-900/20 ring-1 ring-indigo-500/50"
+                                  : "bg-indigo-50 ring-1 ring-indigo-200"
+                                : isDark
+                                  ? "hover:bg-slate-800/50"
+                                  : "hover:bg-slate-50"
                           }`}
                         >
                           <div className="flex items-start gap-3">
@@ -798,6 +801,25 @@ export function ChecklistFullScreenModal({
                                 </span>{" "}
                                 {item.checklist_text}
                               </p>
+
+                              {/* Inherited-from-previous-session indicator */}
+                              {sourceSession && (
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                  <span
+                                    className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded font-semibold ${isDark ? "bg-indigo-900/40 text-indigo-300" : "bg-indigo-100 text-indigo-700"}`}
+                                    title="Loaded from a previous session because item, method and stage match"
+                                  >
+                                    ↩️ Session #{sourceSession}
+                                  </span>
+                                  {isLockedInherited && (
+                                    <span
+                                      className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded font-semibold ${isDark ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-100 text-emerald-700"}`}
+                                    >
+                                      Locked approved result
+                                    </span>
+                                  )}
+                                </div>
+                              )}
 
                               {result?.comment &&
                                 status !== "PASS" &&
@@ -840,6 +862,7 @@ export function ChecklistFullScreenModal({
                                         );
                                       }}
                                       onClick={(e) => e.stopPropagation()}
+                                      disabled={isHistoricalInherited}
                                       className={`text-xs px-2 py-2 rounded border ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-red-500`}
                                     >
                                       <option value="MINOR">Minor</option>
@@ -871,6 +894,7 @@ export function ChecklistFullScreenModal({
                                         }
                                       }}
                                       onClick={(e) => e.stopPropagation()}
+                                      disabled={isHistoricalInherited}
                                       placeholder="Enter NonConformity description..."
                                       className={`w-full text-xs px-3 py-2 rounded-lg border mb-0 ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-red-500`}
                                     />
@@ -882,6 +906,7 @@ export function ChecklistFullScreenModal({
                                         handleNonConformitySubmit(item.id);
                                       }}
                                       disabled={
+                                        isHistoricalInherited ||
                                         isNonConformitySubmitting ||
                                         !result?.comment
                                       }
@@ -944,6 +969,7 @@ export function ChecklistFullScreenModal({
                                       }
                                     }}
                                     onClick={(e) => e.stopPropagation()}
+                                    disabled={isHistoricalInherited}
                                     placeholder="Enter observation details (auto-saved on blur/Enter)..."
                                     className={`w-full text-xs px-3 py-2 rounded-lg border mt-1 ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-blue-500`}
                                   />
@@ -965,20 +991,14 @@ export function ChecklistFullScreenModal({
                                         .get(item.id)
                                         ?.click();
                                     }}
-                                    disabled={uploadingPhotos.has(item.id)}
                                     className={`text-[10px] px-2 py-1 rounded border transition-all ${
-                                      uploadingPhotos.has(item.id)
-                                        ? isDark
-                                          ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                                        : isDark
-                                          ? "bg-indigo-900/30 border-indigo-700 text-indigo-400 hover:bg-indigo-900/50"
-                                          : "bg-indigo-50 border-indigo-200 text-indigo-600 hover:bg-indigo-100"
+                                      isDark
+                                        ? "bg-indigo-900/30 border-indigo-700 text-indigo-400 hover:bg-indigo-900/50"
+                                        : "bg-indigo-50 border-indigo-200 text-indigo-600 hover:bg-indigo-100"
                                     }`}
+                                    disabled={isHistoricalInherited}
                                   >
-                                    {uploadingPhotos.has(item.id)
-                                      ? "⏳ Uploading..."
-                                      : "➕ Upload Photo"}
+                                    ➕ Add Photo
                                   </button>
                                   <input
                                     ref={(el) => {
@@ -991,12 +1011,7 @@ export function ChecklistFullScreenModal({
                                       e.stopPropagation();
                                       const file = e.target.files?.[0];
                                       if (file) {
-                                        handlePhotoUpload(
-                                          item.id,
-                                          group.eqId,
-                                          group.groupName,
-                                          file,
-                                        );
+                                        handlePhotoSelect(item.id, file);
                                       }
                                       e.target.value = "";
                                     }}
@@ -1004,6 +1019,39 @@ export function ChecklistFullScreenModal({
                                     className="hidden"
                                   />
                                 </div>
+
+                                {/* Display pending photos (deferred upload) */}
+                                {pendingPhotos.get(item.id) &&
+                                  pendingPhotos.get(item.id)!.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                      {pendingPhotos
+                                        .get(item.id)!
+                                        .map((pending, pIdx) => (
+                                          <div
+                                            key={`pending-${pIdx}`}
+                                            className={`relative w-10 h-10 rounded-lg overflow-hidden border-2 border-dashed border-blue-400 cursor-zoom-in bg-blue-50 dark:bg-blue-950/40 transition-transform hover:scale-105`}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setPhotoPreview({
+                                                url: pending.previewUrl,
+                                                name: `Pending ${pIdx + 1}`,
+                                                status: "NEW",
+                                              });
+                                            }}
+                                            title="Click to preview"
+                                          >
+                                            <img
+                                              src={pending.previewUrl}
+                                              alt={`Pending ${pIdx + 1}`}
+                                              className="w-full h-full object-cover"
+                                            />
+                                            <div className="absolute bottom-0 left-0 right-0 px-0.5 py-px text-[7px] truncate bg-blue-600 text-white">
+                                              NEW
+                                            </div>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  )}
 
                                 {/* Display uploaded photos */}
                                 {photosByItem.get(item.id) &&
@@ -1014,7 +1062,7 @@ export function ChecklistFullScreenModal({
                                         .map((photo) => (
                                           <div
                                             key={photo.id}
-                                            className={`relative group w-16 h-16 rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                                            className={`relative group w-10 h-10 rounded-lg overflow-hidden border-2 cursor-zoom-in transition-all ${
                                               photo.status === "PASS"
                                                 ? "border-emerald-500"
                                                 : photo.status === "REJECT"
@@ -1025,11 +1073,13 @@ export function ChecklistFullScreenModal({
                                             } ${isDark ? "hover:opacity-80" : "hover:opacity-75"}`}
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              window.open(
-                                                photo.file_path,
-                                                "_blank",
-                                              );
+                                              setPhotoPreview({
+                                                url: photo.file_path,
+                                                name: photo.file_name,
+                                                status: photo.status,
+                                              });
                                             }}
+                                            title="Click to preview"
                                           >
                                             <img
                                               src={photo.file_path}
@@ -1037,7 +1087,7 @@ export function ChecklistFullScreenModal({
                                               className="w-full h-full object-cover"
                                             />
                                             <div
-                                              className={`absolute bottom-0 left-0 right-0 px-1 py-0.5 text-[8px] truncate ${
+                                              className={`absolute bottom-0 left-0 right-0 px-0.5 py-px text-[7px] truncate ${
                                                 photo.status === "PASS"
                                                   ? "bg-emerald-600"
                                                   : photo.status === "REJECT"
@@ -1072,7 +1122,18 @@ export function ChecklistFullScreenModal({
                                     key={s}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      if (isActiveStatus && s !== "PENDING") {
+                                      if (inherited && !currentResult) {
+                                        void handleInheritedStatusChange(
+                                          inherited,
+                                          item.id,
+                                          group.eqId,
+                                          group.groupName,
+                                          s,
+                                        );
+                                      } else if (
+                                        isActiveStatus &&
+                                        s !== "PENDING"
+                                      ) {
                                         setResults((prev) => {
                                           const n = new Map(prev);
                                           n.delete(item.id);
@@ -1088,19 +1149,22 @@ export function ChecklistFullScreenModal({
                                         );
                                       }
                                     }}
-                                    className={`w-7 h-7 rounded flex items-center justify-center text-[11px] font-bold transition-all ${
-                                      isActiveStatus
-                                        ? `text-white shadow-sm scale-110`
-                                        : isDark
-                                          ? "bg-slate-800 text-slate-500 hover:bg-slate-700"
-                                          : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                                    title={sMeta.label}
+                                    disabled={isLockedInherited}
+                                    className={`w-7 h-7 rounded flex items-center justify-center text-[11px] font-bold transition-all cursor-pointer ${
+                                      isLockedInherited
+                                        ? "cursor-not-allowed opacity-50"
+                                        : isActiveStatus
+                                          ? `text-white shadow-sm scale-110`
+                                          : isDark
+                                            ? "bg-slate-800 text-slate-500 hover:bg-slate-700"
+                                            : "bg-slate-100 text-slate-400 hover:bg-slate-200"
                                     }`}
                                     style={
                                       isActiveStatus
                                         ? { backgroundColor: sMeta.color }
                                         : {}
                                     }
-                                    title={sMeta.label}
                                   >
                                     {s === "PASS"
                                       ? "✓"
@@ -1124,6 +1188,125 @@ export function ChecklistFullScreenModal({
           </div>
         )}
       </div>
+
+      {resolutionGate && (
+        <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div
+            className={`w-full max-w-lg rounded-lg border shadow-2xl ${isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200"}`}
+          >
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+              <h3
+                className={`text-sm font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}
+              >
+                Previous finding must be resolved
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                This item was recorded as {resolutionGate.sourceResult.status}{" "}
+                in Session #{resolutionGate.sourceSessionNumber}. It cannot be
+                changed to PASS until the linked finding is formally closed.
+              </p>
+            </div>
+            <div className="p-5">
+              {resolutionGate.loading ? (
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <div className="w-4 h-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                  Loading linked finding...
+                </div>
+              ) : resolutionGate.finding ? (
+                <div
+                  className={`rounded-lg border p-4 ${isDark ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200"}`}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                      {resolutionGate.finding.type === "NCR"
+                        ? resolutionGate.finding.number
+                        : "Observation"}
+                    </span>
+                    <Badge tone="danger" className="text-[9px]">
+                      {resolutionGate.finding.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {resolutionGate.finding.title}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                    {resolutionGate.finding.description}
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                  No linked finding was found. The PASS transition remains
+                  blocked to protect inspection history.
+                </div>
+              )}
+              <p className="mt-4 text-[11px] text-slate-500">
+                Finding closure and checklist approval will be implemented as
+                one atomic workflow when the NCR/Observation resolution design
+                is finalized.
+              </p>
+            </div>
+            <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setResolutionGate(null)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-page photo preview (lightbox) */}
+      {photoPreview && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6"
+          onClick={() => setPhotoPreview(null)}
+        >
+          <div
+            className="relative max-w-[92vw] max-h-[88vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={photoPreview.url}
+              alt={photoPreview.name}
+              className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-2xl"
+            />
+            <div className="mt-3 flex items-center gap-2 max-w-full">
+              {photoPreview.status && (
+                <Badge
+                  tone={
+                    photoPreview.status === "PASS"
+                      ? "emerald"
+                      : photoPreview.status === "REJECT"
+                        ? "danger"
+                        : photoPreview.status === "NOTE" ||
+                            photoPreview.status === "NEW"
+                          ? "indigo"
+                          : "slate"
+                  }
+                  className="text-[10px] shrink-0"
+                >
+                  {photoPreview.status}
+                </Badge>
+              )}
+              <span
+                className={`text-[11px] truncate ${isDark ? "text-slate-300" : "text-slate-200"}`}
+              >
+                {photoPreview.name}
+              </span>
+            </div>
+            <button
+              onClick={() => setPhotoPreview(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white text-slate-900 font-bold shadow-lg flex items-center justify-center hover:bg-slate-200 transition-colors"
+              title="Close preview (Esc)"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

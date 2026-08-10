@@ -7,7 +7,10 @@ export interface ITPIRequestRepository {
   getById(id: string): Promise<TPIRequest | null>;
   create(data: any): Promise<TPIRequest>;
   update(id: string, data: any): Promise<TPIRequest>;
-  delete(id: string): Promise<void>;
+  softDelete(
+    id: string,
+    command: { deletedBy: string; reason: string; approvalId?: string },
+  ): Promise<void>;
 
   uploadFile(file: File, requestId: string): Promise<string>;
   createInspectionItems(requestId: string, items: any[]): Promise<void>;

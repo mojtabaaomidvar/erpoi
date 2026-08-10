@@ -24,7 +24,9 @@ export type InspectionStatus =
   | "CANCELLED";
 
 // ✅ وضعیت‌های جدول انتصابات بازرس (Inspector Assignments) - کاملاً جداگانه!
+// همچنین برای InspectionSession استفاده می‌شود
 export type InspectionExecutionStatus =
+  | "SCHEDULED"
   | "ASSIGNED"
   | "IN_PROGRESS"
   | "COMPLETED"
@@ -58,10 +60,10 @@ export interface BaseInspectionRequest {
   updated_at: string;
 }
 
-// ✅ این اینترفیس دقیقاً منطبق بر جدول tpi_inspector_assignments است
 export interface Inspection {
   id: string;
-  tpi_request_id: string; // ✅ نام صحیح ستون
+  tpi_request_id: string;
+  session_id?: string;
   inspector_id: string;
   assigned_by: string;
   assigned_at: string;
@@ -90,6 +92,8 @@ export interface Inspection {
 export interface DocumentReview {
   id: string;
   inspection_request_id: string;
+  /** Owning inspection session. Null/undefined identifies a legacy unassigned row. */
+  session_id?: string | null;
   document_type: string;
   document_name: string;
   document_url: string;

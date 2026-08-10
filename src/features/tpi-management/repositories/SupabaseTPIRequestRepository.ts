@@ -4,13 +4,15 @@ import { supabase } from "@shared/database/supabase";
 import { applyDepartmentFilter } from "@/shared/data-access/withDepartmentFilter";
 
 import type { TPIRequest } from "../domain/types";
+import type { ITPIRequestRepository } from "./ITPIRequestRepository";
 
-export class SupabaseTPIRequestRepository implements SupabaseTPIRequestRepository {
+export class SupabaseTPIRequestRepository implements ITPIRequestRepository {
   async getAll(): Promise<TPIRequest[]> {
     let query = supabase
       .schema("tpi")
       .from("tpi_requests")
       .select("*")
+      .eq("is_deleted", false)
       .order("created_at", { ascending: false });
 
     query = applyDepartmentFilter(query, "department");
@@ -25,7 +27,8 @@ export class SupabaseTPIRequestRepository implements SupabaseTPIRequestRepositor
       .schema("tpi")
       .from("tpi_requests")
       .select("*")
-      .eq("id", id);
+      .eq("id", id)
+      .eq("is_deleted", false);
 
     query = applyDepartmentFilter(query, "department");
 
@@ -40,6 +43,7 @@ export class SupabaseTPIRequestRepository implements SupabaseTPIRequestRepositor
       .from("tpi_requests")
       .select("*")
       .eq("project_id", projectId)
+      .eq("is_deleted", false)
       .order("created_at", { ascending: false });
 
     query = applyDepartmentFilter(query, "department");
@@ -86,14 +90,30 @@ export class SupabaseTPIRequestRepository implements SupabaseTPIRequestRepositor
     return updatedRecord as TPIRequest;
   }
 
-  async delete(id: string): Promise<void> {
-    const { error } = await supabase
+  async softDelete(
+    id: string,
+    command: { deletedBy: string; reason: string; approvalId?: string },
+  ): Promise<void> {
+    const { data, error } = await supabase
       .schema("tpi")
       .from("tpi_requests")
-      .delete()
-      .eq("id", id);
+      .update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        deleted_by: command.deletedBy,
+        deletion_reason: command.reason,
+        deletion_approval_id: command.approvalId || null,
+        status: "CANCELLED",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("is_deleted", false)
+      .select("id");
 
     if (error) throw new Error(error.message);
+    if (!data || data.length === 0) {
+      throw new Error("TPI package not found or already deleted");
+    }
   }
 
   async uploadFile(file: File, requestId: string): Promise<string> {

@@ -114,6 +114,11 @@ export interface TPIRequest extends BaseInspectionRequest {
   methods: string[];
 
   cancellation_reason?: TPICancellationReason;
+  is_deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+  deletion_reason?: string | null;
+  deletion_approval_id?: string | null;
 }
 
 // ═══════════════════════════════════════

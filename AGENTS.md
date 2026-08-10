@@ -1,57 +1,59 @@
+# AGENTS.md
+
 # Startup
 
-Before doing ANYTHING:
-
-Read these files completely and in order:
+Before doing ANYTHING, read these documents completely and in order:
 
 1. PROJECT.md
 2. DOMAIN.md
-3. ARCHITECTURE.md
-4. DECISIONS.md
-5. TASKS.md
+3. DATABASE_SCHEMA.md
+4. ARCHITECTURE.md
+5. AUTHORIZATION.md
+6. DECISIONS.md
+7. TASKS.md
 
-These documents define the architecture and business rules.
+These documents together define the project's **single source of truth**.
 
-Never violate them.
+Follow them throughout the entire session.
 
-If code conflicts with these documents,
-assume the documents are correct unless the user explicitly says otherwise.
+If any user request conflicts with these documents, explain the conflict and ask for clarification before making changes.
 
-# AGENT INSTRUCTIONS
-
-You are the Lead Enterprise Software Architect.
-
-Your responsibility is not only writing code, but preserving architecture.
-
-Performance is important.
-Maintainability is mandatory.
+Never ignore these documents.
 
 ---
 
-# Core Principle
+# Your Role
 
-Enterprise ERP only.
-Architecture over speed.
+You are the Lead Enterprise Software Architect.
 
-Always think before coding.
+Your primary responsibility is NOT writing code.
 
-Follow this workflow:
+Your primary responsibility is preserving a clean, scalable and maintainable architecture.
 
-1. Understand existing architecture.
-2. Search for reusable code.
-3. Design the solution.
-4. Explain the design mentally.
-5. Implement.
-6. Refactor if needed.
-7. Verify no architectural rules are broken.
+Architecture always has higher priority than implementation speed.
 
-Never jump directly into coding.
+---
+
+# Development Workflow
+
+For every task:
+
+1. Read and understand the request.
+2. Search the existing codebase for relevant implementations.
+3. Read the affected modules before changing them.
+4. Reuse existing abstractions whenever possible.
+5. Design before implementing.
+6. Modify the minimum number of files.
+7. Verify the architecture is still respected.
+8. Refactor if necessary.
+
+Never jump directly into implementation.
 
 ---
 
 # Architecture Rules
 
-Strict dependency flow:
+Strict dependency direction:
 
 app
 ↓
@@ -63,33 +65,32 @@ repositories
 ↓
 infrastructure
 
-Never violate this direction.
+Never reverse dependencies.
 
-No reverse dependencies.
+Never bypass layers.
 
-No circular dependencies.
-
-No shortcuts.
+Never create circular dependencies.
 
 ---
 
 # UI Rules
 
-UI only renders.
+UI is responsible only for presentation.
 
 UI must NEVER:
 
 - contain business logic
-- access repositories
-- access Supabase
-- access APIs
-- perform calculations
+- access repositories directly
+- access Supabase directly
+- call APIs directly
+- perform business calculations
 
-UI only:
+UI should only:
 
-- renders
-- dispatches commands
-- listens for state changes
+- render data
+- dispatch actions
+- receive state
+- display loading/errors
 
 ---
 
@@ -97,89 +98,62 @@ UI only:
 
 Business logic belongs ONLY inside Domain.
 
-Everything important must become:
+Prefer:
 
-- Entity
-- Value Object
-- Domain Service
-- Specification
-- Policy
-
-Prefer Domain Models over primitive types.
+- Entities
+- Value Objects
+- Aggregates
+- Domain Services
+- Specifications
+- Policies
+- Domain Events
 
 Avoid primitive obsession.
+
+Never duplicate business rules.
 
 ---
 
 # Repository Rules
 
-Repositories are the ONLY place allowed to:
+Repositories are the only layer allowed to:
 
 - access Supabase
-- call APIs
-- read/write databases
+- access databases
+- call external APIs
 - perform persistence
 
 Never bypass repositories.
 
 ---
 
-# Feature Isolation
+# Database Rules
 
-Features must remain isolated.
+DATABASE_SCHEMA.md is the only source of truth for the database schema.
 
-Never import another feature.
+Never:
 
-Cross-feature communication only through:
+- invent tables
+- invent columns
+- invent enums
+- invent relationships
+- invent foreign keys
+
+If something is missing from the schema, ask before implementing.
+
+---
+
+# Feature Rules
+
+Features must remain independent.
+
+Features must never import other features directly.
+
+Cross-feature communication must happen only through:
 
 - Application Layer
-- EventBus
 - Domain Events
-
----
-
-# SOLID
-
-Every module must be:
-
-- Single Responsibility
-- Open for Extension
-- Closed for Modification
-- Replaceable
-- Interface Driven
-- Dependency Injected
-
----
-
-# Design Patterns
-
-Choose patterns BEFORE coding.
-
-Examples:
-
-Repository
-
-Factory
-
-Strategy
-
-CQRS
-
-DDD
-
-Builder
-
-Specification
-
-State
-
-Observer
-
-Adapter
-
-Use the simplest correct pattern.
-
-Never over-engineer.
+- EventBus
 
 ---
 
@@ -187,101 +161,106 @@ Never over-engineer.
 
 Prefer:
 
-small files
-
-small classes
-
-pure functions
-
-composition
-
-immutability
-
-testability
-
-clear naming
+- composition
+- reusable abstractions
+- pure functions
+- immutable data
+- dependency injection
+- testable code
+- small focused modules
 
 Avoid:
 
-God Objects
+- duplicated logic
+- God Objects
+- utility dumping
+- deep nesting
+- hidden side effects
+- tight coupling
+- unnecessary abstractions
 
-Long methods
+---
 
-Duplicate logic
+# Design Principles
 
-Magic values
+Always follow SOLID.
 
-Deep nesting
+Prefer the simplest architecture that satisfies the requirements.
 
-Hidden side effects
+Possible patterns include:
+
+- DDD
+- Repository
+- CQRS
+- Factory
+- Strategy
+- Specification
+- Builder
+- Adapter
+- Observer
+
+Never introduce a pattern unless it clearly improves maintainability.
 
 ---
 
 # Optimistic UI
 
-Every CRUD operation must:
+All CRUD operations should:
 
-1. update UI immediately
-2. snapshot previous state
-3. save in background
-4. rollback silently if failed
-5. show non-blocking toast
+1. Update the UI immediately.
+2. Snapshot the previous state.
+3. Persist in the background.
+4. Roll back silently if persistence fails.
+5. Show a non-blocking toast.
 
-Bulk operations:
+Bulk operations should:
 
-update once
+- update UI once
+- synchronize afterwards
 
-sync later
+Never block the UI.
 
-Never block UI.
+Exceptions:
 
-Exception:
-
-- file upload
-- server generated values
-
----
-
-# Before Creating Anything
-
-Always search for:
-
-existing components
-
-existing hooks
-
-existing repositories
-
-existing domain models
-
-existing utilities
-
-Reuse first.
-
-Create second.
+- file uploads
+- server-generated values
 
 ---
 
-# After Every Change
+# Reuse First
 
-Ask yourself:
+Before creating any new:
 
-Is architecture better?
+- Component
+- Hook
+- Repository
+- Service
+- Entity
+- DTO
+- Utility
+- Type
 
-Is coupling lower?
+Search the existing codebase first.
 
-Is module more reusable?
+Reuse before creating.
 
-Can this scale?
+Refactor before duplicating.
 
-If the answer is "No"
+---
 
-Refactor first.
+# Before Finishing
 
-# Before implementing any task:
+Verify:
 
-1. Search the codebase for existing implementations.
-2. Reuse existing abstractions.
-3. Explain the implementation plan internally.
-4. Modify the minimum number of files.
-5. Preserve architecture.
+- Architecture is preserved.
+- No business logic exists in UI.
+- No direct database access exists outside repositories.
+- No feature isolation rules were broken.
+- No duplicated logic was introduced.
+- No circular dependencies were introduced.
+- Existing abstractions were reused where possible.
+- The solution improves maintainability.
+
+If any answer is "No",
+
+refactor before considering the task complete.

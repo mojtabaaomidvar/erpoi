@@ -34,6 +34,10 @@ export type EventType =
   | "inspection.completed"
   | "inspection.cancelled"
   | "inspection.deleted"
+  | "inspection.session.deleted"
+  | "tpi.package.deletion.requested"
+  | "tpi.package.deletion.approved"
+  | "tpi.package.deletion.rejected"
 
   // NCR Events
   | "ncr.raised"
@@ -301,6 +305,10 @@ export const EVENT_TYPES = {
   INSPECTION_COMPLETED: "inspection.completed" as const,
   INSPECTION_CANCELLED: "inspection.cancelled" as const,
   INSPECTION_DELETED: "inspection.deleted" as const,
+  INSPECTION_SESSION_DELETED: "inspection.session.deleted" as const,
+  TPI_PACKAGE_DELETION_REQUESTED: "tpi.package.deletion.requested" as const,
+  TPI_PACKAGE_DELETION_APPROVED: "tpi.package.deletion.approved" as const,
+  TPI_PACKAGE_DELETION_REJECTED: "tpi.package.deletion.rejected" as const,
 
   // NCR
   NCR_RAISED: "ncr.raised" as const,

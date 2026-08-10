@@ -190,7 +190,8 @@ export const INSPECTION_EXECUTION_STATUS_CONFIG: Record<
   InspectionExecutionStatus,
   { label: string; color: string; icon: string }
 > = {
-  ASSIGNED: { label: "Assigned", color: "blue", icon: "👷" }, // ✅ اضافه شد
+  SCHEDULED: { label: "Scheduled", color: "indigo", icon: "📅" },
+  ASSIGNED: { label: "Assigned", color: "indigo", icon: "👷" }, // ✅ اضافه شد
   IN_PROGRESS: { label: "In Progress", color: "indigo", icon: "🔄" },
   COMPLETED: { label: "Completed", color: "emerald", icon: "✅" },
   CANCELLED: { label: "Cancelled", color: "rose", icon: "🚫" },

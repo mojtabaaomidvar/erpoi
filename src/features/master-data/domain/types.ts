@@ -14,7 +14,8 @@ export type ApprovalFieldType =
   | "MWS_INSPECTION_METHOD"
   | "MWS_CANCELLATION_REASON"
   | "MWS_REPORT_TYPE"
-  | "MWS_DOCUMENT_TYPE";
+  | "MWS_DOCUMENT_TYPE"
+  | "TPI_PACKAGE_DELETION";
 
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -29,5 +30,9 @@ export interface PendingApproval {
   reviewed_at?: string;
   rejection_reason?: string;
   final_value?: string;
+  request_type?: "MASTER_DATA_VALUE" | "ENTITY_DELETION";
+  entity_type?: "TPI_PACKAGE" | string;
+  entity_id?: string;
+  request_payload?: Record<string, unknown>;
   created_at: string;
 }

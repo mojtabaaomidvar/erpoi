@@ -1,0 +1,98 @@
+# ==========================================
+# .clineignore — ICS ERP Project
+# جلوگیری از خوندن غیرضروری فایل‌ها توسط Cline
+# برای کاهش مصرف توکن و افزایش سرعت پاسخ
+# ==========================================
+
+# --- Dependencies & Build Output ---
+node_modules/
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+coverage/
+
+# --- Package manager locks (حجیم و به‌ندرت نیاز به خوندن) ---
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# --- Environment & Secrets (هرگز نباید به مدل فرستاده بشه) ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+**/secrets/**
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# --- Git ---
+.git/
+.gitignore
+
+# --- Data files حجیم (Taxonomy، Checklist، Seed data) ---
+# این فایل‌ها معمولاً هزاران ردیف دارن؛ اگه Agent نیاز به نمونه داره،
+# خودت یه sample کوچیک جدا بساز و بجاش اون رو بده
+**/data/equipment-taxonomy*.json
+**/data/checklist-templates*.json
+**/data/*seed*.json
+**/data/*denormalized*.csv
+**/data/*denormalized*.json
+**/*.xlsx
+**/*.xls
+
+# --- Database files محلی ---
+*.sqlite
+*.sqlite3
+*.db
+**/dexie-data/**
+
+# --- FastAPI backend (اگه جدا از کار فرانت هست) ---
+**/__pycache__/
+*.pyc
+.venv/
+venv/
+alembic/versions/*.py.bak
+
+# --- Supabase generated / migration artifacts حجیم ---
+supabase/.branches/
+supabase/.temp/
+**/migrations/*.sql.bak
+
+# --- Test artifacts & snapshots ---
+**/__snapshots__/
+.nyc_output/
+playwright-report/
+test-results/
+
+# --- Media / Assets حجیم ---
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.svg
+**/*.mp4
+**/*.pdf
+!**/public/logo*
+
+# --- Persian/Farsi documentation exports (اگه جدا نگه‌داری می‌شن) ---
+**/docs/exports/**
+
+# --- Misc caches ---
+.cache/
+.turbo/
+.eslintcache

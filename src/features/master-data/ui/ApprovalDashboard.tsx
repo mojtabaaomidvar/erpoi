@@ -6,6 +6,8 @@ import { showToast } from "@shared/ui/ToastContainer";
 import { approvalAppService } from "../application/ApprovalApplicationService";
 import { formatJalaliDate } from "@/shared/utils/dateUtils";
 import type { PendingApproval } from "../domain/types";
+import { tpiDeletionWorkflowAppService } from "@/processes/tpi-deletion";
+import { AlertTriangle, Database, PackageX } from "lucide-react";
 
 type TabType = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -27,6 +29,8 @@ export function ApprovalDashboard() {
     useState<PendingApproval | null>(null);
   const [finalValue, setFinalValue] = useState("");
   const [isApproving, setIsApproving] = useState(false);
+  const [confirmingDeletion, setConfirmingDeletion] =
+    useState<PendingApproval | null>(null);
 
   // State های رد کردن
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -64,6 +68,10 @@ export function ApprovalDashboard() {
   }, [activeTab]);
 
   const openApproveModal = (approval: PendingApproval) => {
+    if (approval.request_type === "ENTITY_DELETION") {
+      setConfirmingDeletion(approval);
+      return;
+    }
     setEditingApproval(approval);
     setFinalValue(approval.proposed_value || "");
   };
@@ -94,6 +102,29 @@ export function ApprovalDashboard() {
     }
   };
 
+  const handleConfirmPackageDeletion = async () => {
+    if (!confirmingDeletion || !user) return;
+    setIsApproving(true);
+    try {
+      await tpiDeletionWorkflowAppService.approvePackageDeletion({
+        approvalId: confirmingDeletion.id,
+        reviewedBy: user.id,
+        reviewerRole: user.role,
+      });
+      showToast(
+        "success",
+        "Package Deleted",
+        "The TPI package was soft-deleted and its evidence was preserved",
+      );
+      setConfirmingDeletion(null);
+      await loadAllData();
+    } catch (err: any) {
+      showToast("error", "Deletion Failed", err.message);
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
   const handleReject = async (approvalId: string) => {
     if (!rejectionReason.trim()) {
       showToast(
@@ -104,11 +135,21 @@ export function ApprovalDashboard() {
       return;
     }
     try {
-      await approvalAppService.reject(
-        approvalId,
-        user?.id || "",
-        rejectionReason,
-      );
+      const approval = approvals.find((item) => item.id === approvalId);
+      if (approval?.request_type === "ENTITY_DELETION") {
+        await tpiDeletionWorkflowAppService.rejectPackageDeletion({
+          approvalId,
+          reviewedBy: user?.id || "",
+          reviewerRole: user?.role || "",
+          reason: rejectionReason,
+        });
+      } else {
+        await approvalAppService.reject(
+          approvalId,
+          user?.id || "",
+          rejectionReason,
+        );
+      }
       showToast("success", "Rejected", "Request has been rejected");
       setRejectingId(null);
       setRejectionReason("");
@@ -131,7 +172,7 @@ export function ApprovalDashboard() {
         <h2
           className={`text-lg font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}
         >
-          📋 Master Data Approvals
+          Approvals
         </h2>
         <div
           className={`flex gap-1 p-1 rounded-xl ${isDark ? "bg-slate-800" : "bg-slate-100"}`}
@@ -211,7 +252,9 @@ export function ApprovalDashboard() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <Badge tone="amber" className="text-[9px]">
-                      {approval.field_type}
+                      {approval.request_type === "ENTITY_DELETION"
+                        ? "TPI PACKAGE DELETION"
+                        : approval.field_type}
                     </Badge>
                     <Badge
                       tone={
@@ -232,11 +275,25 @@ export function ApprovalDashboard() {
                   <h3
                     className={`text-sm font-bold mb-1 ${isDark ? "text-slate-100" : "text-slate-900"}`}
                   >
-                    📝{" "}
-                    {approval.status === "APPROVED"
-                      ? approval.final_value || approval.proposed_value
-                      : approval.proposed_value}
+                    {approval.request_type === "ENTITY_DELETION" ? (
+                      <span className="inline-flex items-center gap-2">
+                        <PackageX className="h-4 w-4" aria-hidden="true" />
+                        Package {approval.entity_id || "Unknown"}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-2">
+                        <Database className="h-4 w-4" aria-hidden="true" />
+                        {approval.status === "APPROVED"
+                          ? approval.final_value || approval.proposed_value
+                          : approval.proposed_value}
+                      </span>
+                    )}
                   </h3>
+                  {approval.request_type === "ENTITY_DELETION" && (
+                    <p className="mb-2 text-xs text-slate-600 dark:text-slate-300">
+                      Reason: {approval.proposed_value}
+                    </p>
+                  )}
                   <p className="text-[11px] text-slate-500">
                     👤 Requested by: {approval.requested_by}
                   </p>
@@ -351,7 +408,9 @@ export function ApprovalDashboard() {
                         size="sm"
                         onClick={() => openApproveModal(approval)}
                       >
-                        ✓ Review & Approve
+                        {approval.request_type === "ENTITY_DELETION"
+                          ? "Review Deletion"
+                          : "Review & Approve"}
                       </Button>
                       <Button
                         variant="outline"
@@ -422,6 +481,55 @@ export function ApprovalDashboard() {
                 disabled={isApproving || !finalValue.trim()}
               >
                 {isApproving ? "⏳ Approving..." : "✅ Confirm & Add to System"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {confirmingDeletion && (
+        <Modal
+          isOpen={!!confirmingDeletion}
+          onClose={() => setConfirmingDeletion(null)}
+          title="Approve TPI Package Deletion"
+          size="md"
+          closeOnBackdrop={!isApproving}
+          closeOnEscape={!isApproving}
+        >
+          <div className="space-y-4 p-4">
+            <div className="flex gap-3 rounded-md border border-rose-300 bg-rose-50 p-3 text-rose-900 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-200">
+              <AlertTriangle
+                className="mt-0.5 h-5 w-5 shrink-0"
+                aria-hidden="true"
+              />
+              <p className="text-sm leading-5">
+                Approval hides the complete TPI package from operational views.
+                Sessions, checklists, documents, assignments and audit history
+                are preserved.
+              </p>
+            </div>
+            <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-sm">
+              <dt className="text-slate-500">Package</dt>
+              <dd className="font-medium">{confirmingDeletion.entity_id}</dd>
+              <dt className="text-slate-500">Requested by</dt>
+              <dd>{confirmingDeletion.requested_by}</dd>
+              <dt className="text-slate-500">Reason</dt>
+              <dd>{confirmingDeletion.proposed_value}</dd>
+            </dl>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => setConfirmingDeletion(null)}
+                disabled={isApproving}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleConfirmPackageDeletion}
+                disabled={isApproving}
+              >
+                <PackageX className="h-4 w-4" aria-hidden="true" />
+                {isApproving ? "Approving..." : "Approve Deletion"}
               </Button>
             </div>
           </div>

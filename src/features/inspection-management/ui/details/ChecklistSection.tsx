@@ -5,12 +5,14 @@ import { Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { checklistAppService } from "../../application/ChecklistApplicationService";
 import { ChecklistFullScreenModal } from "./ChecklistFullScreenModal";
+import { InspectionPhotosGallery } from "./InspectionPhotosGallery";
 
 interface ChecklistSectionProps {
   requestId: string;
   equipmentId: string[];
   stages?: string[];
   methods?: string[];
+  sessionId?: string;
 }
 
 export function ChecklistSection({
@@ -18,6 +20,7 @@ export function ChecklistSection({
   equipmentId = [],
   stages,
   methods,
+  sessionId,
 }: ChecklistSectionProps) {
   const { isDark } = useTheme();
   const [isFullScreenOpen, setIsFullScreenOpen] = useState(false);
@@ -152,6 +155,15 @@ export function ChecklistSection({
         >
           Checklist Deatils
         </Button>
+
+        {/* Inspection Photos Gallery - visible outside the modal */}
+        <div className="mt-4">
+          <InspectionPhotosGallery
+            requestId={requestId}
+            equipmentId={equipmentId}
+            title="📸 Inspection Photos"
+          />
+        </div>
       </div>
 
       {isFullScreenOpen && (
@@ -162,6 +174,7 @@ export function ChecklistSection({
           equipmentId={equipmentId}
           stages={stages}
           methods={methods}
+          sessionId={sessionId}
         />
       )}
     </>

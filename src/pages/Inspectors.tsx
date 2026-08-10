@@ -342,10 +342,6 @@ export function Inspectors() {
               setIsInspectionModalOpen(false);
               showToast("info", "Edit", "Edit functionality coming soon");
             }}
-            onDelete={async (req) => {
-              setIsInspectionModalOpen(false);
-              await refresh();
-            }}
           />
 
           {/* {/* ✅ در آینده وقتی ماژول MWS آماده شد، فقط این شرط را اضافه می‌کنید: 

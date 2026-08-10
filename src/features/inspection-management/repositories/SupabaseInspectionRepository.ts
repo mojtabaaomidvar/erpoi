@@ -6,6 +6,8 @@ import type { IInspectionRepository } from "./IInspectionRepository";
 export interface InspectorAssignment {
   id: string;
   tpi_request_id: string;
+  /** Inspection session this assignment belongs to (NULL = legacy date-linked row). */
+  session_id?: string;
   inspector_id: string;
   assigned_by: string;
   assigned_at: string;
@@ -53,10 +55,11 @@ export class SupabaseInspectionRepository implements IInspectionRepository {
     executionDate?: string,
     location?: string,
     vendorSite?: string,
+    sessionId?: string,
   ): Promise<InspectorAssignment> {
     const target = this.getTableTarget(category);
 
-    const newAssignment = {
+    const baseAssignment = {
       tpi_request_id: requestId,
       inspector_id: inspectorId,
       assigned_by: assignedBy,
@@ -66,13 +69,26 @@ export class SupabaseInspectionRepository implements IInspectionRepository {
       status: "ASSIGNED",
     };
 
-    const { data, error } = await supabase
-      .schema(target.schema)
-      .from(target.assignmentsTable)
-      .insert(newAssignment)
-      .select()
-      .single();
+    // Try inserting with session_id; if the column does not exist yet,
+    // retry without it so the assignment still succeeds (legacy behavior).
+    const insert = async (withSessionId: boolean) => {
+      const payload = withSessionId
+        ? { ...baseAssignment, session_id: sessionId || null }
+        : baseAssignment;
+      return supabase
+        .schema(target.schema)
+        .from(target.assignmentsTable)
+        .insert(payload as any)
+        .select()
+        .single();
+    };
 
+    let result = await insert(true);
+    if (result.error && /session_id/.test(result.error.message)) {
+      result = await insert(false);
+    }
+
+    const { data, error } = result;
     if (error) throw new Error(`Failed to assign inspector: ${error.message}`);
 
     // به‌روزرسانی status درخواست اصلی به IN_PROGRESS (اگر اولین انتصاب است)

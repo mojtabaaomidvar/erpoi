@@ -12,6 +12,7 @@ export const inspectionAppService = new InspectionApplicationService(
 export * from "./InspectionRequestApplicationService";
 export * from "./InspectionApplicationService";
 export * from "./DocumentReviewApplicationService";
+export * from "./InspectionSessionApplicationService";
 
 // DTOs
 export * from "./dto/CreateInspectionRequestCommand";

@@ -1,0 +1,76 @@
+# .continuerules — ICS Offshore & Energy ERP Project
+
+## About this project
+
+This is an internal ERP/inspection-management system for the Offshore & Energy
+Department of Iranian Classification Society (ICS). It manages Third-Party
+Inspection (TPI), Marine Warranty Survey (MWS), and Third-Party Engineering
+Review (TPER) workflows: contracts, inspectors, checklists, equipment records,
+and certification.
+
+## Tech stack
+
+- Frontend: React + TypeScript, Feature-Sliced Design (FSD) architecture
+- Local storage: Dexie / IndexedDB (with in-memory cache for sync method compatibility)
+- Backend: FastAPI (Python), async SQLAlchemy ORM, Alembic migrations
+- Data layer: Supabase (equipment taxonomy: 15 disciplines, ~80 categories, ~1,000 items)
+- Checklist system: 13 fixed inspection methods (Pre-Inspection Meeting, Document
+  Review, Visual Inspection, Dimensional Inspection, Marking/ID Verification,
+  Functional Verification, Performance Verification, Quantity, Sampling, NDT,
+  PMI, Laboratory Test, Hydrostatic Test)
+
+## Coding conventions
+
+- Follow existing Feature-Sliced Design boundaries (app / pages / widgets /
+  features / entities / shared). Do not add cross-layer imports that violate FSD.
+- Avoid introducing new `any` types. The codebase already has a known technical-debt
+  backlog of `any` usages — do not add to it. Prefer explicit interfaces/types.
+- Do not create new monolithic "God Components." If a component would exceed
+  ~200-300 lines, propose splitting it before writing it.
+- There are currently three conflicting `PermissionGuard` implementations in the
+  codebase. Before touching permission logic, ask which one is canonical rather
+  than assuming or creating a fourth.
+- Many FSD directories are empty scaffolding, not yet implemented. Don't assume a
+  directory is unused just because it looks sparse — check for re-exports first.
+- React Router is not fully implemented yet. Don't assume routing conventions
+  exist unless you've verified them in the current code.
+
+## Working style
+
+- Before large refactors, briefly outline the plan and wait for confirmation
+  rather than making sweeping multi-file changes in one pass.
+- Prefer minimal, targeted diffs over rewriting whole files, unless a rewrite
+  was explicitly requested.
+- When unsure whether a change affects the Supabase schema or FastAPI backend
+  contracts, ask before modifying — this is a full-stack system and frontend
+  changes can silently break backend assumptions (e.g. equipment ID types).
+- Client-facing and professional deliverables (docs, comments in shared code)
+  should be in English. Internal notes and commit messages can be in Persian
+  or English — match whatever style is already in the surrounding file.
+
+## Authorization / permissions work
+
+Before creating, modifying, or reviewing anything under
+`shared/authorization/ui/elements/`, or anything that checks user access,
+read `AUTHORIZATION.md` in full.
+
+Gate Principle (summary — see AUTHORIZATION.md for the full test and
+examples): do not create a new permission element unless there is a real
+scenario where a user holds the parent permission but must be blocked from
+this specific child. If access is already meaningfully decided by a parent
+element (e.g. an "add" action gate), do not fragment further underneath it.
+Financial figures, destructive actions, and cross-entity visibility usually
+DO need their own element; form fields and buttons inside an already-gated
+flow usually do NOT.
+
+## What NOT to touch without explicit confirmation
+
+- Do not modify equipment taxonomy data, checklist templates, or seed data files.
+- Do not run destructive database migrations or drop/alter Supabase tables.
+- Do not change `.env` files or expose secrets in code or logs.
+- Do not delete the ~150 empty FSD scaffold directories without asking — some
+  may be intentional placeholders for planned features.
+
+# AGENTS.md
+
+Read AGENTS.md completely and follow every instruction in it for the entire session. Treat all referenced documents as the project's source of truth.
