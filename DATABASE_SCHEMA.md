@@ -155,26 +155,30 @@ Core inspection data and results.
   - `deleted_at`, `deleted_by`, `deletion_reason`: Immutable deletion audit metadata
   - `created_at`, `updated_at`: Timestamps
 
-- `observations`: Inspection observations
+- `observations`: Inspection observations represented as package findings
   - `id`: Primary key
-  - `request_id`: Reference to inspection request
-  - `equipment_id`: Reference to equipment
-  - `inspection_method`: Method of inspection
-  - `checklist_item_id`: Reference to checklist item
-  - `checklist_text`: Original checklist text
-  - `observation_text`: Detailed observation
-  - `category`: Observation category
+  - `request_id`, `session_id`: Owning TPI package and originating inspection session
+  - `equipment_id`, `inspection_method`, `checklist_item_id`, `checklist_text`: Checklist origin
+  - `title`, `observation_text`, `classification`, `category`: Finding description and classification
+  - `revision`, `status`, `location_found`, `evidence`, `photos`: Report and evidence data
+  - `document_references`: JSON array of document number, title, revision and clause/section
+  - `immediate_containment`, `corrective_action`, `target_completion_date`, `responsible_person`: Optional CAR data
+  - `verification`, `closeout_decision`, `closeout_note`, `closeout_date`: Optional close-out data
+  - `closed_by`, `closed_at`, `created_by`, `created_at`, `updated_at`: Audit metadata
 
-- `non_conformities`: Non-conformity reports
+- `non_conformities`: Non-conformity reports represented as package findings
   - `id`: Primary key
-  - `inspection_id`: Reference to inspection
-  - `ncr_number`: NCR number
-  - `title`, `description`: NCR details
-  - `severity`: Enum (MINOR, MAJOR, CRITICAL)
-  - `status`: Enum (OPEN, CORRECTIVE_ACTION, VERIFICATION, CLOSED)
-  - `location_found`: Where issue was found
-  - `photos`: Array of photo references
-  - `corrective_action`, `root_cause`, `preventive_action`: Resolution details
+  - `inspection_id`: Legacy inspection reference retained for compatibility
+  - `request_id`, `session_id`: Owning TPI package and originating inspection session
+  - `ncr_number`, `revision`: Independent NCR identity and form revision
+  - `equipment_id`, `inspection_method`, `checklist_item_id`, `checklist_text`: Checklist origin
+  - `title`, `description`, `severity`, `category`: Finding description and classification
+  - `location_found`, `evidence`, `photos`, `document_references`: Evidence and referenced specifications
+  - `immediate_containment`, `corrective_action`, `target_completion_date`, `responsible_person`: CAR workflow
+  - `root_cause`, `preventive_action`: Corrective/preventive analysis
+  - `verification`, `closeout_decision`, `closeout_note`, `closeout_date`: Verification and close-out
+  - `status`: OPEN, CORRECTIVE_ACTION, VERIFICATION, CLOSED, or REJECTED
+  - `closed_by`, `closed_at`, `created_by`, `created_at`, `updated_at`: Audit metadata
 
 - `certificates`: Inspection certificates
   - `id`: Primary key
@@ -212,7 +216,8 @@ Core inspection data and results.
 
 - `document_reviews`: Document review process
   - `id`: Primary key
-  - `inspection_request_id`: Reference to inspection request
+  - `inspection_request_id`: Nullable reference to a SPOT inspection request
+  - `resident_engagement_id`: Nullable reference to a Resident engagement; Resident creation documents reuse this table and the existing document storage infrastructure
   - `session_id`: Nullable reference to the inspection session that introduced the document; null identifies legacy unassigned documents
   - `document_type`: Enum (ITP, PROCEDURE, CERTIFICATE, etc.)
   - `document_name`, `document_url`: Document details
@@ -270,6 +275,140 @@ Third Party Inspection specific tables.
   - `created_at`, `updated_at`: Timestamps
 
 - `mws_inspector_assignments`: Inspector assignments for MWS requests (mirror of the TPI table in the `mws` schema)
+
+- `resident_engagements`: Resident Inspection engagements (root aggregate for the Resident bounded context)
+  - `id`: Primary key
+  - `project_id`: Reference to projects table (required)
+  - `client_id`: Reference to clients table
+  - `contract_id`: Reference to contracts table
+  - `department`, `title`, `scope_of_work`, `location`: Engagement description and scope
+  - `site_representative_id`: Reference to the selected `core.users` Site Representative
+  - `disciplines`: All active database-backed TPI discipline values, assigned automatically when the engagement is created
+  - `inspection_scope_ids`, `inspection_scopes`: Legacy scope arrays retained for compatibility; not collected by Resident creation
+  - `planned_start_date`, `planned_end_date`, `actual_start_date`, `actual_end_date`: Timeline (planned and actual)
+    - `status`: DRAFT, PLANNED, ACTIVE, COMPLETED, CANCELLED, SUSPENDED, or CLOSED
+  - `lead_inspector_id`: Reference to inspectors table
+  - `client_representative`, `notes`: Contact and notes
+  - `is_deleted`, `deleted_at`, `deleted_by`, `deletion_reason`: Soft-delete metadata
+  - `created_at`, `updated_at`, `created_by`: Audit metadata
+
+- `resident_assignments`: Inspector assignments to Resident engagements
+  - `id`: Primary key
+  - `resident_engagement_id`: Reference to resident_engagements
+  - `inspector_id`: Reference to inspectors table
+  - `planned_start_date`, `planned_end_date`, `actual_start_date`, `actual_end_date`: Assignment period
+  - `assignment_status`: ASSIGNED, ACTIVE, RELIEVED, COMPLETED, or CANCELLED
+  - `relief_reason`, `relieved_at`, `relieved_by`, `replaced_by_assignment_id`: Relief/replacement data
+  - `notes`, `created_at`, `updated_at`, `created_by`: Metadata
+  - Unique: (resident_engagement_id, inspector_id, planned_start_date)
+
+- `resident_activities`: Daily operational activities log for engagements
+  - `id`: Primary key
+  - `resident_engagement_id`: Reference to resident_engagements
+  - `activity_date`: Date of activity
+  - `activity_type`: ROUTINE_INSPECTION, SURVEILLANCE, WITNESS_POINT, HOLD_POINT, DOCUMENT_REVIEW, MEETING, SITE_WALK, ITP_MONITORING, QUALITY_CHECK, or OTHER
+  - `title`, `description`, `location`: Activity details
+  - `activity_status`: PLANNED, IN_PROGRESS, COMPLETED, CANCELLED, or DEFERRED
+  - `result_outcome`, `deferral_reason`: Execution outcome
+  - `performed_by`: Lead inspector (FK to inspectors)
+  - `planned_start_time`, `planned_end_time`, `actual_start_time`, `actual_end_time`: Timing
+  - `linked_assignment_id`: Link to assignment (if applicable)
+  - `created_at`, `updated_at`, `created_by`: Metadata
+  - Unique: (resident_engagement_id, activity_date, title)
+
+- `resident_mandays`: Per-inspector daily record supporting timesheet and billing
+  - `id`: Primary key
+  - `resident_engagement_id`: Reference to resident_engagements
+  - `resident_assignment_id`: Reference to resident_assignments
+  - `work_date`: Date of work
+  - `day_of_week`: Day of week (0-6)
+  - `attendance_status`: PRESENT, ABSENT, LATE, LEAVE, SICK, or REMOTE
+  - `activity_type`: INSPECTION, SURVEILLANCE, MEETING, DOCUMENT_REVIEW, TRAVEL, TRAINING, or OTHER
+  - `hours_worked`, `overtime_hours`: Hours worked (0-24)
+  - `remarks`: Notes
+  - `is_billable`: Whether hours are billable
+  - `created_at`, `updated_at`, `created_by`: Metadata
+  - Unique: (resident_assignment_id, work_date)
+
+- `resident_lookahead_activities`: Planned future activities (lookahead window)
+  - `id`: Primary key
+  - `resident_engagement_id`: Reference to resident_engagements
+  - `title`, `description`: Activity description
+  - `planned_start_date`, `planned_end_date`: Planning window
+  - `priority`: 1-5 (1 highest)
+  - `lookahead_status`: PLANNED, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED, or DEFERRED
+  - `required_resources`: Notes on required resources
+  - `linked_activity_id`: Link to executed activity
+    - `notes`, `created_at`, `updated_at`, `created_by`: Metadata
+  - Unique: (resident_engagement_id, title, planned_start_date)
+
+- `resident_quality_issues`: Quality findings raised during a resident engagement
+  - `id`: Primary key
+  - `resident_engagement_id`: Reference to resident_engagements
+  - `resident_daily_activity_id`: Optional link to the daily activity that raised the issue
+  - `issue_number`: Independent issue number
+  - `title`, `description`: Issue details
+  - `severity`: MINOR, MAJOR, or CRITICAL
+  - `status`: OPEN, CORRECTIVE_ACTION, VERIFICATION, CLOSED, or REJECTED
+  - `location_found`, `vendor_or_equipment`: Finding context
+  - `raised_by`, `raised_date`: Raised by inspector on date
+  - `closed_by`, `closed_date`, `closed_notes`: Closure audit
+  - `created_at`, `updated_at`: Timestamps
+
+- `resident_corrective_actions`: Corrective actions responding to resident quality issues
+  - `id`: Primary key
+  - `resident_quality_issue_id`: Reference to resident_quality_issues
+  - `action_number`, `title`, `description`: Action details
+  - `responsible_party`: Who owns the action
+  - `planned_completion_date`, `actual_completion_date`: Completion timeline
+  - `status`: PENDING, IN_PROGRESS, SUBMITTED, ACCEPTED, REJECTED, or OVERDUE
+  - `verification_notes`, `verified_by`, `verified_at`: Verification audit
+  - `created_at`, `updated_at`: Timestamps
+
+- `resident_itp_monitoring`: ITP hold/witness/surveillance/review points tracked per engagement
+  - `id`: Primary key
+  - `resident_engagement_id`: Reference to resident_engagements
+  - `itp_reference`: Reference to the ITP document
+  - `activity_description`: Description of the monitored point
+  - `point_type`: HOLD, WITNESS, SURVEILLANCE, or REVIEW
+  - `planned_date`, `actual_date`: Planned and actual execution dates
+  - `status`: PENDING, SATISFIED, WAIVED, FAILED, or DEFERRED
+  - `inspected_by`: Reference to inspectors table
+  - `result_notes`, `documents_reviewed`: Result details and reviewed documents (array)
+  - `created_at`, `updated_at`: Timestamps
+
+- `resident_periodic_reports`: Periodic (daily/weekly/monthly/final) reports for resident engagements
+  - `id`: Primary key
+  - `resident_engagement_id`: Reference to resident_engagements
+  - `report_type`: DAILY, WEEKLY, MONTHLY, or FINAL
+  - `report_period_start`, `report_period_end`: Covered period
+  - `title`, `summary`: Report identity and summary
+  - `achievements`, `issues_and_challenges`, `recommendations`: Narrative sections
+  - `man_days_summary`, `quality_issues_summary`: Aggregated summaries
+  - `status`: DRAFT, SUBMITTED, APPROVED, or REJECTED
+  - `submitted_by`, `submitted_at`, `approved_by`, `approved_at`, `approval_notes`: Workflow audit
+  - `file_url`: Attached report file
+  - `created_at`, `updated_at`: Timestamps
+
+- `resident_closeouts`: Formal closeout phase for a resident engagement
+  - `id`: Primary key
+  - `resident_engagement_id`: Unique reference to resident_engagements
+  - `status`: NOT_STARTED, IN_PROGRESS, READY_FOR_REVIEW, APPROVED, or REJECTED
+  - `punch_list_items`: Punch list (array)
+  - `documentation_checklist`: Documentation handover checklist (JSONB)
+  - `final_report_id`: Reference to the FINAL resident_periodic_reports entry
+  - `lessons_learned`, `handover_notes`: Closeout narrative
+  - `prepared_by`, `prepared_at`, `reviewed_by`, `reviewed_at`, `approved_by`, `approved_at`, `approved_notes`: Workflow audit
+  - `created_at`, `updated_at`: Timestamps
+
+- `resident_activity_evidence`: File evidence (photos, documents) attached to daily resident activities
+  - `id`: Primary key
+  - `resident_daily_activity_id`: Reference to resident_activities
+  - `file_name`, `file_path`: File information
+  - `file_size`, `mime_type`: File metadata
+  - `description`: Evidence description
+  - `uploaded_by`: Reference to core.users table
+  - `created_at`: Timestamp
 
 ### 8. Master Data Schema (`master_data`)
 

@@ -5,8 +5,14 @@ import { Clock3, LockKeyhole } from "lucide-react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
+import { CardSkeleton } from "@shared/ui/skeletons";
+import { EmptyState } from "@shared/ui/EmptyState";
+import { Factory, Lock } from "lucide-react";
 import { INSPECTION_STATUS_CONFIG } from "@/features/inspection-management/constants";
-import type { TPIRequest, TPIMode } from "../domain/types";
+import type {
+  TPIEngagement,
+  TPIEngagementMode,
+} from "../domain/models/TPIEngagement";
 import { projectAppService } from "@/features/project-management";
 import type { Project } from "@/features/project-management/domain/types";
 import { vendorAppService } from "@/features/tpi-management/application/VendorApplicationService";
@@ -22,44 +28,44 @@ import {
 // ==========================================
 // Sub-Component: TPI Request Card
 // ==========================================
-interface TPIRequestCardProps {
-  request: TPIRequest;
+interface TPIEngagementCardProps {
+  engagement: TPIEngagement;
   clientName: string;
   projectName: string;
   vendorName: string;
   isDeletionPending: boolean;
-  onClick: (request: TPIRequest) => void;
+  onClick: (engagement: TPIEngagement) => void;
 }
 
-function TPIRequestCard({
-  request,
+function TPIEngagementCard({
+  engagement,
   clientName,
   projectName,
   vendorName,
   isDeletionPending,
   onClick,
-}: TPIRequestCardProps) {
+}: TPIEngagementCardProps) {
   const { isDark } = useTheme();
-  const isSpot = request.tpi_mode === "SPOT";
+  const isSpot = engagement.mode === "SPOT";
+  const record = isSpot ? engagement.request : engagement.engagement;
+  const status = record.status;
 
   // Safe type access for status config
   const statusConfig = (INSPECTION_STATUS_CONFIG as Record<string, any>)[
-    request.status
+    status
   ] ?? {
-    labelFa: request.status || "Unknown",
+    labelFa: status || "Unknown",
     color: "slate",
     icon: "❓",
   };
 
-  const firstStage =
-    Array.isArray(request.stages) && request.stages.length > 0
-      ? request.stages[0]
-      : "No Stage";
-  const inspectionTitle = `${clientName} - ${projectName} - ${vendorName} - ${firstStage}`;
+  const inspectionTitle = isSpot
+    ? `${clientName} - ${projectName} - ${vendorName} - ${engagement.request.stages?.[0] || "No Stage"}`
+    : `${clientName} - ${projectName} - ${engagement.engagement.title}`;
 
   return (
     <button
-      onClick={() => onClick(request)}
+      onClick={() => onClick(engagement)}
       aria-label={
         isDeletionPending
           ? `${inspectionTitle}. Deletion request pending; package locked.`
@@ -113,16 +119,28 @@ function TPIRequestCard({
         >
           <div className="flex items-start gap-2">
             <span className="shrink-0 mt-0.5">📅</span>
-            <span>{formatJalaliDate(request.inspection_date)}</span>
+            <span>
+              {formatJalaliDate(
+                isSpot
+                  ? engagement.request.inspection_date
+                  : engagement.engagement.planned_start_date,
+              )}
+            </span>
           </div>
 
           <div className="flex items-start gap-2">
             <span className="shrink-0 mt-0.5">🎯</span>
             <span
               className="truncate"
-              title={formatArrayField(request.disciplines)}
+              title={
+                isSpot
+                  ? formatArrayField(engagement.request.disciplines)
+                  : engagement.engagement.scope_of_work || "Resident scope"
+              }
             >
-              {formatArrayWithLimit(request.disciplines, 2)}
+              {isSpot
+                ? formatArrayWithLimit(engagement.request.disciplines, 2)
+                : engagement.engagement.scope_of_work || "Resident scope"}
             </span>
           </div>
 
@@ -130,9 +148,15 @@ function TPIRequestCard({
             <span className="shrink-0 mt-0.5">🔧</span>
             <span
               className="truncate text-[10px] opacity-80"
-              title={formatArrayField(request.methods)}
+              title={
+                isSpot
+                  ? formatArrayField(engagement.request.methods)
+                  : engagement.engagement.location || "No location"
+              }
             >
-              {formatArrayWithLimit(request.methods, 2)}
+              {isSpot
+                ? formatArrayWithLimit(engagement.request.methods, 2)
+                : engagement.engagement.location || "No location"}
             </span>
           </div>
 
@@ -196,25 +220,25 @@ function TPIRequestCardSkeleton({ isDark }: { isDark: boolean }) {
 // Main Component: TPI List
 // ==========================================
 interface TPIListProps {
-  tpiRequests: TPIRequest[];
+  engagements: TPIEngagement[];
   pendingDeletionPackageIds: ReadonlySet<string>;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  filterMode: TPIMode | "ALL";
-  setFilterMode: (mode: TPIMode | "ALL") => void;
-  onRequestClick: (request: TPIRequest) => void;
+  filterMode: TPIEngagementMode | "ALL";
+  setFilterMode: (mode: TPIEngagementMode | "ALL") => void;
+  onEngagementClick: (engagement: TPIEngagement) => void;
   onAddClick: () => void;
   loading?: boolean;
 }
 
 export function TPIList({
-  tpiRequests,
+  engagements,
   pendingDeletionPackageIds,
   searchQuery,
   setSearchQuery,
   filterMode,
   setFilterMode,
-  onRequestClick,
+  onEngagementClick,
   onAddClick,
   loading = false,
 }: TPIListProps) {
@@ -272,34 +296,55 @@ export function TPIList({
     return map;
   }, [vendors]);
 
-  const filteredRequests = useMemo(() => {
+  const filteredEngagements = useMemo(() => {
     const searchLower = searchQuery.toLowerCase();
-    return tpiRequests.filter((request) => {
+    return engagements.filter((engagement) => {
+      const searchable =
+        engagement.mode === "SPOT"
+          ? [
+              engagement.request.id,
+              formatArrayField(engagement.request.methods),
+              formatArrayField(engagement.request.disciplines),
+            ]
+          : [
+              engagement.engagement.id,
+              engagement.engagement.title,
+              engagement.engagement.scope_of_work,
+              engagement.engagement.location,
+            ];
       const matchesSearch =
         !searchQuery ||
-        formatArrayField(request.methods).toLowerCase().includes(searchLower) ||
-        formatArrayField(request.disciplines)
-          .toLowerCase()
-          .includes(searchLower) ||
-        (request.id || "").toLowerCase().includes(searchLower);
+        searchable.some((value) =>
+          (value || "").toLowerCase().includes(searchLower),
+        );
 
       const matchesMode =
-        filterMode === "ALL" || request.tpi_mode === filterMode;
+        filterMode === "ALL" || engagement.mode === filterMode;
       return matchesSearch && matchesMode;
     });
-  }, [tpiRequests, searchQuery, filterMode]);
+  }, [engagements, searchQuery, filterMode]);
 
   const stats = useMemo(() => {
-    return filteredRequests.reduce(
-      (acc, r) => {
+    return filteredEngagements.reduce(
+      (acc, engagement) => {
         acc.total++;
-        if (r.tpi_mode === "SPOT") acc.spot++;
-        else if (r.tpi_mode === "RESIDENT") acc.resident++;
+        if (engagement.mode === "SPOT") acc.spot++;
+        else acc.resident++;
 
-        if (r.status === "NEW" || r.status === "INSPECTOR_ASSIGNED")
+        const status =
+          engagement.mode === "SPOT"
+            ? engagement.request.status
+            : engagement.engagement.status;
+
+        if (["NEW", "DRAFT", "PLANNED", "INSPECTOR_ASSIGNED"].includes(status))
           acc.pending++;
         else if (
-          ["INSPECTION_COMPLETED", "REPORT_ISSUED", "CLOSED"].includes(r.status)
+          [
+            "INSPECTION_COMPLETED",
+            "REPORT_ISSUED",
+            "COMPLETED",
+            "CLOSED",
+          ].includes(status)
         )
           acc.completed++;
 
@@ -307,27 +352,16 @@ export function TPIList({
       },
       { spot: 0, resident: 0, pending: 0, completed: 0, total: 0 },
     );
-  }, [filteredRequests]);
+  }, [filteredEngagements]);
 
   if (!canViewList) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-        <div
-          className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
-        >
-          🔒
-        </div>
-        <p
-          className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
-        >
-          Access Denied
-        </p>
-        <p
-          className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
-        >
-          You do not have permission to view TPI requests.
-        </p>
-      </div>
+      <EmptyState
+        icon={Lock}
+        title="Access Denied"
+        description="You do not have permission to view TPI requests."
+        className="h-full min-h-[60vh]"
+      />
     );
   }
 
@@ -457,49 +491,48 @@ export function TPIList({
       <div className="flex-1 overflow-y-auto p-4">
         {loading || isRefDataLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <TPIRequestCardSkeleton key={i} isDark={isDark} />
+            {Array.from({ length: 6 }).map((_, i) => (
+              <CardSkeleton key={i} lines={4} showHeader />
             ))}
           </div>
-        ) : filteredRequests.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
-            >
-              🏭
-            </div>
-            <p
-              className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
-            >
-              No TPI requests found
-            </p>
-            <p
-              className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
-            >
-              Create your first TPI request to get started
-            </p>
-          </div>
+        ) : filteredEngagements.length === 0 ? (
+          <EmptyState
+            icon={Factory}
+            title="No TPI Requests Found"
+            description="Create your first TPI request to get started."
+            className="h-full min-h-[300px]"
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredRequests.map((request) => (
-              <TPIRequestCard
-                key={request.id}
-                request={request}
-                clientName={
-                  clientMap.get(request.client_id) || "Unknown Client"
-                }
-                projectName={
-                  projectMap.get(request.project_id) || "Unknown Project"
-                }
-                vendorName={
-                  request.vendor_id
-                    ? vendorMap.get(request.vendor_id) || "No Vendor"
-                    : "No Vendor"
-                }
-                isDeletionPending={pendingDeletionPackageIds.has(request.id)}
-                onClick={onRequestClick}
-              />
-            ))}
+            {filteredEngagements.map((engagement) => {
+              const record =
+                engagement.mode === "SPOT"
+                  ? engagement.request
+                  : engagement.engagement;
+              return (
+                <TPIEngagementCard
+                  key={`${engagement.mode}:${record.id}`}
+                  engagement={engagement}
+                  clientName={
+                    clientMap.get(record.client_id) || "Unknown Client"
+                  }
+                  projectName={
+                    projectMap.get(record.project_id) || "Unknown Project"
+                  }
+                  vendorName={
+                    engagement.mode === "SPOT" && engagement.request.vendor_id
+                      ? vendorMap.get(engagement.request.vendor_id) ||
+                        "No Vendor"
+                      : "No Vendor"
+                  }
+                  isDeletionPending={
+                    engagement.mode === "SPOT" &&
+                    pendingDeletionPackageIds.has(engagement.request.id)
+                  }
+                  onClick={onEngagementClick}
+                />
+              );
+            })}
           </div>
         )}
       </div>

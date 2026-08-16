@@ -91,7 +91,9 @@ export interface Inspection {
 
 export interface DocumentReview {
   id: string;
-  inspection_request_id: string;
+  inspection_request_id?: string | null;
+  /** Owning Resident inspection when this is an engagement-level document. */
+  resident_engagement_id?: string | null;
   /** Owning inspection session. Null/undefined identifies a legacy unassigned row. */
   session_id?: string | null;
   document_type: string;

@@ -1,7 +1,8 @@
 // src/features/tpi-management/ui/TPIRequestForm.tsx
 
 import { useState, useEffect, useMemo } from "react";
-import { Modal, Button } from "@design-system";
+import { Button } from "@design-system";
+import { Modal } from "@shared/ui/Modal";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
@@ -12,15 +13,10 @@ import { compareJalaliDates, getTodayJalali } from "@/shared/utils/dateUtils";
 import { tpiRequestAppService } from "../application";
 import { inspectionSessionAppService } from "@/features/inspection-management/application/InspectionSessionApplicationService";
 import { projectAppService } from "@/features/project-management";
-import { clientAppService } from "@/features/client-management/application";
-import { contractAppService } from "@/features/contract-management/application";
-import { userAppService } from "@/shared/authorization";
 import { VendorAutocomplete } from "./VendorAutocomplete";
 import type { Priority } from "@features/inspection-core/domain/types";
 import type { Project } from "@/features/project-management/domain/types";
-import type { Client } from "@/features/client-management/domain/models/Client";
-import type { Contract } from "@/features/contract-management/domain";
-import type { TPIRequest, TPIMode, SourceFileType } from "../domain/types";
+import type { TPIRequest, SourceFileType } from "../domain/types";
 import { EquipmentFreeSearch } from "./components/EquipmentFreeSearch";
 import { GroupedEquipmentSelect } from "./components/GroupedEquipmentSelect";
 import { equipmentAppService } from "../application/EquipmentApplicationService";
@@ -54,9 +50,7 @@ interface TPIFormData {
   project_id: string;
   client_id: string;
   contract_id: string;
-  tpi_mode: TPIMode;
   vendor_id: string;
-  site_representative_id: string;
   disciplines: string[];
   item_types: string[];
   equipment_type_id: string[];
@@ -71,9 +65,7 @@ const defaultFormData: TPIFormData = {
   project_id: "",
   client_id: "",
   contract_id: "",
-  tpi_mode: "SPOT",
   vendor_id: "",
-  site_representative_id: "",
   disciplines: [],
   item_types: [],
   equipment_type_id: [],
@@ -85,16 +77,6 @@ const defaultFormData: TPIFormData = {
 };
 
 const PRIORITY_OPTIONS: Priority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
-
-const SOURCE_FILE_TYPES: {
-  value: SourceFileType;
-  label: string;
-  icon: string;
-}[] = [
-  { value: "PACKING_LIST", label: "Packing List", icon: "📦" },
-  { value: "MTO", label: "MTO (Material Take-Off)", icon: "📋" },
-  { value: "Others", label: "Others Document", icon: "📄" },
-];
 
 export function TPIRequestForm({
   isOpen,
@@ -112,15 +94,12 @@ export function TPIRequestForm({
   const [formData, setFormData] = useState<TPIFormData>(defaultFormData);
 
   const [projects, setProjects] = useState<Project[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [contracts, setContracts] = useState<Contract[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
   const [sourceFiles, setSourceFiles] = useState<TempFile[]>([]);
 
   const [stages, setStages] = useState<SystemListItem[]>([]);
   const [methods, setMethods] = useState<SystemListItem[]>([]);
-  const [loadingStages, setLoadingStages] = useState(false);
-  const [loadingMethods, setLoadingMethods] = useState(false);
+  const loadingStages = false;
+  const loadingMethods = false;
 
   const [disciplineGroups, setDisciplineGroups] = useState<DisciplineGroup[]>(
     [],
@@ -190,25 +169,12 @@ export function TPIRequestForm({
 
   const loadData = async () => {
     try {
-      const [
-        projectsData,
-        clientsData,
-        contractsData,
-        usersData,
-        stagesData,
-        methodsData,
-      ] = await Promise.all([
+      const [projectsData, stagesData, methodsData] = await Promise.all([
         projectAppService.getAllProjects(),
-        clientAppService.getAll(),
-        contractAppService.getAll(),
-        userAppService.getAllUsers ? userAppService.getAllUsers() : [],
         masterDataAppService.getTPIInspectionStages(),
         masterDataAppService.getTPIInspectionMethods(),
       ]);
       setProjects(projectsData);
-      setClients(clientsData);
-      setContracts(contractsData);
-      setUsers(usersData || []);
       setStages(stagesData);
       setMethods(methodsData);
     } catch (err: any) {
@@ -225,9 +191,7 @@ export function TPIRequestForm({
           project_id: initialData.project_id || "",
           client_id: initialData.client_id || "",
           contract_id: initialData.contract_id || "",
-          tpi_mode: initialData.tpi_mode || "SPOT",
           vendor_id: initialData.vendor_id || "",
-          site_representative_id: initialData.site_representative_id || "",
           disciplines: Array.isArray((initialData as any).disciplines)
             ? (initialData as any).disciplines
             : [],
@@ -264,7 +228,6 @@ export function TPIRequestForm({
       client_id: "",
       contract_id: "",
       vendor_id: "",
-      site_representative_id: "",
     }));
   }, [formData.project_id]);
 
@@ -314,12 +277,8 @@ export function TPIRequestForm({
     const newErrors: any = {};
     if (currentStep === 1) {
       if (!formData.project_id) newErrors.project_id = "Project is required";
-      if (!formData.tpi_mode)
-        newErrors.tpi_mode = "Inspection mode is required";
-      if (formData.tpi_mode === "SPOT" && !formData.vendor_id)
+      if (!formData.vendor_id)
         newErrors.vendor_id = "Vendor is required for Spot Inspection";
-      if (formData.tpi_mode === "RESIDENT" && !formData.site_representative_id)
-        newErrors.site_representative_id = "Site Representative is required";
       if (formData.stages.length === 0)
         newErrors.stages = "At least one inspection stage is required";
     } else if (currentStep === 2) {
@@ -367,9 +326,8 @@ export function TPIRequestForm({
         project_id: formData.project_id,
         client_id: formData.client_id,
         contract_id: formData.contract_id,
-        tpi_mode: formData.tpi_mode,
+        tpi_mode: "SPOT" as const,
         vendor_id: formData.vendor_id || undefined,
-        site_representative_id: formData.site_representative_id || undefined,
         disciplines: formData.disciplines,
         item_types: formData.item_types,
         equipment_type_id: formData.equipment_type_id,
@@ -473,7 +431,7 @@ export function TPIRequestForm({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={initialData ? "Edit TPI Request" : "New TPI Request"}
+      title={initialData ? "Edit SPOT Inspection" : "New TPI Inspection"}
       size="xl"
     >
       <div className="flex flex-col" style={{ height: "calc(90vh - 120px)" }}>
@@ -493,7 +451,7 @@ export function TPIRequestForm({
                   className={`text-[10px] mt-1.5 font-medium text-center ${currentStep >= step ? (isDark ? "text-indigo-300" : "text-indigo-600") : "text-slate-500"}`}
                 >
                   {step === 1
-                    ? "Project & Mode"
+                    ? "Project & Vendor"
                     : step === 2
                       ? "Technical Scope"
                       : "Schedule & Docs"}
@@ -537,89 +495,18 @@ export function TPIRequestForm({
                 )}
               </div>
 
-              <div data-field="tpi_mode">
+              <div data-field="vendor_id">
                 <label className="block text-xs font-semibold mb-1.5 text-primary">
-                  Inspection Mode <span className="text-rose-500">*</span>
+                  Vendor <span className="text-rose-500">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["SPOT", "RESIDENT"] as TPIMode[]).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() =>
-                        updateFormData({
-                          tpi_mode: mode,
-                          vendor_id: "",
-                          site_representative_id: "",
-                        })
-                      }
-                      className={`py-2.5 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-2 ${
-                        formData.tpi_mode === mode
-                          ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
-                          : errors.tpi_mode
-                            ? "border-rose-500 ring-1 ring-rose-500 bg-rose-50/10"
-                            : isDark
-                              ? "bg-slate-800 border-slate-700 text-slate-400"
-                              : "bg-white border-slate-200 text-slate-600"
-                      }`}
-                    >
-                      <span>{mode === "SPOT" ? "📍" : "🏢"}</span>
-                      <span>
-                        {mode === "SPOT"
-                          ? "Spot Inspection"
-                          : "Resident Inspection"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                {errors.tpi_mode && (
-                  <p className="text-[11px] text-rose-600 mt-1.5">
-                    ✕ {errors.tpi_mode}
-                  </p>
-                )}
+                <VendorAutocomplete
+                  value={formData.vendor_id}
+                  onChange={(vendorId: string) =>
+                    updateFormData({ vendor_id: vendorId })
+                  }
+                  error={errors.vendor_id}
+                />
               </div>
-
-              {formData.tpi_mode === "SPOT" && (
-                <div data-field="vendor_id">
-                  <label className="block text-xs font-semibold mb-1.5 text-primary">
-                    Vendor <span className="text-rose-500">*</span>
-                  </label>
-                  <VendorAutocomplete
-                    value={formData.vendor_id}
-                    onChange={(vendorId: string) =>
-                      updateFormData({ vendor_id: vendorId })
-                    }
-                    error={errors.vendor_id}
-                  />
-                </div>
-              )}
-
-              {formData.tpi_mode === "RESIDENT" && (
-                <div data-field="site_representative_id">
-                  <label className="block text-xs font-semibold mb-1.5 text-primary">
-                    Site Representative <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={formData.site_representative_id}
-                    onChange={(e) =>
-                      updateFormData({ site_representative_id: e.target.value })
-                    }
-                    className={`w-full rounded-lg px-3 py-2.5 text-sm input-themed transition-colors ${errors.site_representative_id ? "border-rose-500 ring-1 ring-rose-500" : ""}`}
-                  >
-                    <option value="">-- Select Site Representative --</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name || u.username} ({u.email})
-                      </option>
-                    ))}
-                  </select>
-                  {errors.site_representative_id && (
-                    <p className="text-[11px] text-rose-600 mt-1.5">
-                      ✕ {errors.site_representative_id}
-                    </p>
-                  )}
-                </div>
-              )}
 
               <div data-field="stages">
                 <label className="block text-xs font-semibold mb-1.5 text-primary">

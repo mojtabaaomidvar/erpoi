@@ -65,21 +65,27 @@ const FIELD_TO_TABLE_MAPPING: Record<
     column: "document_type",
     isArray: false,
   },
+  // ═══════════════════════════════════════
+  // MWS — monitoring of work site; stored in the `mws` schema,
+  // NOT the legacy tpi.resident_inspections tables (deprecated).
+  // Per DOMAIN.md: master-data sync targets must reference the canonical
+  // columns on the owning aggregate.
+  // ═══════════════════════════════════════
   MWS_DISCIPLINE: {
-    schema: "tpi",
-    table: "resident_inspections",
+    schema: "mws",
+    table: "mws_requests",
     column: "disciplines",
     isArray: true,
   },
   MWS_INSPECTION_STAGE: {
-    schema: "tpi",
-    table: "resident_inspections",
+    schema: "mws",
+    table: "mws_requests",
     column: "stages",
     isArray: true,
   },
   MWS_INSPECTION_METHOD: {
-    schema: "tpi",
-    table: "resident_inspections",
+    schema: "mws",
+    table: "mws_requests",
     column: "methods",
     isArray: true,
   },
@@ -89,18 +95,11 @@ const FIELD_TO_TABLE_MAPPING: Record<
     column: "cancellation_reason",
     isArray: false,
   },
-  MWS_REPORT_TYPE: {
-    schema: "tpi",
-    table: "monthly_reports",
-    column: "report_type",
-    isArray: false,
-  },
-  MWS_DOCUMENT_TYPE: {
-    schema: "tpi",
-    table: "monthly_reports",
-    column: "document_type",
-    isArray: false,
-  },
+  // NOTE: MWS_REPORT_TYPE and MWS_DOCUMENT_TYPE previously pointed at
+  // tpi.monthly_reports (a resident-inspection artifact). Monthly reports
+  // belong to the Resident bounded context, not MWS; they have no canonical
+  // backing table for MWS and are intentionally unmapped here. They remain
+  // manageable via `master_data.system_lists` only.
 };
 
 interface DbRecord {

@@ -12,6 +12,7 @@ interface GroupedEquipmentSelectProps {
   disciplineGroups: DisciplineGroup[];
   isLoading: boolean;
   error?: string;
+  valueKey?: "name" | "id";
 }
 
 export function GroupedEquipmentSelect({
@@ -20,6 +21,7 @@ export function GroupedEquipmentSelect({
   disciplineGroups,
   isLoading,
   error,
+  valueKey = "name",
 }: GroupedEquipmentSelectProps) {
   const { isDark } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
@@ -44,18 +46,6 @@ export function GroupedEquipmentSelect({
 
   // ✅ آیا چند دیسیپلین انتخاب شده؟
   const showDisciplineHeaders = disciplineGroups.length > 1;
-
-  const handleToggleItem = (item: EquipmentItem) => {
-    const isSelected = value.includes(item.name);
-    const newValues = isSelected
-      ? value.filter((v) => v !== item.name)
-      : [...value, item.name];
-
-    // ✅ ارسال شناسه سیستمی (item.id یا item.equipment_id)
-    const selectedEquipmentId = !isSelected ? item.id : undefined;
-
-    onChange(newValues, selectedEquipmentId);
-  };
 
   useEffect(() => {
     if (disciplineGroups.length > 0) {
@@ -151,9 +141,21 @@ export function GroupedEquipmentSelect({
       .filter((dg) => dg.categories.length > 0);
   }, [disciplineGroups, searchQuery]);
 
+  const itemByValue = useMemo(() => {
+    const entries = disciplineGroups.flatMap((group) =>
+      group.categories.flatMap((category) =>
+        category.items.map(
+          (item) => [valueKey === "id" ? item.id : item.name, item] as const,
+        ),
+      ),
+    );
+    return new Map(entries);
+  }, [disciplineGroups, valueKey]);
+
   const handleSelect = (item: EquipmentItem) => {
-    if (!value.includes(item.name)) {
-      onChange([...value, item.name]);
+    const selectionValue = valueKey === "id" ? item.id : item.name;
+    if (!value.includes(selectionValue)) {
+      onChange([...value, selectionValue], item.id);
     }
     setSearchQuery("");
   };
@@ -183,7 +185,7 @@ export function GroupedEquipmentSelect({
                 : "bg-indigo-50 text-indigo-700"
             }`}
           >
-            {item}
+            {itemByValue.get(item)?.name || item}
             <button
               type="button"
               onClick={(e) => {
@@ -351,9 +353,10 @@ export function GroupedEquipmentSelect({
                               {isCategoryExpanded && (
                                 <div>
                                   {cat.items.map((item) => {
-                                    const isSelected = value.includes(
-                                      item.name,
-                                    );
+                                    const selectionValue =
+                                      valueKey === "id" ? item.id : item.name;
+                                    const isSelected =
+                                      value.includes(selectionValue);
                                     return (
                                       <button
                                         key={item.id}

@@ -1,11 +1,11 @@
 ﻿﻿// src/shared/authorization/hooks/usePermissionMapping.ts
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { supabase } from "@shared/database/supabase";
 import type { EntityType } from "../domain/models";
 import type { DBPermissionMapping, DBUIElement } from "@shared/database/types";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { getBasePermissions } from "../config/RoleBasePermissions";
+import { permissionMappingAppService } from "../index";
 
 import {
   checkDependenciesChain,
@@ -59,38 +59,29 @@ export function usePermissionMapping() {
   );
   const [loading, setLoading] = useState(true);
 
-  // ۳. بارگذاری تنظیمات دقیق (Granular) از دیتابیس
+  // ۳. بارگذاری تنظیمات دقیق (Granular) از طریق Application Service
   useEffect(() => {
     const loadFromDB = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .schema("core")
-          .from("permission_mappings")
-          .select("permission, allowed_elements, denied_elements, updated_at");
-
-        if (error) {
-          console.error(
-            "[usePermissionMapping] Failed to load mappings:",
-            error,
-          );
-          return;
-        }
+        const mappingsList = await permissionMappingAppService.getAll();
 
         const map = new Map<string, DBPermissionMapping>(
-          (data || []).map((m: any) => [
+          (mappingsList || []).map((m) => [
             m.permission,
             {
               permission: m.permission,
-              allowedElements: m.allowed_elements || [],
-              deniedElements: m.denied_elements || [],
-              updatedAt: m.updated_at,
+              allowedElements: m.allowedElements || [],
+              deniedElements: m.deniedElements || [],
+              updatedAt: m.updatedAt || "",
             },
           ]),
         );
         setMappings(map);
       } catch (error) {
-        console.error("[usePermissionMapping] Failed to load:", error);
+        console.error("[usePermissionMapping] Failed to load mappings:", error);
+        // Safe default: empty mappings instead of direct DB access
+        setMappings(new Map());
       } finally {
         setLoading(false);
       }

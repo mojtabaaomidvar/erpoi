@@ -138,27 +138,11 @@ export function FloatingSearch({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <div
-          className={`relative rounded-2xl shadow-2xl border backdrop-blur-xl overflow-hidden ${
-            isDark
-              ? "bg-slate-900/98 border-slate-700/70 shadow-black/70"
-              : "bg-white/98 border-slate-200/80 shadow-slate-400/40"
-          }`}
-        >
+        <div className="relative rounded-2xl shadow-2xl border backdrop-blur-xl overflow-hidden bg-[var(--color-card)] border-[var(--color-border)]">
           {/* Input */}
           <div className="relative p-4">
-            <div
-              className={`flex items-center gap-2 rounded-xl px-3 py-2.5 border transition-all ${
-                isDark
-                  ? "bg-slate-800/50 border-slate-700/50 focus-within:border-indigo-500/50 focus-within:bg-slate-800"
-                  : "bg-slate-50/70 border-slate-200/70 focus-within:border-indigo-400 focus-within:bg-white"
-              }`}
-            >
-              <span
-                className={`text-xl ${isDark ? "text-slate-400" : "text-slate-500"}`}
-              >
-                🔍
-              </span>
+            <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 border transition-all bg-[var(--color-surface)] border-[var(--color-border)] focus-within:border-[var(--color-accent-from)] focus-within:bg-[var(--color-surface-hover)]">
+              <span className="text-xl text-[var(--color-text-muted)]">🔍</span>
               <input
                 ref={inputRef}
                 type="text"
@@ -166,20 +150,12 @@ export function FloatingSearch({
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
-                className={`flex-1 bg-transparent text-sm outline-none ${
-                  isDark
-                    ? "text-slate-100 placeholder-slate-500"
-                    : "text-slate-900 placeholder-slate-400"
-                }`}
+                className="flex-1 bg-transparent text-sm outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
               />
               {localValue && (
                 <button
                   onClick={handleClear}
-                  className={`p-1 rounded-lg transition-all ${
-                    isDark
-                      ? "text-slate-400 hover:text-rose-400 hover:bg-rose-900/30"
-                      : "text-slate-500 hover:text-rose-600 hover:bg-rose-50"
-                  }`}
+                  className="p-1 rounded-lg transition-all text-[var(--color-text-muted)] hover:text-rose-500 hover:bg-rose-500/10"
                   title="Clear search"
                 >
                   ✕

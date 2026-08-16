@@ -5,6 +5,8 @@ import { useTheme } from "@app/providers/ThemeProvider";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
+import { EmptyState } from "@shared/ui/EmptyState";
+import { Lock } from "lucide-react";
 import { showToast } from "@shared/ui/ToastContainer";
 import { projectAppService } from "@/features/project-management";
 import { ProjectList } from "@features/project-management/ui/ProjectList";
@@ -228,23 +230,12 @@ export function Projects() {
   // Access Denied View
   if (!canViewItems) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div
-            className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
-          ></div>
-          <h2
-            className={`text-xl font-bold mb-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
-          >
-            Access Denied
-          </h2>
-          <p
-            className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}
-          >
-            You do not have permission to view the projects module.
-          </p>
-        </div>
-      </div>
+      <EmptyState
+        icon={Lock}
+        title="Access Denied"
+        description="You do not have permission to view the projects module."
+        className="min-h-[60vh]"
+      />
     );
   }
 

@@ -741,6 +741,18 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
+/* ============ BUTTON RIPPLE EFFECT ============ */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

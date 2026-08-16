@@ -2,7 +2,7 @@
 
 import { checklistRepository } from "../repositories/SupabaseChecklistRepository";
 import { checklistResultRepository } from "../repositories/ChecklistResultRepository";
-import { NonConformityRepository } from "../repositories/NonConformityRepository";
+import { findingAppService } from "./FindingApplicationService";
 import { inspectionSessionAppService } from "./InspectionSessionApplicationService";
 import {
   decideInheritedTransition,
@@ -17,17 +17,12 @@ import type {
   SessionChecklistContext,
   ChecklistTransitionDecision,
 } from "../domain/checklistTypes";
-import type {
-  NonConformityReport,
-  Observation,
-} from "../repositories/NonConformityRepository";
+import type { Finding } from "../domain/models/Finding";
 import type {
   InspectionPhoto,
   UploadPhotoParams,
 } from "../repositories/InspectionPhotoRepository";
 import { inspectionPhotoRepository } from "../repositories/InspectionPhotoRepository";
-
-const nonConformityRepo = new NonConformityRepository();
 
 export class ChecklistApplicationService {
   async getChecklist(filters: {
@@ -150,14 +145,16 @@ export class ChecklistApplicationService {
       finding.checklist_item_id === result.item_id;
 
     if (result.status === "REJECT") {
-      const reports =
-        await nonConformityRepo.getNonConformitysByRequestId(requestId);
-      const report = reports.find(isSameChecklistIdentity);
+      const report = await findingAppService.getForChecklistResult(
+        requestId,
+        "NCR",
+        result,
+      );
       return report
         ? {
             type: "NCR",
             id: report.id,
-            number: report.NonConformity_number,
+            number: report.number || report.id,
             title: report.title,
             description: report.description,
             status: report.status,
@@ -166,15 +163,17 @@ export class ChecklistApplicationService {
     }
 
     if (result.status === "NOTE") {
-      const observations =
-        await nonConformityRepo.getObservationsByRequestId(requestId);
-      const observation = observations.find(isSameChecklistIdentity);
+      const observation = await findingAppService.getForChecklistResult(
+        requestId,
+        "OBSERVATION",
+        result,
+      );
       return observation
         ? {
             type: "OBSERVATION",
             id: observation.id,
             title: observation.category || "Observation",
-            description: observation.observation_text,
+            description: observation.description,
             status: "UNRESOLVED",
           }
         : null;
@@ -191,8 +190,8 @@ export class ChecklistApplicationService {
     severity: "MINOR" | "MAJOR" | "OBSERVATION" | "HOLD POINT",
     category: string,
     createdBy: string,
-  ): Promise<NonConformityReport> {
-    return nonConformityRepo.createNonConformityFromReject(
+  ): Promise<Finding> {
+    return findingAppService.createNcrFromReject(
       result,
       title,
       description,
@@ -207,35 +206,13 @@ export class ChecklistApplicationService {
     observationText: string,
     category: string,
     createdBy: string,
-  ): Promise<Observation> {
-    return nonConformityRepo.createObservationFromNote(
+  ): Promise<Finding> {
+    return findingAppService.createObservationFromNote(
       result,
       observationText,
       category,
       createdBy,
     );
-  }
-
-  async getNonConformitysByRequestId(
-    requestId: string,
-  ): Promise<NonConformityReport[]> {
-    return nonConformityRepo.getNonConformitysByRequestId(requestId);
-  }
-
-  async getObservationsByRequestId(requestId: string): Promise<Observation[]> {
-    return nonConformityRepo.getObservationsByRequestId(requestId);
-  }
-
-  /**
-   * Transition an NCR through its lifecycle
-   * (OPEN → IN_PROGRESS → CLOSED / REJECTED).
-   */
-  async updateNonConformityStatus(
-    ncrId: string,
-    status: "OPEN" | "IN_PROGRESS" | "CLOSED" | "REJECTED",
-    closedBy?: string,
-  ): Promise<void> {
-    return nonConformityRepo.updateNonConformityStatus(ncrId, status, closedBy);
   }
 
   // ✅ Photo upload methods

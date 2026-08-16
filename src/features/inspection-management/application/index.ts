@@ -13,6 +13,7 @@ export * from "./InspectionRequestApplicationService";
 export * from "./InspectionApplicationService";
 export * from "./DocumentReviewApplicationService";
 export * from "./InspectionSessionApplicationService";
+export * from "./FindingApplicationService";
 
 // DTOs
 export * from "./dto/CreateInspectionRequestCommand";

@@ -37,6 +37,19 @@ export class SupabaseDocumentReviewRepository implements IDocumentReviewReposito
     return data || [];
   }
 
+  async getByResidentEngagement(
+    engagementId: string,
+  ): Promise<DocumentReview[]> {
+    const { data, error } = await supabase
+      .schema("inspection")
+      .from("document_reviews")
+      .select("*")
+      .eq("resident_engagement_id", engagementId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data || [];
+  }
+
   async create(
     data: Omit<DocumentReview, "id" | "created_at" | "updated_at">,
   ): Promise<DocumentReview> {
@@ -127,10 +140,24 @@ export class SupabaseDocumentReviewRepository implements IDocumentReviewReposito
     return updatedRecord as DocumentReview;
   }
 
-  async uploadFile(file: File, requestId: string): Promise<string> {
+  async uploadFile(file: File, ownerId: string): Promise<string> {
     const fileExt = file.name.split(".").pop();
-    const fileName = `${requestId}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+    const fileName = `${ownerId}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
     const filePath = `inspection-documents/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from("documents")
+      .upload(filePath, file);
+    if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+    const { data } = supabase.storage.from("documents").getPublicUrl(filePath);
+    return data.publicUrl;
+  }
+
+  async uploadResidentFile(file: File, engagementId: string): Promise<string> {
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 11)}.${fileExt}`;
+    const filePath = `resident-documents/${engagementId}/${fileName}`;
 
     const { error } = await supabase.storage
       .from("documents")

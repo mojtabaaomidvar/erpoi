@@ -13,6 +13,14 @@ export interface SessionDocumentReviewDTO extends DocumentReview {
   is_legacy_unassigned: boolean;
 }
 
+export interface PendingDocumentUpload {
+  file: File;
+  document_name: string;
+  document_type?: string;
+  document_number?: string;
+  revision?: string;
+}
+
 class DocumentReviewApplicationService {
   private repository = documentReviewRepository;
 
@@ -26,6 +34,12 @@ class DocumentReviewApplicationService {
 
   async getByInspectionRequest(requestId: string): Promise<DocumentReview[]> {
     return await this.repository.getByInspectionRequest(requestId);
+  }
+
+  async getByResidentEngagement(
+    engagementId: string,
+  ): Promise<DocumentReview[]> {
+    return this.repository.getByResidentEngagement(engagementId);
   }
 
   async getVisibleForSession(
@@ -180,6 +194,48 @@ class DocumentReviewApplicationService {
         });
       }),
     );
+  }
+
+  async uploadResidentDocuments(
+    engagementId: string,
+    files: readonly PendingDocumentUpload[],
+  ): Promise<void> {
+    const results = await Promise.allSettled(
+      files.map(async (item) => {
+        const documentName = item.document_name.trim();
+        if (!documentName) {
+          throw new Error("Document display name is required");
+        }
+
+        const fileUrl = await this.repository.uploadResidentFile(
+          item.file,
+          engagementId,
+        );
+        try {
+          await this.repository.create({
+            inspection_request_id: null,
+            resident_engagement_id: engagementId,
+            session_id: null,
+            document_type: item.document_type || "OTHER",
+            document_name: documentName,
+            document_url: fileUrl,
+            document_number: item.document_number || undefined,
+            revision: item.revision || undefined,
+            review_status: "INITIAL",
+          });
+        } catch (error) {
+          await this.repository.deleteFileFromStorage(fileUrl);
+          throw error;
+        }
+      }),
+    );
+
+    const failures = results.filter((result) => result.status === "rejected");
+    if (failures.length > 0) {
+      throw new Error(
+        `${failures.length} of ${files.length} Resident document(s) could not be uploaded`,
+      );
+    }
   }
 
   async deleteDocument(id: string, fileUrl: string) {

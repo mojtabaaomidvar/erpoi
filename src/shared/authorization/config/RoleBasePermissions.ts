@@ -17,6 +17,7 @@ const KNOWN_ENTITIES = [
   "report",
   "department",
   "permission",
+  "resident",
 ];
 
 export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
@@ -226,8 +227,36 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
       "checklist_add",
       "ncr_section",
       "ncr_create",
+      "ncr_export",
       "report_section",
       "report_generate",
+    ]),
+
+    // ═══════════════════════════════════════
+    // 🏢 Resident Inspection
+    // ═══════════════════════════════════════
+    ...entityActions("resident", [
+      "list_item_view",
+      "list_item_click",
+      "search_box",
+      "filter_status",
+      "btn_add",
+      "form_view",
+      "form_btn_submit",
+      "details_view",
+      "details_btn_edit",
+      "details_btn_activate",
+      "details_btn_suspend",
+      "details_btn_complete",
+      "details_btn_close",
+      "details_team_section",
+      "details_activities_section",
+      "details_quality_section",
+      "details_quality_create",
+      "details_reports_section",
+      "details_report_submit",
+      "details_report_approve",
+      "details_mandays_section",
     ]),
 
     // ═══════════════════════════════════════
@@ -320,8 +349,27 @@ export const ROLE_BASE_PERMISSIONS: Record<string, string[]> = {
       "inspector_section",
       "checklist_section",
       "ncr_section",
+      "ncr_export",
       "report_section",
       "release_note_section",
+    ]),
+
+    // ═══════════════════════════════════════
+    // 🏢 Resident Inspection (مشاهده و عملیات روزانه)
+    // ═══════════════════════════════════════
+    ...entityActions("resident", [
+      "list_item_view",
+      "list_item_click",
+      "search_box",
+      "filter_status",
+      "details_view",
+      "details_team_section",
+      "details_activities_section",
+      "details_quality_section",
+      "details_quality_create",
+      "details_reports_section",
+      "details_report_submit",
+      "details_mandays_section",
     ]),
 
     // ═══════════════════════════════════════

@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
-import { supabase } from "@shared/database/supabase";
-import { SupabaseDepartmentRepository } from "@shared/authorization/repositories/SupabaseDepartmentRepository";
+import { departmentAppService } from "@shared/authorization";
 import type { Department } from "@shared/authorization";
 
 interface DepartmentSelectProps {
@@ -26,25 +25,12 @@ export function DepartmentSelect({
   const loadDepartments = async () => {
     setLoading(true);
     try {
-      // Prefer repository layer over direct supabase access from UI
-      const repo = new SupabaseDepartmentRepository();
-      const data = await repo.getAll();
+      const data = await departmentAppService.getAll();
       setDepartments(data || []);
     } catch (err) {
       console.error("[DepartmentSelect] ❌ Error loading departments:", err);
-
-      // Fallback to direct supabase query if repository fails
-      try {
-        const { data, error } = await supabase
-          .schema("core")
-          .from("departments")
-          .select("*")
-          .order("name", { ascending: true });
-
-        if (!error) setDepartments(data || []);
-      } catch (e) {
-        console.error("[DepartmentSelect] ❌ Fallback query failed:", e);
-      }
+      // Safe default: empty list instead of direct DB fallback
+      setDepartments([]);
     } finally {
       setLoading(false);
     }

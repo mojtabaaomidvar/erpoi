@@ -18,6 +18,9 @@ import type { Client } from "@/features/client-management/domain/models/Client";
 import type { Contract } from "@/entities/contract/types";
 
 import { departmentAppService } from "@shared/authorization";
+import { EmptyState } from "@shared/ui/EmptyState";
+import { Button } from "@shared/ui/Button";
+import { AlertTriangle } from "lucide-react";
 
 export function Clients() {
   const { isDark } = useTheme();
@@ -170,27 +173,17 @@ export function Clients() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[600px]">
-        <div className="text-center max-w-md">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2
-            className={`text-xl font-bold mb-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
-          >
-            Failed to Load Clients
-          </h2>
-          <p
-            className={`text-sm mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}
-          >
-            {error}
-          </p>
-          <button
-            onClick={refresh}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            🔄 Retry
-          </button>
-        </div>
-      </div>
+      <EmptyState
+        icon={AlertTriangle}
+        title="Failed to Load Clients"
+        description={error}
+        action={
+          <Button variant="primary" size="sm" onClick={refresh}>
+            Retry
+          </Button>
+        }
+        className="min-h-[600px]"
+      />
     );
   }
 
@@ -201,12 +194,8 @@ export function Clients() {
   return (
     <>
       {refreshing && (
-        <div
-          className={`fixed top-20 right-4 z-50 px-3 py-1.5 rounded-lg shadow-lg text-xs font-medium ${
-            isDark ? "bg-indigo-600 text-white" : "bg-indigo-500 text-white"
-          }`}
-        >
-          🔄 Refreshing...
+        <div className="fixed top-20 right-4 z-50 px-3 py-1.5 rounded-lg shadow-lg text-xs font-medium gradient-accent">
+          Refreshing...
         </div>
       )}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 p-3 lg:p-4 h-[calc(100vh-6rem)]">
@@ -223,16 +212,11 @@ export function Clients() {
           setSelectedClient={setSelectedClient}
           onAddClick={handleAddClick}
           onExport={handleExportToExcel}
+          loading={loading}
         />
 
         {/* RIGHT PANEL - ClientDetails */}
-        <div
-          className={`col-span-1 lg:col-span-8 flex flex-col rounded-2xl overflow-hidden h-full transition-all duration-300 ${
-            isDark
-              ? "bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-700/50 shadow-2xl shadow-black/30"
-              : "bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/70 shadow-xl shadow-slate-200/50"
-          }`}
-        >
+        <div className="col-span-1 lg:col-span-8 flex flex-col rounded-2xl overflow-hidden h-full transition-all duration-300 bg-[var(--color-card)] border border-[var(--color-border)] shadow-[var(--elevation-card)]">
           <ClientDetails
             client={selectedClient}
             contracts={contracts}

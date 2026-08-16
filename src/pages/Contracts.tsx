@@ -34,6 +34,8 @@ import { ContractDetails } from "@features/contract-management/ui/ContractDetail
 import { ContractAddForm } from "@features/contract-management/ui/contract-add-form/ContractAddForm";
 import { ContractEditForm } from "@features/contract-management/ui/ContractEditForm";
 import { useEvent, EVENT_TYPES } from "@infra/events";
+import { EmptyState } from "@shared/ui/EmptyState";
+import { AlertTriangle } from "lucide-react";
 
 export function Contracts() {
   const { isDark } = useTheme();
@@ -575,27 +577,17 @@ export function Contracts() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[600px]">
-        <div className="text-center max-w-md">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2
-            className={`text-xl font-bold mb-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
-          >
-            Failed to Load Contracts
-          </h2>
-          <p
-            className={`text-sm mb-4 ${isDark ? "text-slate-400" : "text-slate-600"}`}
-          >
-            {error}
-          </p>
-          <button
-            onClick={refresh}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            🔄 Retry
-          </button>
-        </div>
-      </div>
+      <EmptyState
+        icon={AlertTriangle}
+        title="Failed to Load Contracts"
+        description={error}
+        action={
+          <Button variant="primary" size="sm" onClick={refresh}>
+            Retry
+          </Button>
+        }
+        className="min-h-[600px]"
+      />
     );
   }
 
@@ -607,12 +599,8 @@ export function Contracts() {
     <>
       {/* Refresh Indicator */}
       {refreshing && (
-        <div
-          className={`fixed top-20 right-4 z-50 px-3 py-1.5 rounded-lg shadow-lg text-xs font-medium ${
-            isDark ? "bg-indigo-600 text-white" : "bg-indigo-500 text-white"
-          }`}
-        >
-          🔄 Refreshing...
+        <div className="fixed top-20 right-4 z-50 px-3 py-1.5 rounded-lg shadow-lg text-xs font-medium gradient-accent">
+          Refreshing...
         </div>
       )}
 
@@ -640,13 +628,7 @@ export function Contracts() {
         />
 
         {/* RIGHT PANEL - ContractDetails */}
-        <div
-          className={`col-span-1 lg:col-span-8 flex flex-col rounded-2xl overflow-hidden transition-all duration-300 ${
-            isDark
-              ? "bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-700/50 shadow-2xl shadow-black/30"
-              : "bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/70 shadow-xl shadow-slate-200/50"
-          }`}
-        >
+        <div className="col-span-1 lg:col-span-8 flex flex-col rounded-2xl overflow-hidden transition-all duration-300 bg-[var(--color-surface)] border border-[var(--color-border)] shadow-[var(--shadow-md)]">
           <ContractDetails
             contract={selectedContract}
             onClose={() => {

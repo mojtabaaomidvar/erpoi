@@ -8,6 +8,7 @@ import { ContractElements } from "./elements/ContractElements";
 import { InspectorElements } from "./elements/InspectorElements";
 import { InspectionElements } from "./elements/InspectionElements";
 import { ProjectElements } from "./elements/ProjectElements";
+import { ResidentElements } from "./elements/ResidentElements";
 
 /**
  * تابع کمکی برای تخت کردن ساختار تو در تو و افزودن متادیتا
@@ -46,6 +47,7 @@ export function getAllElements(): UIElementDefinition[] {
     ...flattenElements("inspector", InspectorElements),
     ...flattenElements("inspection", InspectionElements),
     ...flattenElements("project", ProjectElements),
+    ...flattenElements("resident", ResidentElements),
   ];
 }
 

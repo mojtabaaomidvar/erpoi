@@ -8,6 +8,9 @@ import { FloatingSearch } from "@shared/ui/FloatingSearch";
 import { ClientElements } from "@shared/authorization/ui/elements/ClientElements";
 import type { Contract } from "@/features/contract-management/domain";
 import type { Client } from "@/features/client-management/domain/models/Client";
+import { TableSkeleton } from "@/shared/ui/skeletons";
+import { EmptyState } from "@/shared/ui/EmptyState";
+import { Users, Search, Lock } from "lucide-react";
 
 interface ClientListProps {
   sortedClients: Client[];
@@ -21,6 +24,7 @@ interface ClientListProps {
   setSelectedClient: (client: Client | null) => void;
   onAddClick: () => void;
   onExport: () => void;
+  loading?: boolean;
 }
 
 export function ClientList({
@@ -35,6 +39,7 @@ export function ClientList({
   setSelectedClient,
   onAddClick,
   onExport,
+  loading = false,
 }: ClientListProps) {
   const { isDark } = useTheme();
   const { canAccessElement } = usePermissionMapping();
@@ -71,21 +76,9 @@ export function ClientList({
   };
 
   return (
-    <div
-      className={`col-span-1 lg:col-span-4 flex flex-col rounded-2xl overflow-hidden transition-all duration-300 ${
-        isDark
-          ? "bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-700/50 shadow-2xl shadow-black/30"
-          : "bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-slate-200/70 shadow-xl shadow-slate-200/50"
-      }`}
-    >
+    <div className="col-span-1 lg:col-span-4 flex flex-col rounded-2xl overflow-hidden transition-all duration-300 bg-[var(--color-card)] border border-[var(--color-border)] shadow-[var(--elevation-card)]">
       {/* Header */}
-      <div
-        className={`relative px-5 py-4 border-b ${
-          isDark
-            ? "border-slate-700/50 bg-gradient-to-r from-indigo-900/30 via-slate-900 to-violet-900/30"
-            : "border-slate-200/70 bg-gradient-to-r from-indigo-50/50 via-white to-violet-50/50"
-        }`}
-      >
+      <div className="relative px-5 py-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
@@ -96,24 +89,17 @@ export function ClientList({
         <div className="relative flex items-center justify-between mb-3">
           <div className="flex items-center gap-2.5">
             <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${
-                isDark
-                  ? "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/30"
-                  : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20"
-              }`}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-lg gradient-accent shadow-lg"
+              aria-hidden="true"
             >
               👥
             </div>
             <div>
-              <h2
-                className={`text-sm font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}
-              >
+              <h2 className="text-sm font-bold text-[var(--color-text-primary)]">
                 Clients
               </h2>
               {canViewItems && (
-                <p
-                  className={`text-[10px] ${isDark ? "text-slate-400" : "text-slate-500"}`}
-                >
+                <p className="text-[10px] text-[var(--color-text-muted)]">
                   {clientCounts.total} total
                 </p>
               )}
@@ -157,22 +143,17 @@ export function ClientList({
       </div>
 
       {canfilterType && (
-        <div
-          className={`px-4 py-2.5 border-b ${isDark ? "border-slate-700/50 bg-slate-900/30" : "border-slate-200/70 bg-slate-50/50"}`}
-        >
+        <div className="px-4 py-2.5 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
           <div className="flex gap-1.5">
             {(["ALL", "LEGAL", "INDIVIDUAL"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                aria-pressed={filter === f}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${
                   filter === f
-                    ? isDark
-                      ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/30"
-                      : "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/20"
-                    : isDark
-                      ? "bg-slate-800/50 text-slate-400 hover:bg-slate-700/50 hover:text-slate-200"
-                      : "bg-white/70 text-slate-600 hover:bg-slate-100 hover:text-slate-900 shadow-sm"
+                    ? "gradient-accent text-white shadow-md"
+                    : "bg-[var(--color-muted)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
                 }`}
               >
                 {f === "ALL"
@@ -188,42 +169,24 @@ export function ClientList({
 
       {/* Client List Content */}
       <div className="flex-1 overflow-y-auto">
-        {!canViewItems ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
-            >
-              🔒
-            </div>
-            <p
-              className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
-            >
-              Access Denied
-            </p>
-            <p
-              className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
-            >
-              You do not have permission to view the client list.
-            </p>
+        {loading ? (
+          <div className="p-4">
+            <TableSkeleton rows={8} columns={3} showHeader={false} />
           </div>
+        ) : !canViewItems ? (
+          <EmptyState
+            icon={Lock}
+            title="Access Denied"
+            description="You do not have permission to view the client list."
+            className="h-full"
+          />
         ) : sortedClients.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
-            >
-              🔍
-            </div>
-            <p
-              className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
-            >
-              No clients found
-            </p>
-            <p
-              className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
-            >
-              Try adjusting your search or filters
-            </p>
-          </div>
+          <EmptyState
+            icon={searchQuery ? Search : Users}
+            title={searchQuery ? "No Matches Found" : "No clients found"}
+            description="Try adjusting your search or filters"
+            className="h-full"
+          />
         ) : (
           <div className="p-2 space-y-1.5">
             {sortedClients.map((client) => {
@@ -241,24 +204,18 @@ export function ClientList({
                   key={client.id}
                   onClick={() => handleClientClick(client)}
                   disabled={!canclickItem}
-                  className={`group relative w-full text-left rounded-xl p-3 transition-all duration-200 ${
+                  className={`group relative w-full text-left rounded-xl p-3 transition-all duration-200 border ${
                     !canclickItem
                       ? "cursor-not-allowed opacity-60"
                       : "cursor-pointer"
                   } ${
                     isSelected
-                      ? isDark
-                        ? "bg-gradient-to-r from-indigo-900/50 to-violet-900/50 border border-indigo-500/50 shadow-lg shadow-indigo-500/20"
-                        : "bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-300/50 shadow-lg shadow-indigo-500/10"
-                      : isDark
-                        ? "bg-slate-800/30 border border-transparent hover:bg-slate-800/60 hover:border-slate-700/50 hover:shadow-md"
-                        : "bg-white/50 border border-transparent hover:bg-white hover:border-slate-200/70 hover:shadow-md"
+                      ? "bg-[var(--color-accent-from)]/10 border-[var(--color-accent-from)]/50 shadow-md"
+                      : "bg-transparent border-transparent hover:bg-[var(--color-surface-hover)] hover:border-[var(--color-border)] hover:shadow-sm"
                   }`}
                 >
                   {isSelected && (
-                    <div
-                      className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full ${isDark ? "bg-indigo-500" : "bg-indigo-500"}`}
-                    />
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full bg-[var(--color-accent-from)]" />
                   )}
 
                   <div className="flex items-start gap-3">
@@ -272,9 +229,7 @@ export function ClientList({
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3
-                          className={`text-sm font-bold truncate ${isDark ? "text-slate-100" : "text-slate-900"}`}
-                        >
+                        <h3 className="text-sm font-bold truncate text-[var(--color-text-primary)]">
                           {client.name_en}
                         </h3>
                         <Badge
@@ -286,7 +241,7 @@ export function ClientList({
                       </div>
 
                       <p
-                        className={`text-[11px] truncate mb-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}
+                        className="text-[11px] truncate mb-2 text-[var(--color-text-secondary)]"
                         dir="rtl"
                       >
                         {client.name_fa}
@@ -295,10 +250,8 @@ export function ClientList({
                       {/* Stats */}
                       <div className="flex items-center gap-3">
                         {canbadgeAgreements && (
-                          <div
-                            className={`flex items-center gap-1 text-[10px] ${isDark ? "text-slate-400" : "text-slate-600"}`}
-                          >
-                            <span>📄</span>
+                          <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)]">
+                            <span aria-hidden="true">📄</span>
                             <span className="font-semibold">
                               {clientContracts.length}
                             </span>
@@ -307,10 +260,8 @@ export function ClientList({
                         )}
 
                         {canbadgeValue && totalValue > 0 && (
-                          <div
-                            className={`flex items-center gap-1 text-[10px] ${isDark ? "text-emerald-400" : "text-emerald-600"}`}
-                          >
-                            <span>💰</span>
+                          <div className="flex items-center gap-1 text-[10px] text-[var(--color-success)]">
+                            <span aria-hidden="true">💰</span>
                             <span className="font-semibold">
                               {totalValue >= 1000000000
                                 ? `${(totalValue / 1000000000).toFixed(1)}B`

@@ -1,35 +1,42 @@
 // src/pages/TPI.tsx
 
-import { useState, useEffect } from "react";
-import { useTheme } from "@app/providers/ThemeProvider";
+import { useEffect, useState } from "react";
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { TPIElements } from "@shared/authorization/ui/elements/TPIElements";
-import { tpiRequestAppService } from "@/features/tpi-management";
+import { ResidentElements } from "@shared/authorization/ui/elements/ResidentElements";
 import { TPIList } from "@features/tpi-management/ui/TPIList";
 import { TPIRequestForm } from "@features/tpi-management/ui/TPIRequestForm";
 import { TPIDetailsModal } from "@features/tpi-management/ui/TPIDetailsModal";
 import { SessionSelectionModal } from "@features/tpi-management/ui/components/SessionSelectionModal";
 import { PendingDeletionNoticeModal } from "@features/tpi-management/ui/components/PendingDeletionNoticeModal";
+import { ResidentEngagementDetail } from "@features/resident-inspection/ui/ResidentEngagementDetail";
+import { ResidentEngagementForm } from "@features/tpi-management/ui/ResidentEngagementForm";
+import { Modal } from "@design-system";
 import { showToast } from "@shared/ui/ToastContainer";
+import type { TPIRequest } from "@features/tpi-management/domain/types";
 import type {
-  TPIRequest,
-  TPIMode,
-} from "@features/tpi-management/domain/types";
+  TPIEngagement,
+  TPIEngagementMode,
+} from "@features/tpi-management/domain/models/TPIEngagement";
 import type { InspectionSession } from "@/features/inspection-management/domain/models/InspectionSession";
+import { tpiEngagementAppService } from "@features/tpi-management/application";
+import { documentReviewAppService } from "@features/inspection-management/application/DocumentReviewApplicationService";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { tpiDeletionWorkflowAppService } from "@/processes/tpi-deletion";
 import { useEvent } from "@infra/events";
+import { Building2, MapPin, Lock } from "lucide-react";
+import { EmptyState } from "@shared/ui/EmptyState";
+import type { ResidentEngagement } from "@features/resident-inspection/domain/types";
 
 interface TPIPackageDeletionEventPayload {
   entityId: string;
 }
 
 export function TPI() {
-  const { isDark } = useTheme();
   const { user } = useAuth();
   const { canAccessElement } = usePermissionMapping();
 
-  const [tpiRequests, setTpiRequests] = useState<TPIRequest[]>([]);
+  const [engagements, setEngagements] = useState<TPIEngagement[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingDeletionPackageIds, setPendingDeletionPackageIds] = useState<
     Set<string>
@@ -38,34 +45,49 @@ export function TPI() {
     useState(false);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [creationMode, setCreationMode] = useState<TPIEngagementMode | null>(
+    null,
+  );
   const [editingRequest, setEditingRequest] = useState<TPIRequest | null>(null);
-
   const [selectedRequest, setSelectedRequest] = useState<TPIRequest | null>(
     null,
   );
+  const [selectedResident, setSelectedResident] = useState<Extract<
+    TPIEngagement,
+    { mode: "RESIDENT" }
+  > | null>(null);
+  const [editingResident, setEditingResident] =
+    useState<ResidentEngagement | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-  // Session selection flow
   const [sessionSelectionRequest, setSessionSelectionRequest] =
     useState<TPIRequest | null>(null);
   const [isSessionSelectionOpen, setIsSessionSelectionOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterMode, setFilterMode] = useState<TPIMode | "ALL">("ALL");
+  const [filterMode, setFilterMode] = useState<TPIEngagementMode | "ALL">(
+    "ALL",
+  );
 
   const canViewItems = canAccessElement(TPIElements.TPIList.list_item_view.id);
   const canDelete = canAccessElement(
     TPIElements.TPIDetails.btn_request_package_deletion.id,
   );
+  const canCreateResident = canAccessElement(
+    ResidentElements.ResidentList.btn_add.id,
+  );
+  const canOpenResident = canAccessElement(
+    ResidentElements.ResidentDetails.details_view.id,
+  );
 
-  const loadTPIRequests = async () => {
+  const loadTPIEngagements = async () => {
     setLoading(true);
     try {
-      const [requests, pendingPackageIds] = await Promise.all([
-        tpiRequestAppService.getAll(),
+      const [items, pendingPackageIds] = await Promise.all([
+        tpiEngagementAppService.getAll(),
         tpiDeletionWorkflowAppService.getPendingPackageDeletionIds(),
       ]);
-      setTpiRequests(requests);
+      setEngagements(items);
       setPendingDeletionPackageIds(new Set(pendingPackageIds));
     } catch (err: any) {
       showToast("error", "Load Failed", err.message);
@@ -75,7 +97,7 @@ export function TPI() {
   };
 
   useEffect(() => {
-    loadTPIRequests();
+    loadTPIEngagements();
   }, []);
 
   useEvent<TPIPackageDeletionEventPayload>(
@@ -86,8 +108,11 @@ export function TPI() {
         nextIds.delete(payload.entityId);
         return nextIds;
       });
-      setTpiRequests((currentRequests) =>
-        currentRequests.filter((request) => request.id !== payload.entityId),
+      setEngagements((currentItems) =>
+        currentItems.filter(
+          (item) =>
+            item.mode !== "SPOT" || item.request.id !== payload.entityId,
+        ),
       );
     },
   );
@@ -103,14 +128,26 @@ export function TPI() {
     },
   );
 
-  const handleRequestClick = (request: TPIRequest) => {
-    if (pendingDeletionPackageIds.has(request.id)) {
+  const handleEngagementClick = (engagement: TPIEngagement) => {
+    if (engagement.mode === "RESIDENT") {
+      if (!canOpenResident) {
+        showToast(
+          "error",
+          "Access Denied",
+          "You do not have permission to open Resident engagement details.",
+        );
+        return;
+      }
+      setSelectedResident(engagement);
+      return;
+    }
+
+    if (pendingDeletionPackageIds.has(engagement.request.id)) {
       setIsPendingDeletionNoticeOpen(true);
       return;
     }
 
-    // Open session selection modal first
-    setSessionSelectionRequest(request);
+    setSessionSelectionRequest(engagement.request);
     setIsSessionSelectionOpen(true);
   };
 
@@ -127,10 +164,9 @@ export function TPI() {
 
     setIsSessionSelectionOpen(false);
     setSessionSelectionRequest(null);
-    // Pass the selected session info to TPIDetailsModal
     setSelectedRequest(request);
     setIsDetailsOpen(true);
-    // Store the pre-selected session id in sessionStorage so TPIDetailsModal can use it
+
     if (session) {
       sessionStorage.setItem(`preselected_session_${request.id}`, session.id);
     } else {
@@ -140,6 +176,8 @@ export function TPI() {
 
   const handleAddClick = () => {
     setEditingRequest(null);
+    setEditingResident(null);
+    setCreationMode(filterMode === "ALL" ? null : filterMode);
     setIsAddModalOpen(true);
   };
 
@@ -171,53 +209,97 @@ export function TPI() {
 
   if (!canViewItems) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div
-            className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 mx-auto ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
-          >
-            🔒
-          </div>
-          <h2
-            className={`text-xl font-bold mb-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}
-          >
-            Access Denied
-          </h2>
-          <p
-            className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}
-          >
-            You do not have permission to view the TPI module.
-          </p>
-        </div>
-      </div>
+      <EmptyState
+        icon={Lock}
+        title="Access Denied"
+        description="You do not have permission to view the TPI module."
+        className="min-h-[60vh]"
+      />
     );
   }
+
+  const showResidentForm = isAddModalOpen && creationMode === "RESIDENT";
+  const showSpotForm = isAddModalOpen && creationMode === "SPOT";
 
   return (
     <>
       <TPIList
-        tpiRequests={tpiRequests}
+        engagements={engagements}
         pendingDeletionPackageIds={pendingDeletionPackageIds}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         filterMode={filterMode}
         setFilterMode={setFilterMode}
-        onRequestClick={handleRequestClick}
+        onEngagementClick={handleEngagementClick}
         onAddClick={handleAddClick}
         loading={loading}
       />
 
+      <Modal
+        isOpen={isAddModalOpen && creationMode === null}
+        onClose={() => setIsAddModalOpen(false)}
+        title="New TPI Inspection"
+        size="md"
+      >
+        <div className="grid grid-cols-2 gap-4 p-6">
+          <button
+            type="button"
+            onClick={() => setCreationMode("SPOT")}
+            className="rounded-xl border border-indigo-300 p-6 text-left hover:bg-indigo-50 dark:border-indigo-700 dark:hover:bg-indigo-950/30"
+          >
+            <strong className="flex items-center gap-2 text-lg">
+              <MapPin className="h-5 w-5" aria-hidden="true" /> SPOT
+            </strong>
+            <span className="text-sm text-slate-500">
+              Session-based inspection
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => canCreateResident && setCreationMode("RESIDENT")}
+            disabled={!canCreateResident}
+            className="rounded-xl border border-emerald-300 p-6 text-left hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-700 dark:hover:bg-emerald-950/30"
+          >
+            <strong className="flex items-center gap-2 text-lg">
+              <Building2 className="h-5 w-5" aria-hidden="true" /> RESIDENT
+            </strong>
+            <span className="text-sm text-slate-500">
+              {canCreateResident
+                ? "Long-running engagement"
+                : "Additional permission required"}
+            </span>
+          </button>
+        </div>
+      </Modal>
+
       <TPIRequestForm
-        isOpen={isAddModalOpen}
+        isOpen={showSpotForm}
         onClose={() => {
           setIsAddModalOpen(false);
+          setCreationMode(null);
           setEditingRequest(null);
         }}
-        onSuccess={loadTPIRequests}
+        onSuccess={loadTPIEngagements}
         initialData={editingRequest}
       />
 
-      {/* Session Selection Modal - opens before TPIDetailsModal */}
+      <ResidentEngagementForm
+        isOpen={showResidentForm}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setCreationMode(null);
+          setEditingResident(null);
+        }}
+        onSuccess={loadTPIEngagements}
+        onUploadDocuments={(engagementId, documents) =>
+          documentReviewAppService.uploadResidentDocuments(
+            engagementId,
+            documents,
+          )
+        }
+        initialData={editingResident}
+      />
+
       <SessionSelectionModal
         isOpen={isSessionSelectionOpen}
         onClose={() => {
@@ -235,6 +317,35 @@ export function TPI() {
         onClose={() => setIsPendingDeletionNoticeOpen(false)}
       />
 
+      <Modal
+        isOpen={selectedResident !== null}
+        onClose={() => setSelectedResident(null)}
+        title="Resident Inspection Detail"
+        size="7xl"
+      >
+        {selectedResident && (
+          <div
+            className="p-6"
+            style={{ maxHeight: "calc(95vh - 80px)", overflowY: "auto" }}
+          >
+            <ResidentEngagementDetail
+              engagement={selectedResident.engagement}
+              onBack={() => setSelectedResident(null)}
+              onEdit={(engagement) => {
+                setEditingResident(engagement);
+                setSelectedResident(null);
+                setCreationMode("RESIDENT");
+                setIsAddModalOpen(true);
+              }}
+              onChanged={(engagement) => {
+                setSelectedResident({ mode: "RESIDENT", engagement });
+                void loadTPIEngagements();
+              }}
+            />
+          </div>
+        )}
+      </Modal>
+
       <TPIDetailsModal
         isOpen={isDetailsOpen}
         onClose={() => {
@@ -242,14 +353,15 @@ export function TPI() {
           setSelectedRequest(null);
         }}
         request={selectedRequest}
-        onEdit={(req) => {
-          if (pendingDeletionPackageIds.has(req.id)) {
+        onEdit={(request) => {
+          if (pendingDeletionPackageIds.has(request.id)) {
             setIsDetailsOpen(false);
             setSelectedRequest(null);
             setIsPendingDeletionNoticeOpen(true);
             return;
           }
-          setEditingRequest(req);
+          setEditingRequest(request);
+          setCreationMode("SPOT");
           setIsAddModalOpen(true);
           setIsDetailsOpen(false);
         }}

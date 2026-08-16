@@ -197,9 +197,7 @@ export function Modal({
           isAnimating
             ? "opacity-100 scale-100 translate-y-0"
             : "opacity-0 scale-[0.97] translate-y-3",
-          isDark
-            ? "bg-slate-900 ring-1 ring-white/10"
-            : "bg-white ring-1 ring-slate-900/5",
+          "bg-[var(--color-card)] ring-1 ring-[var(--color-border)]",
           !isFullscreen &&
             (isDark
               ? "shadow-[0_24px_70px_-15px_rgba(0,0,0,0.65)]"
@@ -209,17 +207,13 @@ export function Modal({
         {/* Header */}
         <div
           className={cn(
-            "relative flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4",
-            isDark ? "bg-slate-900" : "bg-white",
+            "relative flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4 bg-[var(--color-surface)]",
             headerClassName,
           )}
         >
           <h3
             id="modal-title"
-            className={cn(
-              "text-base sm:text-lg font-semibold tracking-tight truncate",
-              isDark ? "text-slate-100" : "text-slate-900",
-            )}
+            className="text-base sm:text-lg font-semibold tracking-tight truncate text-[var(--color-text-primary)]"
           >
             {title}
           </h3>
@@ -234,12 +228,7 @@ export function Modal({
                 title={
                   isFullscreen ? "خروج از حالت تمام‌صفحه" : "نمایش تمام‌صفحه"
                 }
-                className={cn(
-                  "rounded-lg p-2 transition-colors focus:outline-none focus-visible:ring-2",
-                  isDark
-                    ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200 focus-visible:ring-slate-600"
-                    : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:ring-slate-300",
-                )}
+                className="rounded-lg p-2 transition-colors focus:outline-none focus-visible:ring-2 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] focus-visible:ring-[var(--color-accent-from)]"
               >
                 {isFullscreen ? (
                   <svg
@@ -276,14 +265,9 @@ export function Modal({
             {showCloseButton && (
               <button
                 onClick={onClose}
-                aria-label="بستن"
-                title="بستن"
-                className={cn(
-                  "rounded-lg p-2 transition-colors focus:outline-none focus-visible:ring-2",
-                  isDark
-                    ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200 focus-visible:ring-slate-600"
-                    : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:ring-slate-300",
-                )}
+                aria-label="Close"
+                title="Close"
+                className="rounded-lg p-2 transition-colors focus:outline-none focus-visible:ring-2 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] focus-visible:ring-[var(--color-accent-from)]"
               >
                 <svg
                   className="w-[18px] h-[18px]"
@@ -303,12 +287,7 @@ export function Modal({
           </div>
 
           {/* خط ظریف تفکیک‌کننده به‌جای بوردر یکنواخت */}
-          <div
-            className={cn(
-              "absolute inset-x-0 bottom-0 h-px",
-              isDark ? "bg-slate-700/50" : "bg-slate-200/70",
-            )}
-          />
+          <div className="absolute inset-x-0 bottom-0 h-px bg-[var(--color-border)]" />
         </div>
 
         {/* Content */}
@@ -320,18 +299,8 @@ export function Modal({
 
         {/* Footer */}
         {footer && (
-          <div
-            className={cn(
-              "sticky bottom-0 z-20 flex-shrink-0 px-6 py-3.5",
-              isDark ? "bg-slate-900" : "bg-white",
-            )}
-          >
-            <div
-              className={cn(
-                "absolute inset-x-0 top-0 h-px",
-                isDark ? "bg-slate-700/50" : "bg-slate-200/70",
-              )}
-            />
+          <div className="sticky bottom-0 z-20 flex-shrink-0 px-6 py-3.5 bg-[var(--color-surface)]">
+            <div className="absolute inset-x-0 top-0 h-px bg-[var(--color-border)]" />
             {footer}
           </div>
         )}

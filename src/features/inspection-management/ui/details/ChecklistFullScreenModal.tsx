@@ -71,9 +71,7 @@ export function ChecklistFullScreenModal({
   const [NonConformitySeverity, setNonConformitySeverity] = useState<
     Map<string, NonConformitySeverity>
   >(new Map());
-  const [NonConformitySubmitting, setNonConformitySubmitting] = useState<
-    Set<string>
-  >(new Set());
+
   const [photosByItem, setPhotosByItem] = useState<
     Map<string, InspectionPhoto[]>
   >(new Map());
@@ -280,82 +278,6 @@ export function ChecklistFullScreenModal({
     }, 100);
   };
 
-  const handleNonConformitySubmit = async (itemId: string) => {
-    const result = results.get(itemId);
-    if (!result || result.status !== "REJECT") return;
-
-    const severity = NonConformitySeverity.get(itemId) || "MINOR";
-    const comment = activeComment.trim();
-
-    if (!comment) {
-      showToast(
-        "warning",
-        "Description of Non-Conformity is Required",
-        "Please add a description for Non-Conformity",
-      );
-      return;
-    }
-
-    setNonConformitySubmitting((prev) => new Set(prev).add(itemId));
-
-    try {
-      await checklistAppService.createNonConformityFromReject(
-        { ...result, request_id: requestId },
-        `Non-Conformity - ${result.inspection_method}`,
-        comment,
-        severity,
-        result.inspection_method,
-        user?.id || "unknown",
-      );
-
-      showToast(
-        "success",
-        "Non-Conformity Created",
-        `Non-Conformity reported with severity: ${severity}`,
-      );
-
-      // Clear severity after successful submission
-      setNonConformitySeverity((prev) => {
-        const next = new Map(prev);
-        next.delete(itemId);
-        return next;
-      });
-    } catch (err: any) {
-      showToast(
-        "error",
-        "Non-Conformity Failed",
-        err.message || "Could not create Non-Conformity",
-      );
-    } finally {
-      setNonConformitySubmitting((prev) => {
-        const next = new Set(prev);
-        next.delete(itemId);
-        return next;
-      });
-    }
-  };
-
-  const handleObservationAutoSave = async (itemId: string, comment: string) => {
-    const result = results.get(itemId);
-    if (!result || result.status !== "NOTE") return;
-
-    try {
-      await checklistAppService.createObservationFromNote(
-        { ...result, request_id: requestId },
-        comment,
-        result.inspection_method,
-        user?.id || "unknown",
-      );
-      showToast(
-        "success",
-        "Observation Saved",
-        "Observation recorded automatically",
-      );
-    } catch (err: any) {
-      console.error("Failed to save observation:", err);
-    }
-  };
-
   /**
    * Select a photo for deferred upload.
    * Only shows a preview in the UI - actual upload happens on Submit.
@@ -388,6 +310,7 @@ export function ChecklistFullScreenModal({
     const sessionResults = new Map(results);
     const pending = new Map(pendingPhotos);
     const allDataSnapshot = allData;
+    const severitiesSnapshot = new Map(NonConformitySeverity);
 
     // بستن فوری مودال
     onClose();
@@ -444,7 +367,66 @@ export function ChecklistFullScreenModal({
           });
         }
 
+        // ۱.۵ ثبت Non-Conformity و Observation برای آیتم‌های مربوطه
+        const ncPromises: Promise<unknown>[] = [];
+        sessionResults.forEach((result) => {
+          const comment = (result.comment || "").trim();
+
+          if (result.status === "REJECT") {
+            if (!comment) {
+              showToast(
+                "warning",
+                "Description of Non-Conformity is Required",
+                `Please add a description for ${result.item_id}`,
+              );
+              return;
+            }
+            const severity = severitiesSnapshot.get(result.item_id) || "MINOR";
+            ncPromises.push(
+              checklistAppService
+                .createNonConformityFromReject(
+                  { ...result, request_id: requestId },
+                  `Non-Conformity - ${result.inspection_method}`,
+                  comment,
+                  severity,
+                  result.inspection_method,
+                  user?.id || "unknown",
+                )
+                .catch((err: any) => {
+                  console.error(
+                    `Failed to create Non-Conformity for ${result.item_id}:`,
+                    err,
+                  );
+                  showToast(
+                    "error",
+                    "Non-Conformity Failed",
+                    err.message || "Could not create Non-Conformity",
+                  );
+                }),
+            );
+          } else if (result.status === "NOTE") {
+            if (!comment) return;
+            ncPromises.push(
+              checklistAppService
+                .createObservationFromNote(
+                  { ...result, request_id: requestId },
+                  comment,
+                  result.inspection_method,
+                  user?.id || "unknown",
+                )
+                .catch((err: any) => {
+                  console.error(
+                    `Failed to create Observation for ${result.item_id}:`,
+                    err,
+                  );
+                }),
+            );
+          }
+        });
+        await Promise.allSettled(ncPromises);
+
         // ۲. آپلود عکس‌های pending در پس‌زمینه
+
         for (const [itemId, photos] of pending.entries()) {
           const meta = itemMeta.get(itemId);
           const result = sessionResults.get(itemId);
@@ -756,8 +738,6 @@ export function ChecklistFullScreenModal({
                       const isNote = status === "NOTE";
                       const itemNonConformitySeverity =
                         NonConformitySeverity.get(item.id) || "MINOR";
-                      const isNonConformitySubmitting =
-                        NonConformitySubmitting.has(item.id);
                       const sourceSession = inherited?.sourceSessionNumber;
                       const isHistoricalInherited = Boolean(
                         inherited && !currentResult,
@@ -887,40 +867,16 @@ export function ChecklistFullScreenModal({
                                           e.target.value,
                                         );
                                       }}
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                          e.stopPropagation();
-                                          handleNonConformitySubmit(item.id);
-                                        }
-                                      }}
                                       onClick={(e) => e.stopPropagation()}
                                       disabled={isHistoricalInherited}
-                                      placeholder="Enter NonConformity description..."
+                                      placeholder="Enter NonConformity description (will be submitted with the form)..."
                                       className={`w-full text-xs px-3 py-2 rounded-lg border mb-0 ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-red-500`}
                                     />
-                                    <Button
-                                      variant="primary"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleNonConformitySubmit(item.id);
-                                      }}
-                                      disabled={
-                                        isHistoricalInherited ||
-                                        isNonConformitySubmitting ||
-                                        !result?.comment
-                                      }
-                                      className="w-[200px] text-xs px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-bold"
-                                    >
-                                      {isNonConformitySubmitting
-                                        ? "Submitting..."
-                                        : "📝 Submit"}
-                                    </Button>
                                   </div>
                                 </div>
                               )}
 
-                              {/* Observation auto-save indicator for NOTE status */}
+                              {/* Observation box for NOTE status — saved on form submit */}
                               {isNote && (
                                 <div
                                   className={`mt-2 p-2 rounded-lg border ${isDark ? "bg-blue-900/20 border-blue-800" : "bg-blue-50 border-blue-200"}`}
@@ -929,7 +885,8 @@ export function ChecklistFullScreenModal({
                                     <span
                                       className={`text-xs font-semibold ${isDark ? "text-blue-400" : "text-blue-700"}`}
                                     >
-                                      ℹ️ Observation (Auto-saved as NOTE)
+                                      ℹ️ Observation (will be saved with the
+                                      form)
                                     </span>
                                   </div>
                                   <input
@@ -945,32 +902,9 @@ export function ChecklistFullScreenModal({
                                         e.target.value,
                                       );
                                     }}
-                                    onBlur={(e) => {
-                                      e.stopPropagation();
-                                      if (e.target.value.trim()) {
-                                        handleObservationAutoSave(
-                                          item.id,
-                                          e.target.value.trim(),
-                                        );
-                                      }
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") {
-                                        e.stopPropagation();
-                                        const val = (
-                                          e.target as HTMLInputElement
-                                        ).value.trim();
-                                        if (val) {
-                                          handleObservationAutoSave(
-                                            item.id,
-                                            val,
-                                          );
-                                        }
-                                      }
-                                    }}
                                     onClick={(e) => e.stopPropagation()}
                                     disabled={isHistoricalInherited}
-                                    placeholder="Enter observation details (auto-saved on blur/Enter)..."
+                                    placeholder="Enter observation details (will be saved with the form)..."
                                     className={`w-full text-xs px-3 py-2 rounded-lg border mt-1 ${isDark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"} focus:outline-none focus:ring-1 focus:ring-blue-500`}
                                   />
                                 </div>

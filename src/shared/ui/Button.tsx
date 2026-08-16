@@ -27,12 +27,12 @@ export function Button({
     primary:
       "bg-[var(--color-primary)] text-[var(--color-accent-text)] hover:bg-[var(--color-accent-hover)] shadow-sm",
     secondary:
-      "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-800 dark:hover:bg-slate-100",
+      "bg-[var(--color-surface)] text-[var(--color-text-primary)] border border-[var(--color-border)] hover:bg-[var(--color-surface-hover)]",
     ghost:
-      "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
+      "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]",
     danger: "bg-rose-600 text-white hover:bg-rose-700 shadow-sm",
     outline:
-      "border border-slate-300 bg-transparent text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800",
+      "border border-[var(--color-border)] bg-transparent text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
   };
 
   const sizes = {
@@ -45,13 +45,21 @@ export function Button({
     <button
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-[var(--radius-button)] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        "relative overflow-hidden",
         variants[variant],
         sizes[size],
         className,
       )}
       {...props}
     >
-      {children}
+      <span className="relative z-[1] inline-flex items-center justify-center gap-2">
+        {children}
+      </span>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 active:animate-[ripple_0.4s_ease-out] active:opacity-100 bg-current"
+        style={{ mixBlendMode: "overlay" }}
+      />
     </button>
   );
 }

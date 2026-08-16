@@ -1,12 +1,16 @@
 // src/pages/Dashboard.tsx
 import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionMapping";
 import { useAuth } from "@features/auth/hooks/useAuth";
+import { ContractSummaryWidget } from "@widgets/contract-summary";
+import { RevenueChartWidget } from "@widgets/revenue-chart";
+import { InspectorKpiWidget } from "@widgets/inspector-kpi";
+import { ProjectOverviewWidget } from "@widgets/project-overview";
 
 export function Dashboard() {
   const { user } = useAuth();
   const { canAccess, canAccessAny } = usePermissionMapping();
 
-  // ✅ چک کردن دسترسی برای هر بخش
+  // ✅ Permission checks
   const canViewClients = canAccessAny([
     "client:read",
     "client:view_all",
@@ -33,83 +37,94 @@ export function Dashboard() {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fadeIn">
       {/* Welcome Section */}
-      <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-6 text-white">
+      <div className="rounded-xl bg-[var(--color-accent)] p-6 text-[var(--color-text-on-accent,#fff)] shadow-md">
         <h1 className="text-2xl font-bold">Welcome back, {user?.fullName}!</h1>
-        <p className="text-blue-100 mt-1">Here's your activity overview</p>
+        <p className="mt-1 opacity-90">Here's your operational overview</p>
       </div>
 
-      {/* KPI Cards - فقط بر اساس دسترسی */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* High-Level KPI Cards */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {canViewClients && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-            <div className="text-sm text-slate-500 dark:text-slate-400">
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-sm">
+            <div className="text-sm text-[var(--color-text-muted)]">
               My Clients
             </div>
-            <div className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-1">
-              {/* تعداد مشتریان مرتبط با کاربر */}—
+            <div className="mt-1 text-3xl font-bold text-[var(--color-text-primary)]">
+              —
             </div>
           </div>
         )}
-
         {canViewContracts && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-            <div className="text-sm text-slate-500 dark:text-slate-400">
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-sm">
+            <div className="text-sm text-[var(--color-text-muted)]">
               My Contracts
             </div>
-            <div className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-1">
+            <div className="mt-1 text-3xl font-bold text-[var(--color-text-primary)]">
               —
             </div>
           </div>
         )}
-
         {canViewInspections && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-            <div className="text-sm text-slate-500 dark:text-slate-400">
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-sm">
+            <div className="text-sm text-[var(--color-text-muted)]">
               My Inspections
             </div>
-            <div className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-1">
+            <div className="mt-1 text-3xl font-bold text-[var(--color-text-primary)]">
               —
             </div>
           </div>
         )}
-
         {canViewInvoices && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-            <div className="text-sm text-slate-500 dark:text-slate-400">
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-sm">
+            <div className="text-sm text-[var(--color-text-muted)]">
               My Invoices
             </div>
-            <div className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-1">
+            <div className="mt-1 text-3xl font-bold text-[var(--color-text-primary)]">
               —
             </div>
           </div>
         )}
       </div>
 
-      {/* Quick Actions - فقط بر اساس دسترسی */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
-        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">
+      {/* Operational Widgets Grid */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+        {canViewContracts && <ContractSummaryWidget />}
+        {canViewInspectors && <InspectorKpiWidget />}
+        {canViewInspections && <ProjectOverviewWidget />}
+      </div>
+
+      {/* Secondary / Chart Section */}
+      {canViewContracts && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-1">
+          <RevenueChartWidget />
+        </div>
+      )}
+
+      {/* Quick Actions */}
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-bold text-[var(--color-text-primary)]">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {canAccess("client:create") && (
-            <button className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+            <button className="rounded-lg bg-[var(--color-muted)] p-4 text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-white">
               + New Client
             </button>
           )}
           {canAccess("contract:create") && (
-            <button className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
+            <button className="rounded-lg bg-[var(--color-muted)] p-4 text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-white">
               + New Contract
             </button>
           )}
           {canAccess("inspection:create") && (
-            <button className="p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
+            <button className="rounded-lg bg-[var(--color-muted)] p-4 text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-white">
               + New Inspection
             </button>
           )}
           {canAccess("invoice:create") && (
-            <button className="p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
+            <button className="rounded-lg bg-[var(--color-muted)] p-4 text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-white">
               + New Invoice
             </button>
           )}

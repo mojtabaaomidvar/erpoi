@@ -172,6 +172,12 @@ export const TPIElements: UIModuleElements = {
       type: "section",
       requires: ["TPIDetails.details_view"],
     },
+    ncr_export: {
+      id: "tpi_details_ncr_export",
+      label: "Export NCR / Observation DOCX",
+      type: "button",
+      requires: ["TPIDetails.ncr_section"],
+    },
     report_section: {
       id: "tpi_details_report_section",
       label: "Report Section",
@@ -183,32 +189,6 @@ export const TPIElements: UIModuleElements = {
       label: "Release Note Section",
       type: "section",
       requires: ["TPIDetails.details_view"],
-    },
-
-    // ✅ Resident Section
-    resident_section: {
-      id: "tpi_details_resident_section",
-      label: "Resident Inspection Section",
-      type: "section",
-      requires: ["TPIDetails.details_view"],
-    },
-    resident_dashboard: {
-      id: "tpi_details_resident_dashboard",
-      label: "Resident Dashboard",
-      type: "page",
-      requires: ["TPIDetails.resident_section"],
-    },
-    resident_monthly_report: {
-      id: "tpi_details_resident_monthly_report",
-      label: "Monthly Report",
-      type: "button",
-      requires: ["TPIDetails.resident_section"],
-    },
-    resident_attendance: {
-      id: "tpi_details_resident_attendance",
-      label: "Attendance Tracking",
-      type: "button",
-      requires: ["TPIDetails.resident_section"],
     },
   },
 };

@@ -4,20 +4,20 @@ import { masterDataRepository } from "../repositories/MasterDataRepository";
 import type { SystemListItem } from "../repositories/MasterDataRepository";
 
 export class MasterDataApplicationService {
+  async getSystemList(category: string): Promise<SystemListItem[]> {
+    return await masterDataRepository.getSystemListByCategory(category);
+  }
+
   async getTPIDisciplines(): Promise<SystemListItem[]> {
-    return await masterDataRepository.getSystemListByCategory("TPI_DISCIPLINE");
+    return await this.getSystemList("TPI_DISCIPLINE");
   }
 
   async getTPIInspectionStages(): Promise<SystemListItem[]> {
-    return await masterDataRepository.getSystemListByCategory(
-      "TPI_INSPECTION_STAGE",
-    );
+    return await this.getSystemList("TPI_INSPECTION_STAGE");
   }
 
   async getTPIInspectionMethods(): Promise<SystemListItem[]> {
-    return await masterDataRepository.getSystemListByCategory(
-      "TPI_INSPECTION_METHOD",
-    );
+    return await this.getSystemList("TPI_INSPECTION_METHOD");
   }
 }
 

@@ -6,6 +6,7 @@ export interface IDocumentReviewRepository {
   getAll(): Promise<DocumentReview[]>;
   getById(id: string): Promise<DocumentReview | null>;
   getByInspectionRequest(requestId: string): Promise<DocumentReview[]>;
+  getByResidentEngagement(engagementId: string): Promise<DocumentReview[]>;
   create(
     data: Omit<DocumentReview, "id" | "created_at" | "updated_at">,
   ): Promise<DocumentReview>;
@@ -21,6 +22,7 @@ export interface IDocumentReviewRepository {
 
   unverifyDocument(id: string): Promise<DocumentReview>;
 
-  uploadFile(file: File, requestId: string): Promise<string>;
+  uploadFile(file: File, ownerId: string): Promise<string>;
+  uploadResidentFile(file: File, engagementId: string): Promise<string>;
   deleteFileFromStorage(fileUrl: string): Promise<void>;
 }

@@ -9,6 +9,9 @@ import { InspectorElements } from "@shared/authorization/ui/elements/InspectorEl
 import { usePermissionMapping } from "@/shared/authorization";
 import { formatJalaliDate } from "@/shared/utils/dateUtils";
 import { processOtherValue } from "@/shared/utils/formatUtils";
+import { TableSkeleton } from "@shared/ui/skeletons";
+import { EmptyState } from "@shared/ui/EmptyState";
+import { Users, Search, Lock } from "lucide-react";
 
 import { InspectorScheduleModal } from "./InspectorScheduleModal";
 
@@ -438,14 +441,20 @@ export function InspectorList({
         className={`flex-1 overflow-y-auto rounded-xl border ${isDark ? "border-slate-700 bg-slate-800/30" : "border-slate-200 bg-white"}`}
       >
         {loading ? (
-          <div className="flex items-center justify-center h-full text-slate-500">
-            Loading...
+          <div className="p-4">
+            <TableSkeleton rows={8} columns={4} showHeader={false} />
           </div>
         ) : filteredInspectors.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-500">
-            <span className="text-4xl mb-2">🔍</span>
-            <p>No inspectors found</p>
-          </div>
+          <EmptyState
+            icon={searchQuery ? Search : Users}
+            title={searchQuery ? "No Matches Found" : "No Inspectors Found"}
+            description={
+              searchQuery
+                ? "Try adjusting your search or filters."
+                : "Add your first inspector to get started."
+            }
+            className="h-full min-h-[300px]"
+          />
         ) : (
           <div className="divide-y divide-slate-200 dark:divide-slate-700">
             {filteredInspectors.map((insp) => (

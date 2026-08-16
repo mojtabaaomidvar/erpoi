@@ -2,12 +2,15 @@
 
 import type { ITPIRequestRepository } from "../repositories/ITPIRequestRepository";
 import { tpiRequestRepository } from "../repositories/SupabaseTPIRequestRepository";
+import { tpiEngagementRepository } from "../repositories/SupabaseTPIEngagementRepository";
+import { TPIEngagementApplicationService } from "./TPIEngagementApplicationService";
 import type { TPIRequest, InspectionItem, SourceFile } from "../domain/types";
 
 // ✅ ایمپورت سرویس‌های خارجی برای ساخت DTO (الگوی Read-Side Aggregation)
 import { clientAppService } from "@/features/client-management/application";
 import { projectAppService } from "@/features/project-management";
 import { vendorAppService } from "./VendorApplicationService";
+import { masterDataAppService } from "@shared/application/MasterDataApplicationService";
 
 // ✅ تعریف DTO برای انتقال داده‌های تجمیع‌شده به UI
 export interface TPIRequestDetailsDTO {
@@ -45,7 +48,7 @@ export class TPIRequestApplicationService {
   }
 
   async getTPIRequestDetails(requestId: string): Promise<TPIRequestDetailsDTO> {
-    const request = await this.getById(requestId);
+    const request = await this.repository.getById(requestId);
     if (!request) {
       throw new Error("TPI Request not found");
     }
@@ -82,6 +85,10 @@ export class TPIRequestApplicationService {
     userId: string,
     userDepartment?: string,
   ): Promise<TPIRequest> {
+    const canonicalService = new TPIEngagementApplicationService(
+      tpiEngagementRepository,
+      masterDataAppService,
+    );
     const payload = {
       ...command,
       requested_by: userId,
@@ -89,7 +96,11 @@ export class TPIRequestApplicationService {
       department: command.department || userDepartment || "GENERAL",
     };
 
-    const request = await this.repository.create(payload);
+    const createdEngagement = await canonicalService.createSpot(payload);
+    if (createdEngagement.mode !== "SPOT") {
+      throw new Error("Unexpected engagement mode returned for SPOT creation");
+    }
+    const request = createdEngagement.request;
     const requestId = request.id;
 
     const dbFiles = [];

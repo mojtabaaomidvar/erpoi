@@ -1,0 +1,1 @@
+export { InspectorKpiWidget } from "./InspectorKpiWidget";

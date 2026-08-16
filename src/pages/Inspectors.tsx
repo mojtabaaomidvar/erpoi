@@ -15,6 +15,8 @@ import { InspectorDetailsModal } from "@/features/inspector-managment/ui/Inspect
 import { useInspectors } from "@/features/inspector-managment/hooks/useInspectors";
 import { confirmDialog } from "@shared/ui/ConfirmDialog";
 import { showToast } from "@shared/ui/ToastContainer";
+import { EmptyState } from "@shared/ui/EmptyState";
+import { Lock } from "lucide-react";
 import type { Inspector } from "@/features/inspector-managment/domain";
 import { inspectionAppService } from "@/features/inspection-management/application";
 import type { Inspection } from "@/features/inspection-management/domain/types";
@@ -259,29 +261,12 @@ export function Inspectors() {
 
   if (!canViewItems) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-          <div
-            className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
-          >
-            🔒
-          </div>
-          <h2
-            className={`text-2xl font-bold mb-2 ${
-              isDark ? "text-slate-100" : "text-slate-900"
-            }`}
-          >
-            Access Denied
-          </h2>
-          <p
-            className={`text-sm mb-6 ${
-              isDark ? "text-slate-400" : "text-slate-600"
-            }`}
-          >
-            You do not have permission to view the inspector module.
-          </p>
-        </div>
-      </div>
+      <EmptyState
+        icon={Lock}
+        title="Access Denied"
+        description="You do not have permission to view the inspector module."
+        className="min-h-[60vh]"
+      />
     );
   }
 

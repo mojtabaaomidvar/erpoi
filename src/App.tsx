@@ -97,7 +97,11 @@ function AppContent() {
   useEffect(() => {
     const savedView = localStorage.getItem("ics_current_view");
     const savedSidebar = localStorage.getItem("ics_sidebar_expanded");
-    if (savedView && meta[savedView as ViewKey]) setView(savedView as ViewKey);
+    if (savedView === "resident") {
+      setView("tpi");
+    } else if (savedView && meta[savedView as ViewKey]) {
+      setView(savedView as ViewKey);
+    }
     if (savedSidebar) setSidebarExpanded(savedSidebar === "true");
     amendmentAppService.syncPendingAmendments();
   }, []);
@@ -115,11 +119,7 @@ function AppContent() {
   }
 
   return (
-    <div
-      className={`min-h-screen transition-colors duration-300 ${
-        isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
-      }`}
-    >
+    <div className="h-screen overflow-hidden transition-colors duration-300 bg-[var(--color-bg)] text-[var(--color-text-primary)]">
       <Header
         activeView={view}
         onToggleSidebar={() => setSidebarExpanded(!sidebarExpanded)}
@@ -136,20 +136,30 @@ function AppContent() {
       />
 
       <main
-        className="transition-all duration-300"
+        className="transition-all duration-300 h-[calc(100vh-var(--header-height))] overflow-hidden flex flex-col"
         style={{
-          // When sidebar is in 'floating' mode we let it overlay the content
-          // so keep a small left margin; otherwise reserve full sidebar width.
+          marginTop: "var(--header-height)",
           marginLeft: sidebarExpanded
             ? themePreferences?.sidebarStyle === "floating"
-              ? "5rem"
-              : "16rem"
-            : "5rem",
-          // Use header height CSS variable so theme can adjust it
-          paddingTop: "var(--header-height)",
+              ? "calc(5.5rem + 0.75rem)"
+              : "calc(17rem + 0.75rem)"
+            : "calc(5.5rem + 0.75rem)",
+          paddingTop: "0.75em",
+          paddingRight: "0.75rem",
+          paddingBottom: "0.75rem",
         }}
       >
-        <div className="p-1.5 lg:p-2">
+        <div
+          className="flex-1 p-4 lg:p-6 rounded-2xl transition-colors duration-300 overflow-y-auto scrollbar-thin"
+          style={{
+            backgroundColor: `color-mix(in srgb, var(--color-surface) 60%, transparent)`,
+            boxShadow: isDark
+              ? "inset 0 1px 0 rgba(255,255,255,0.03), 0 4px 24px rgba(0,0,0,0.2)"
+              : "inset 0 1px 0 rgba(255,255,255,0.6), 0 4px 24px rgba(0,0,0,0.04)",
+            border:
+              "1px solid color-mix(in srgb, var(--color-border) 30%, transparent)",
+          }}
+        >
           {view === "dashboard" && <Dashboard />}
           {view === "clients" && <Clients />}
           {view === "contracts" && <Contracts />}

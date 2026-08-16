@@ -11,7 +11,6 @@ import {
 } from "../application";
 import { formatJalaliDate } from "@/shared/utils/dateUtils";
 import type { TPIRequest } from "../domain/types";
-import { ResidentDashboard } from "./ResidentDashboard";
 import { DocumentReviewSection } from "@/features/inspection-management/ui/details/DocumentReviewSection";
 import { InspectorAssignmentSection } from "@/features/inspection-management/ui/details/InspectorAssignmentSection";
 import { ChecklistSection } from "@/features/inspection-management/ui/details/ChecklistSection";
@@ -43,8 +42,7 @@ type TabType =
   | "checklist"
   | "ncr"
   | "reports"
-  | "release_note"
-  | "resident";
+  | "release_note";
 
 export function TPIDetailsModal({
   isOpen,
@@ -95,6 +93,9 @@ function TPIDetailsContent({
 
   const canEdit = canAccessElement(TPIElements.TPIDetails.btn_edit.id);
   const canDelete = canAccessElement(TPIElements.TPIDetails.btn_delete.id);
+  const canExportFinding = canAccessElement(
+    TPIElements.TPIDetails.ncr_export.id,
+  );
 
   // 🗑️ Delete the ACTIVE session (optimistic: remove first, roll back on error)
   const handleDeleteActiveSession = async (reason: string) => {
@@ -132,79 +133,88 @@ function TPIDetailsContent({
     }
   };
 
-  const fetchDetails = async () => {
-    if (!request) return;
-    setLoadingDetails(true);
-    setDetails(null);
-    try {
-      const detailsData = await tpiRequestAppService.getTPIRequestDetails(
-        request.id,
-      );
-      setDetails(detailsData);
-    } catch (err: any) {
-      console.error("Failed to fetch details:", err);
-      showToast(
-        "error",
-        "Load Failed",
-        err.message || "Could not load request details",
-      );
-    } finally {
-      setLoadingDetails(false);
-    }
-  };
-
   useEffect(() => {
-    if (request) {
-      setActiveTab("overview");
-      fetchDetails();
+    if (!request) return;
 
-      // Build equipment id → name map for the SessionInfoCard
-      if (request.disciplines && request.disciplines.length > 0) {
-        equipmentAppService
-          .getGroupedEquipmentByDisciplines(request.disciplines)
-          .then((groups) => {
-            const map: Record<string, string> = {};
-            groups.forEach((g) =>
-              g.categories.forEach((c) =>
-                c.items.forEach((i) => {
-                  map[i.id] = i.name;
-                }),
-              ),
-            );
-            setEquipmentNames(map);
-          })
-          .catch(() => setEquipmentNames({}));
-      }
+    let cancelled = false;
+    const requestId = request.id;
+    const disciplines = request.disciplines ?? [];
 
-      // Load sessions
-      setSessions([]);
-      setLoading(true);
-      inspectionSessionAppService
-        .getSessionsByRequestId(request.id)
-        .then((data) => {
-          setSessions(data);
-          // Check for pre-selected session from sessionStorage
-          const preselectedId = sessionStorage.getItem(
-            `preselected_session_${request.id}`,
+    setActiveTab("overview");
+    setDetails(null);
+    setLoadingDetails(true);
+    setEquipmentNames({});
+    setSessions([]);
+    setActiveSession(null);
+    setLoading(true);
+
+    tpiRequestAppService
+      .getTPIRequestDetails(requestId)
+      .then((detailsData) => {
+        if (!cancelled) setDetails(detailsData);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        console.error("Failed to fetch details:", error);
+        showToast(
+          "error",
+          "Load Failed",
+          error instanceof Error
+            ? error.message
+            : "Could not load request details",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDetails(false);
+      });
+
+    if (disciplines.length > 0) {
+      equipmentAppService
+        .getGroupedEquipmentByDisciplines(disciplines)
+        .then((groups) => {
+          if (cancelled) return;
+          const map: Record<string, string> = {};
+          groups.forEach((group) =>
+            group.categories.forEach((category) =>
+              category.items.forEach((item) => {
+                map[item.id] = item.name;
+              }),
+            ),
           );
-          if (preselectedId) {
-            const found = data.find((s) => s.id === preselectedId);
-            if (found) {
-              setActiveSession(found);
-            } else if (data.length > 0) {
-              setActiveSession(data[0]);
-            }
-            sessionStorage.removeItem(`preselected_session_${request.id}`);
-          } else if (data.length > 0) {
-            setActiveSession(data[0]);
-          }
+          setEquipmentNames(map);
         })
-        .catch((err) => {
-          console.error("Failed to load sessions:", err);
-        })
-        .finally(() => setLoading(false));
+        .catch(() => {
+          if (!cancelled) setEquipmentNames({});
+        });
     }
-  }, [request?.id]);
+
+    inspectionSessionAppService
+      .getSessionsByRequestId(requestId)
+      .then((data) => {
+        if (cancelled) return;
+        setSessions(data);
+        const preselectedId = sessionStorage.getItem(
+          `preselected_session_${requestId}`,
+        );
+        const selectedSession = preselectedId
+          ? (data.find((session) => session.id === preselectedId) ?? data[0])
+          : data[0];
+        setActiveSession(selectedSession ?? null);
+        if (preselectedId) {
+          sessionStorage.removeItem(`preselected_session_${requestId}`);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) console.error("Failed to load sessions:", error);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [request, setActiveSession, setLoading, setSessions]);
 
   useEffect(() => {
     setSelectedItems(new Set());
@@ -229,7 +239,6 @@ function TPIDetailsContent({
     { id: "ncr", label: "NCR", icon: "⚠️" },
     { id: "reports", label: "Reports", icon: "📊" },
     { id: "release_note", label: "Release Note", icon: "🏷️" },
-    { id: "resident", label: "Resident", icon: "🏢" },
   ];
 
   return (
@@ -547,26 +556,6 @@ function TPIDetailsContent({
               </div>
             )}
 
-            {activeTab === "resident" &&
-              (request.tpi_mode === "RESIDENT" ? (
-                <ResidentDashboard tpiRequestId={request.id} />
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="text-5xl mb-3">📍</div>
-                  <p
-                    className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
-                  >
-                    Spot Inspection Mode
-                  </p>
-                  <p
-                    className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
-                  >
-                    Resident dashboard is only available for Resident mode
-                    inspections
-                  </p>
-                </div>
-              ))}
-
             {activeTab === "documents" && (
               <div className="space-y-4">
                 <DocumentReviewSection
@@ -610,8 +599,15 @@ function TPIDetailsContent({
               />
             )}
 
-            {activeTab === "ncr" && (
-              <NCRTab requestId={request.id} equipmentNames={equipmentNames} />
+            {activeTab === "ncr" && details && (
+              <NCRTab
+                request={request}
+                details={details}
+                sessions={sessions}
+                activeSessionId={activeSession?.id}
+                equipmentNames={equipmentNames}
+                canExport={canExportFinding}
+              />
             )}
 
             {(activeTab === "reports" || activeTab === "release_note") && (

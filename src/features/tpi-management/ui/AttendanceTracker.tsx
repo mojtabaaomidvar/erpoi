@@ -1,14 +1,13 @@
 // src/features/tpi-management/ui/AttendanceTracker.tsx
 
 import { useState, useEffect } from "react";
-import { Modal, Button, Badge } from "@design-system";
+import { Modal, Button } from "@design-system";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
 import { showToast } from "@shared/ui/ToastContainer";
 import { JalaaliDatePicker } from "@shared/ui/JalaaliDatePicker";
 import { inspectorAttendanceAppService } from "../application/InspectorAttendanceApplicationService";
-import { supabase } from "@shared/database/supabase";
-import { SupabaseUserRepository } from "@shared/authorization/repositories/SupabaseUserRepository";
+import { userAppService, type User } from "@shared/authorization";
 import type { AttendanceStatus } from "../domain/types";
 
 interface AttendanceTrackerProps {
@@ -39,7 +38,7 @@ export function AttendanceTracker({
   const { user } = useAuth();
 
   const [isSaving, setIsSaving] = useState(false);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [formData, setFormData] = useState({
     inspector_id: "",
     discipline: "",
@@ -51,28 +50,13 @@ export function AttendanceTracker({
 
   const loadUsers = async () => {
     try {
-      // Prefer using repository/application layer
-      const repo = new SupabaseUserRepository();
-      const all = await repo.getAll();
-      const filtered = (all || []).filter((u: any) =>
+      const all = await userAppService.getAllUsers();
+      const filtered = (all || []).filter((u) =>
         ["inspector", "expert"].includes(u.role),
       );
       setUsers(filtered);
     } catch (err: any) {
-      console.error("[AttendanceTracker] user repo failed, falling back:", err);
-      try {
-        const { data, error } = await supabase
-          .schema("core")
-          .from("users")
-          .select("id, full_name, username, email, role")
-          .in("role", ["inspector", "expert"])
-          .order("full_name", { ascending: true });
-
-        if (error) throw error;
-        setUsers(data || []);
-      } catch (e: any) {
-        showToast("error", "Load Failed", e.message || String(e));
-      }
+      showToast("error", "Load Failed", err.message || String(err));
     }
   };
 
@@ -152,7 +136,7 @@ export function AttendanceTracker({
               <option value="">-- Select Inspector --</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.full_name || u.username}
+                  {u.fullName || u.username}
                 </option>
               ))}
             </select>

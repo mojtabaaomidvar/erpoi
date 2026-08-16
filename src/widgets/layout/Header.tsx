@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { useTheme } from "@app/providers/ThemeProvider";
 import { useAuth } from "@features/auth/hooks/useAuth";
-import { Settings, LogOut, Moon, Sun, ChevronDown } from "lucide-react";
+import { Settings, LogOut, ChevronDown } from "lucide-react";
 import { NotificationBell } from "@shared/ui/NotificationBell";
 // lazy load ThemeSettingsModal to avoid loading heavy UI in header
 const ThemeSettingsModal = lazy(() =>
@@ -114,32 +114,34 @@ export function Header({
         />
       </Suspense>
       <header
-        className={`fixed top-0 left-0 right-0 z-40 h-16 border-b backdrop-blur-xl transition-all ${
-          isDark
-            ? "bg-slate-900/95 border-slate-800/50 shadow-lg shadow-black/20"
-            : "bg-white/95 border-slate-200/70 shadow-lg shadow-slate-200/50"
-        }`}
+        className="fixed top-0 left-0 right-0 z-40 h-16 transition-all duration-200"
+        style={{
+          backgroundColor: `color-mix(in srgb, var(--color-surface) 88%, transparent)`,
+          backdropFilter: "blur(var(--effect-glass-blur, 12px))",
+          WebkitBackdropFilter: "blur(var(--effect-glass-blur, 12px))",
+          borderBottom:
+            "1px solid color-mix(in srgb, var(--color-border) 40%, transparent)",
+        }}
       >
-        {/* Gradient Top Line */}
-        <div
-          className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${
-            isDark
-              ? "from-indigo-500 via-purple-500 to-pink-500"
-              : "from-indigo-400 via-purple-400 to-pink-400"
-          }`}
-        />
-
         <div className="flex items-center justify-between h-full px-4 lg:px-6">
           {/* Left: Sidebar Toggle + Title */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {/* Sidebar Toggle */}
             <button
               onClick={onToggleSidebar}
-              className={`p-2 rounded-xl transition-all ${
-                isDark
-                  ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
+              className="p-2 rounded-lg transition-all duration-200"
+              style={{
+                borderRadius: "var(--radius-button, 8px)",
+                color: "var(--color-text-secondary)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = `color-mix(in srgb, var(--color-text-primary) 6%, transparent)`;
+                e.currentTarget.style.color = "var(--color-text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--color-text-secondary)";
+              }}
               title={isSidebarExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
             >
               <svg
@@ -147,11 +149,11 @@ export function Header({
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
+                strokeWidth={1.5}
               >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
                   d={
                     isSidebarExpanded
                       ? "M11 19l-7-7 7-7m8 14l-7-7 7-7"
@@ -163,28 +165,25 @@ export function Header({
 
             {/* Divider */}
             <div
-              className={`h-8 w-px ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+              className="h-6 w-px"
+              style={{
+                backgroundColor: `color-mix(in srgb, var(--color-border) 50%, transparent)`,
+              }}
             />
 
-            {/* Title */}
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${
-                  isDark
-                    ? "bg-gradient-to-br from-indigo-600 to-violet-600 shadow-lg shadow-indigo-500/30"
-                    : "bg-gradient-to-br from-indigo-500 to-violet-500 shadow-lg shadow-indigo-500/20"
-                }`}
-              >
-                {viewInfo.icon}
-              </div>
+            {/* Title - Minimal */}
+            <div className="flex items-center gap-2.5">
+              <span className="text-lg select-none">{viewInfo.icon}</span>
               <div>
                 <h1
-                  className={`text-base font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                  className="text-sm font-semibold leading-tight"
+                  style={{ color: "var(--color-text-primary)" }}
                 >
                   {viewInfo.title}
                 </h1>
                 <p
-                  className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                  className="text-[11px] leading-tight"
+                  style={{ color: "var(--color-text-muted)" }}
                 >
                   {viewInfo.subtitle}
                 </p>
@@ -192,100 +191,8 @@ export function Header({
             </div>
           </div>
 
-          {/* Right: Actions + User Profile */}
-          <div className="flex items-center gap-2">
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className={`p-2 rounded-xl transition-all ${
-                isDark
-                  ? "text-slate-400 hover:bg-slate-800 hover:text-amber-400"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-indigo-600"
-              }`}
-              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            >
-              {isDark ? (
-                <Sun className="w-5 h-5" />
-              ) : (
-                <Moon className="w-5 h-5" />
-              )}
-            </button>
-
-            {/* Save preference to profile */}
-            <button
-              onClick={() => saveToProfile(!savePreferenceToProfile)}
-              className={`p-2 rounded-xl transition-all ${
-                isDark
-                  ? "text-slate-400 hover:bg-slate-800 hover:text-amber-400"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-indigo-600"
-              }`}
-              title={
-                savingRemote
-                  ? "Saving to profile"
-                  : savePreferenceToProfile
-                    ? "Preference saved to profile"
-                    : "Save theme to profile"
-              }
-            >
-              {savingRemote ? (
-                <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24">
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    fill="none"
-                  />
-                </svg>
-              ) : savePreferenceToProfile ? (
-                /* check mark */
-                <svg
-                  className="w-5 h-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                >
-                  <path
-                    d="M20 6L9 17l-5-5"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              ) : (
-                /* upload/save icon */
-                <svg
-                  className="w-5 h-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                >
-                  <path
-                    d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <polyline
-                    points="7 10 12 5 17 10"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <line
-                    x1="12"
-                    y1="5"
-                    x2="12"
-                    y2="19"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
-            </button>
-
+          {/* Right: Actions + User Profile - Crystal Minimal */}
+          <div className="flex items-center gap-1">
             {/* Notifications */}
             <NotificationBell />
 
@@ -293,29 +200,45 @@ export function Header({
             {onNavigateSettings && (
               <button
                 onClick={onNavigateSettings}
-                className={`p-2 rounded-xl transition-all ${
-                  isDark
-                    ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                }`}
                 title="Settings"
+                className="p-2 rounded-lg transition-all duration-200"
+                style={{
+                  borderRadius: "var(--radius-button, 8px)",
+                  color: "var(--color-text-secondary)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = `color-mix(in srgb, var(--color-text-primary) 6%, transparent)`;
+                  e.currentTarget.style.color = "var(--color-text-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--color-text-secondary)";
+                }}
               >
-                <Settings className="w-5 h-5" />
+                <Settings className="w-4 h-4" />
               </button>
             )}
 
             {/* Theme settings quick access */}
             <button
               onClick={() => setShowThemeModal(true)}
-              className={`p-2 rounded-xl transition-all ${
-                isDark
-                  ? "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
               title="Theme settings"
+              className="p-2 rounded-lg transition-all duration-200"
+              style={{
+                borderRadius: "var(--radius-button, 8px)",
+                color: "var(--color-text-secondary)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = `color-mix(in srgb, var(--color-text-primary) 6%, transparent)`;
+                e.currentTarget.style.color = "var(--color-text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--color-text-secondary)";
+              }}
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -332,30 +255,40 @@ export function Header({
 
             {/* Divider */}
             <div
-              className={`h-8 w-px mx-1 ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
+              className="h-6 w-px mx-1"
+              style={{
+                backgroundColor: `color-mix(in srgb, var(--color-border) 40%, transparent)`,
+              }}
             />
 
             {/* User Profile Dropdown */}
             <div ref={userMenuRef} className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className={`flex items-center gap-2.5 p-1.5 pr-3 rounded-xl transition-all ${
-                  showUserMenu
-                    ? isDark
-                      ? "bg-slate-800 ring-2 ring-indigo-500/30"
-                      : "bg-slate-100 ring-2 ring-indigo-300/50"
-                    : isDark
-                      ? "hover:bg-slate-800"
-                      : "hover:bg-slate-100"
-                }`}
+                className="flex items-center gap-2 p-1.5 pr-3 rounded-lg transition-all duration-200"
+                style={{
+                  borderRadius: "var(--radius-button, 8px)",
+                  backgroundColor: showUserMenu
+                    ? `color-mix(in srgb, var(--color-accent-from) 10%, transparent)`
+                    : "transparent",
+                }}
+                onMouseEnter={(e) => {
+                  if (!showUserMenu) {
+                    e.currentTarget.style.backgroundColor = `color-mix(in srgb, var(--color-text-primary) 6%, transparent)`;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!showUserMenu) {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                  }
+                }}
               >
                 {/* Avatar */}
                 <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
-                    isDark
-                      ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/30"
-                      : "bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/20"
-                  }`}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold text-white"
+                  style={{
+                    background: `linear-gradient(135deg, var(--color-accent-from), var(--color-accent-to))`,
+                  }}
                 >
                   {user?.fullName ? getInitials(user.fullName) : "AD"}
                 </div>
@@ -363,64 +296,77 @@ export function Header({
                 {/* User Info */}
                 <div className="text-left hidden sm:block">
                   <div
-                    className={`text-xs font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                    className="text-xs font-semibold leading-tight"
+                    style={{ color: "var(--color-text-primary)" }}
                   >
                     {user?.fullName || "Admin User"}
                   </div>
                   <div
-                    className={`text-[10px] capitalize ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                    className="text-[10px] capitalize leading-tight"
+                    style={{ color: "var(--color-text-muted)" }}
                   >
                     {user?.role || "admin"}
                   </div>
                 </div>
 
                 <ChevronDown
-                  className={`w-4 h-4 transition-transform ${
-                    showUserMenu ? "rotate-180" : ""
-                  } ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                  className="w-3.5 h-3.5 transition-transform"
+                  style={{
+                    transform: showUserMenu ? "rotate(180deg)" : "rotate(0deg)",
+                    color: "var(--color-text-muted)",
+                  }}
                 />
               </button>
 
               {/* Dropdown Menu */}
               {showUserMenu && (
                 <div
-                  className={`absolute right-0 top-full mt-2 w-64 rounded-2xl shadow-2xl border overflow-hidden z-50 ${
-                    isDark
-                      ? "bg-slate-900/98 border-slate-700/70 shadow-black/70"
-                      : "bg-white/98 border-slate-200/80 shadow-slate-400/40"
-                  } backdrop-blur-xl`}
+                  className="absolute right-0 top-full mt-2 w-64 rounded-xl overflow-hidden z-50"
+                  style={{
+                    backgroundColor: `color-mix(in srgb, var(--color-surface) 95%, transparent)`,
+                    backdropFilter: "blur(var(--effect-glass-blur, 12px))",
+                    WebkitBackdropFilter:
+                      "blur(var(--effect-glass-blur, 12px))",
+                    border:
+                      "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+                  }}
                 >
-                  {/* Gradient Top */}
+                  {/* Accent line */}
                   <div
-                    className={`h-1 bg-gradient-to-r ${
-                      isDark
-                        ? "from-indigo-500 via-purple-500 to-pink-500"
-                        : "from-indigo-400 via-purple-400 to-pink-400"
-                    }`}
+                    className="h-[2px]"
+                    style={{
+                      background: `linear-gradient(90deg, var(--color-accent-from), var(--color-accent-to))`,
+                    }}
                   />
 
                   {/* User Info Card */}
                   <div
-                    className={`p-4 border-b ${isDark ? "border-slate-700/50" : "border-slate-200/70"}`}
+                    className="p-4"
+                    style={{
+                      borderBottom:
+                        "1px solid color-mix(in srgb, var(--color-border) 40%, transparent)",
+                    }}
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center text-base font-bold ${
-                          isDark
-                            ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white"
-                            : "bg-gradient-to-br from-indigo-500 to-violet-500 text-white"
-                        }`}
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold text-white"
+                        style={{
+                          background: `linear-gradient(135deg, var(--color-accent-from), var(--color-accent-to))`,
+                        }}
                       >
                         {user?.fullName ? getInitials(user.fullName) : "AD"}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div
-                          className={`text-sm font-bold truncate ${isDark ? "text-slate-100" : "text-slate-900"}`}
+                          className="text-sm font-bold truncate"
+                          style={{ color: "var(--color-text-primary)" }}
                         >
                           {user?.fullName || "Admin User"}
                         </div>
                         <div
-                          className={`text-xs truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                          className="text-xs truncate"
+                          style={{ color: "var(--color-text-muted)" }}
                         >
                           {user?.email || "admin@ics.com"}
                         </div>
@@ -429,18 +375,25 @@ export function Header({
                   </div>
 
                   {/* Menu Items */}
-                  <div className="p-2">
+                  <div className="p-1.5">
                     {onNavigateSettings && (
                       <button
                         onClick={() => {
                           onNavigateSettings();
                           setShowUserMenu(false);
                         }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
-                          isDark
-                            ? "text-slate-300 hover:bg-slate-800 hover:text-slate-100"
-                            : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-                        }`}
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200"
+                        style={{ color: "var(--color-text-secondary)" }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = `color-mix(in srgb, var(--color-text-primary) 6%, transparent)`;
+                          e.currentTarget.style.color =
+                            "var(--color-text-primary)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                          e.currentTarget.style.color =
+                            "var(--color-text-secondary)";
+                        }}
                       >
                         <Settings className="w-4 h-4" />
                         <span className="text-sm font-medium">Settings</span>
@@ -453,11 +406,15 @@ export function Header({
                           onLogout();
                           setShowUserMenu(false);
                         }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
-                          isDark
-                            ? "text-rose-400 hover:bg-rose-900/30 hover:text-rose-300"
-                            : "text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                        }`}
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200"
+                        style={{ color: "#f43f5e" }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor =
+                            "rgba(244, 63, 94, 0.08)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }}
                       >
                         <LogOut className="w-4 h-4" />
                         <span className="text-sm font-medium">Logout</span>
@@ -467,11 +424,12 @@ export function Header({
 
                   {/* Footer */}
                   <div
-                    className={`px-4 py-2 border-t text-[10px] ${
-                      isDark
-                        ? "border-slate-700/50 bg-slate-800/30 text-slate-500"
-                        : "border-slate-200/70 bg-slate-50/50 text-slate-400"
-                    }`}
+                    className="px-4 py-2 text-[10px]"
+                    style={{
+                      borderTop:
+                        "1px solid color-mix(in srgb, var(--color-border) 30%, transparent)",
+                      color: "var(--color-text-muted)",
+                    }}
                   >
                     ICS Inspection Platform v1.0
                   </div>

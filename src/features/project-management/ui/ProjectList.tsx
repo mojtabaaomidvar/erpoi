@@ -7,6 +7,9 @@ import { usePermissionMapping } from "@shared/authorization/hooks/usePermissionM
 import { ProjectElements } from "@shared/authorization/ui/elements/ProjectElements";
 import { showToast } from "@shared/ui/ToastContainer";
 import { FloatingSearch } from "@shared/ui/FloatingSearch";
+import { CardSkeleton } from "@shared/ui/skeletons";
+import { EmptyState } from "@shared/ui/EmptyState";
+import { FolderKanban, Lock } from "lucide-react";
 import type { Project } from "../domain/types";
 import type { ProjectStats } from "../domain/models/ProjectStats";
 import { INSPECTION_CATEGORY_CONFIG } from "@features/inspection-management/constants";
@@ -91,25 +94,25 @@ export function ProjectList({
     > = {
       ACTIVE: {
         color: "emerald",
-        bg: "from-emerald-500 to-green-600",
+        bg: "from-[var(--color-success)] to-[var(--color-success)]",
         icon: "🟢",
         label: "Active",
       },
       COMPLETED: {
         color: "slate",
-        bg: "from-slate-500 to-slate-600",
+        bg: "from-[var(--color-text-muted)] to-[var(--color-text-secondary)]",
         icon: "✅",
         label: "Completed",
       },
       ON_HOLD: {
         color: "amber",
-        bg: "from-amber-500 to-orange-600",
+        bg: "from-[var(--color-warning)] to-[var(--color-warning)]",
         icon: "⏸️",
         label: "On Hold",
       },
       CANCELLED: {
         color: "rose",
-        bg: "from-rose-500 to-red-600",
+        bg: "from-[var(--color-danger)] to-[var(--color-danger)]",
         icon: "❌",
         label: "Cancelled",
       },
@@ -127,23 +130,12 @@ export function ProjectList({
 
   if (!canViewList) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-        <div
-          className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
-        >
-          🔒
-        </div>
-        <p
-          className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
-        >
-          Access Denied
-        </p>
-        <p
-          className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
-        >
-          You do not have permission to view the project list.
-        </p>
-      </div>
+      <EmptyState
+        icon={Lock}
+        title="Access Denied"
+        description="You do not have permission to view the project list."
+        className="h-full min-h-[60vh]"
+      />
     );
   }
 
@@ -233,32 +225,18 @@ export function ProjectList({
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <div className="text-4xl mb-2 animate-pulse">⏳</div>
-            <p
-              className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}
-            >
-              Loading projects...
-            </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <CardSkeleton key={i} lines={4} showHeader />
+            ))}
           </div>
         ) : filteredProjects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4 ${isDark ? "bg-slate-800/50" : "bg-slate-100"}`}
-            >
-              📁
-            </div>
-            <p
-              className={`text-sm font-medium mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}
-            >
-              No projects found
-            </p>
-            <p
-              className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
-            >
-              Create your first project to get started
-            </p>
-          </div>
+          <EmptyState
+            icon={FolderKanban}
+            title="No Projects Found"
+            description="Create your first project to get started."
+            className="h-full min-h-[300px]"
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredProjects.map((project) => {
@@ -493,7 +471,7 @@ export function ProjectList({
                           className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
                         >
                           <div
-                            className={`h-full bg-gradient-to-r ${progress >= 75 ? "from-emerald-500 to-green-600" : progress >= 50 ? "from-blue-500 to-indigo-600" : progress >= 25 ? "from-amber-500 to-orange-600" : "from-rose-500 to-red-600"} transition-all duration-500`}
+                            className={`h-full bg-gradient-to-r ${progress >= 75 ? "from-[var(--color-success)] to-[var(--color-success)]" : progress >= 50 ? "from-[var(--color-accent-from)] to-[var(--color-accent-to)]" : progress >= 25 ? "from-[var(--color-warning)] to-[var(--color-warning)]" : "from-[var(--color-danger)] to-[var(--color-danger)]"} transition-all duration-500`}
                             style={{ width: `${progress}%` }}
                           />
                         </div>

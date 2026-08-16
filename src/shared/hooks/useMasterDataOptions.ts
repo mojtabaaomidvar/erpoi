@@ -1,59 +1,52 @@
 // src/shared/hooks/useMasterDataOptions.ts
 
 import { useState, useEffect } from "react";
-import { supabase } from "@shared/database/supabase";
-import { masterDataRepository } from "@shared/repositories/MasterDataRepository";
+import { masterDataAppService } from "@shared/application/MasterDataApplicationService";
 import { sortSpecialties } from "../utils/formatUtils";
 
 export function useMasterDataOptions(category: string) {
   const [options, setOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchOptions = async () => {
       setLoading(true);
+      setError(null);
       try {
-        // Prefer repository over direct supabase access from UI hook
-        try {
-          const data =
-            await masterDataRepository.getSystemListByCategory(category);
-          let result = data ? data.map((item: any) => item.value) : [];
-
-          if (category === "INSPECTOR_SPECIALTY") {
-            result = sortSpecialties(result);
-          }
-
-          setOptions(result);
-          return;
-        } catch (repoErr) {
-          console.warn(
-            "[useMasterDataOptions] masterDataRepository failed, falling back to supabase:",
-            repoErr,
-          );
-        }
-
-        const { data, error } = await supabase
-          .schema("master_data")
-          .from("system_lists")
-          .select("value")
-          .eq("category", category)
-          .eq("is_active", true)
-          .order("value", { ascending: true });
-
-        if (error) throw error;
-
+        const data = await masterDataAppService.getSystemList(category);
         let result = data ? data.map((item: any) => item.value) : [];
 
-        setOptions(result);
+        if (category === "INSPECTOR_SPECIALTY") {
+          result = sortSpecialties(result);
+        }
+
+        if (!cancelled) setOptions(result);
       } catch (err) {
-        console.error(`Failed to fetch master data for ${category}:`, err);
+        console.error(
+          `[useMasterDataOptions] Failed to fetch ${category}:`,
+          err,
+        );
+        if (!cancelled) {
+          setOptions([]);
+          setError(
+            err instanceof Error
+              ? err.message
+              : `Could not load ${category} options`,
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
-    fetchOptions();
+    void fetchOptions();
+    return () => {
+      cancelled = true;
+    };
   }, [category]);
 
-  return { options, loading };
+  return { options, loading, error };
 }

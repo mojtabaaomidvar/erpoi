@@ -5,3 +5,4 @@ export { ContractElements } from "./ContractElements";
 export { InspectorElements } from "./InspectorElements";
 export { InspectionElements } from "./InspectionElements";
 export { ProjectElements } from "./ProjectElements";
+export { ResidentElements } from "./ResidentElements";
